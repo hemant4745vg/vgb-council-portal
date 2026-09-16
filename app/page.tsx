@@ -2,11 +2,11 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-export const dynamic = "force-dynamic";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://lllmgmfofwczpqbmigey.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "dummy-key-for-build";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const getSupabase = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://lllmgmfofwczpqbmigey.supabase.co";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key-for-build";
+  return createClient(url, key);
+};
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -26,6 +26,7 @@ export default function Home() {
   }, []);
 
   const checkUser = async () => {
+    const supabase = getSupabase();
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       setUser(session.user);
@@ -39,6 +40,7 @@ export default function Home() {
   };
 
   const fetchEvents = async () => {
+    const supabase = getSupabase();
     const { data } = await supabase.from("calendar_events").select("*").order("event_date", { ascending: true });
     if (data) setEvents(data);
   };
@@ -54,6 +56,7 @@ export default function Home() {
       return;
     }
 
+    const supabase = getSupabase();
     const { data: whitelisted } = await supabase
       .from("allowed_users")
       .select("role")
@@ -80,6 +83,7 @@ export default function Home() {
     e.preventDefault();
     if (!title || !eventDate) return;
 
+    const supabase = getSupabase();
     const { error } = await supabase.from("calendar_events").insert([
       { title, event_date: eventDate, venue, created_by: user.email }
     ]);
@@ -103,7 +107,7 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <span className="text-sm bg-blue-800 px-3 py-1 rounded-full">{user.email} ({role})</span>
             <button
-              onClick={() => supabase.auth.signOut().then(() => setUser(null))}
+              onClick={() => getSupabase().auth.signOut().then(() => setUser(null))}
               className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm font-semibold"
             >
               Sign Out
