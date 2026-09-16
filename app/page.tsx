@@ -1,9 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function Home() {
-  const supabase = createClientComponentClient();
   const [email, setEmail] = useState("");
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState("");
@@ -89,8 +92,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800">
-      {/* Header */}
+    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
       <header className="bg-blue-900 text-white p-6 shadow-md flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Vidyagyan Council Portal</h1>
@@ -110,7 +112,6 @@ export default function Home() {
       </header>
 
       <main className="max-w-5xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Left Column: Login or Add Event */}
         <div className="md:col-span-1">
           {!user ? (
             <div className="bg-white p-6 rounded-xl border shadow-sm">
@@ -169,7 +170,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Right Column: Public Calendar */}
         <div className="md:col-span-2">
           <div className="bg-white p-6 rounded-xl border shadow-sm">
             <h2 className="text-lg font-bold mb-4">Upcoming Events Calendar</h2>
