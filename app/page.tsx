@@ -2,8 +2,10 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+export const dynamic = "force-dynamic";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://lllmgmfofwczpqbmigey.supabase.co";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "dummy-key-for-build";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function Home() {
@@ -14,7 +16,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
 
-  // Form State
   const [title, setTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [venue, setVenue] = useState("");
@@ -67,7 +68,7 @@ export default function Home() {
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}` },
+      options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : "" },
     });
 
     if (error) setMessage(`Error: ${error.message}`);
