@@ -74,22 +74,16 @@ export default function Home() {
     if (data?.role) setUserRole(data.role);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
     const formattedEmail = email.trim().toLowerCase();
 
-    // Verify whitelist before sending link
-    const { data: allowed } = await supabase
-      .from('allowed_users')
-      .select('email')
-      .eq('email', formattedEmail)
-      .single();
-
-    if (!allowed) {
-      setMessage('Access Denied: Email not registered in the Council whitelist.');
+    // Verify school domain directly on the frontend
+    if (!formattedEmail.endsWith('@vidyagyan.in')) {
+      setMessage('Access Denied: Must use an official @vidyagyan.in school email.');
       setLoading(false);
       return;
     }
