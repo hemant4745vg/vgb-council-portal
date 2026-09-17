@@ -1,201 +1,311 @@
-"use client";
-import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+'use client';
 
-const getSupabase = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://lllmgmfofwczpqbmigey.supabase.co";
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key-for-build";
-  return createClient(url, key);
-};
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+interface CalendarEvent {
+  id: number;
+  title: string;
+  event_date: string;
+  venue: string;
+  created_by?: string;
+}
 
 export default function Home() {
-  const [email, setEmail] = useState("");
-  const [user, setUser] = useState<any>(null);
-  const [role, setRole] = useState("");
-  const [message, setMessage] = useState("");
+  const [session, setSession] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string>('Council Member');
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [events, setEvents] = useState<any[]>([]);
-
-  const [title, setTitle] = useState("");
-  const [eventDate, setEventDate] = useState("");
-  const [venue, setVenue] = useState("");
+  const [message, setMessage] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Events state
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDate, setNewDate] = useState('');
+  const [newVenue, setNewVenue] = useState('');
 
   useEffect(() => {
-    checkUser();
+    // Check initial auth session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user?.email) fetchUserRole(session.user.email);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session?.user?.email) fetchUserRole(session.user.email);
+    });
+
     fetchEvents();
+    return () => subscription.unsubscribe();
   }, []);
 
-  const checkUser = async () => {
-    const supabase = getSupabase();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      setUser(session.user);
-      const { data } = await supabase
-        .from("allowed_users")
-        .select("role")
-        .eq("email", session.user.email)
-        .single();
-      if (data) setRole(data.role);
-    }
+  const fetchEvents = async () => {
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .order('event_date', { ascending: true });
+    if (!error && data) setEvents(data);
   };
 
-  const fetchEvents = async () => {
-    const supabase = getSupabase();
-    const { data } = await supabase.from("calendar_events").select("*").order("event_date", { ascending: true });
-    if (data) setEvents(data);
+  const fetchUserRole = async (userEmail: string) => {
+    const { data } = await supabase
+      .from('allowed_users')
+      .select('role')
+      .eq('email', userEmail.toLowerCase())
+      .single();
+    if (data?.role) setUserRole(data.role);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage("");
+    setMessage('');
 
-    if (!email.toLowerCase().endsWith("@vidyagyan.in")) {
-      setMessage("Error: Please use your official @vidyagyan.in school email.");
-      setLoading(false);
-      return;
-    }
+    const formattedEmail = email.trim().toLowerCase();
 
-    const supabase = getSupabase();
-    const { data: whitelisted } = await supabase
-      .from("allowed_users")
-      .select("role")
-      .eq("email", email.toLowerCase())
+    // Verify whitelist before sending link
+    const { data: allowed } = await supabase
+      .from('allowed_users')
+      .select('email')
+      .eq('email', formattedEmail)
       .single();
 
-    if (!whitelisted) {
-      setMessage("Access Denied: Email not registered on the council whitelist.");
+    if (!allowed) {
+      setMessage('Access Denied: Email not registered in the Council whitelist.');
       setLoading(false);
       return;
     }
 
     const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : "" },
+      email: formattedEmail,
+      options: { emailRedirectTo: 'https://vgb-student-council-portal.vercel.app' },
     });
 
-    if (error) setMessage(`Error: ${error.message}`);
-    else setMessage("Magic link sent! Check your inbox.");
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setMessage('Magic link sent! Check your Outlook inbox.');
+    }
     setLoading(false);
   };
 
-  const handleAddEvent = async (e: React.FormEvent) => {
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !eventDate) return;
+    if (!newTitle || !newDate) return;
 
-    const supabase = getSupabase();
-    const { error } = await supabase.from("calendar_events").insert([
-      { title, event_date: eventDate, venue, created_by: user.email }
+    const { error } = await supabase.from('calendar_events').insert([
+      {
+        title: newTitle,
+        event_date: newDate,
+        venue: newVenue,
+        created_by: session?.user?.email,
+      },
     ]);
 
     if (!error) {
-      setTitle("");
-      setEventDate("");
-      setVenue("");
+      setNewTitle('');
+      setNewDate('');
+      setNewVenue('');
       fetchEvents();
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
-      <header className="bg-blue-900 text-white p-6 shadow-md flex justify-between items-center">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+      {/* Header Bar */}
+      <header className="bg-blue-900 text-white px-6 py-4 shadow-md flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold">Vidyagyan Council Portal</h1>
+          <h1 className="text-xl font-bold tracking-wide">Vidyagyan Council Portal</h1>
           <p className="text-xs text-blue-200">Honour Secretariat & Student Leadership</p>
         </div>
-        {user ? (
-          <div className="flex items-center gap-4">
-            <span className="text-sm bg-blue-800 px-3 py-1 rounded-full">{user.email} ({role})</span>
+
+        {session ? (
+          <div className="flex items-center space-x-4">
+            <div className="text-right text-sm">
+              <span className="block font-medium">{session.user.email}</span>
+              <span className="inline-block bg-blue-700 text-xs text-blue-100 px-2 py-0.5 rounded-full mt-0.5">
+                {userRole}
+              </span>
+            </div>
             <button
-              onClick={() => getSupabase().auth.signOut().then(() => setUser(null))}
-              className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm font-semibold"
+              onClick={handleLogout}
+              className="bg-red-600 hover:bg-red-700 text-xs px-3 py-2 rounded-md font-medium transition"
             >
               Sign Out
             </button>
           </div>
-        ) : null}
+        ) : (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="p-2 hover:bg-blue-800 rounded-lg transition border border-blue-700 flex items-center space-x-2"
+            title="Account Menu"
+          >
+            {/* 3-line / Menu Icon */}
+            <svg className="w-6 h-6 fill-current text-white" viewBox="0 0 24 24">
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span className="text-sm font-medium pr-1">Sign In</span>
+          </button>
+        )}
       </header>
 
-      <main className="max-w-5xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-1">
-          {!user ? (
-            <div className="bg-white p-6 rounded-xl border shadow-sm">
-              <h2 className="text-lg font-bold mb-2">Council Sign In</h2>
-              <p className="text-xs text-gray-500 mb-4">Authorized teachers and council members only.</p>
-              <form onSubmit={handleLogin} className="space-y-4">
-                <input
-                  type="email"
-                  placeholder="name@vidyagyan.in"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-2 border rounded-lg text-sm"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm"
-                >
-                  {loading ? "Verifying..." : "Send Magic Link"}
-                </button>
-              </form>
-              {message && <p className="mt-3 text-xs text-center p-2 rounded bg-gray-100">{message}</p>}
+      {/* Main Content Area */}
+      <main className="max-w-6xl mx-auto px-6 py-10">
+        {!session ? (
+          /* Public Unauthenticated View */
+          <div className="space-y-10">
+            {/* Hero Banner */}
+            <section className="bg-gradient-to-r from-blue-900 to-indigo-800 text-white rounded-2xl p-8 shadow-lg">
+              <h2 className="text-3xl font-extrabold mb-3">Welcome to Vidyagyan Student Leadership</h2>
+              <p className="text-blue-100 text-base max-w-2xl leading-relaxed">
+                Official repository for Student Council agendas, public announcements, and event scheduling.
+              </p>
+            </section>
+
+            {/* Public Events View */}
+            <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+              <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center space-x-2">
+                <span>Upcoming Events Calendar</span>
+              </h3>
+              {events.length === 0 ? (
+                <p className="text-slate-500 italic py-6 text-center">No upcoming events scheduled at this time.</p>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {events.map((evt) => (
+                    <div key={evt.id} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                      <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                        {evt.event_date}
+                      </span>
+                      <h4 className="font-bold text-slate-800 mt-2">{evt.title}</h4>
+                      {evt.venue && <p className="text-xs text-slate-500 mt-1">📍 {evt.venue}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : (
+          /* Logged In Dashboard View */
+          <div className="space-y-8">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+              <h2 className="text-2xl font-bold text-slate-800">Council Dashboard</h2>
+              <p className="text-slate-600 text-sm mt-1">
+                Authorized Workspace for Event Management & Operations
+              </p>
             </div>
-          ) : (
-            <div className="bg-white p-6 rounded-xl border shadow-sm">
-              <h2 className="text-lg font-bold mb-4">Add Calendar Event</h2>
-              <form onSubmit={handleAddEvent} className="space-y-3">
+
+            {/* Event Creation Form */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800 mb-4">Post New Event</h3>
+              <form onSubmit={handleCreateEvent} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <input
                   type="text"
                   placeholder="Event Title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full p-2 border rounded-lg text-sm"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                   required
                 />
                 <input
                   type="date"
-                  value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full p-2 border rounded-lg text-sm"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                   required
                 />
                 <input
                   type="text"
-                  placeholder="Venue"
-                  value={venue}
-                  onChange={(e) => setVenue(e.target.value)}
-                  className="w-full p-2 border rounded-lg text-sm"
+                  placeholder="Venue (e.g. Auditorium)"
+                  value={newVenue}
+                  onChange={(e) => setNewVenue(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                 />
-                <button type="submit" className="w-full bg-green-600 text-white font-semibold py-2 rounded-lg text-sm">
+                <button
+                  type="submit"
+                  className="md:col-span-3 bg-blue-600 text-white font-medium py-2 rounded-md hover:bg-blue-700 transition text-sm"
+                >
                   Publish Event
                 </button>
               </form>
             </div>
-          )}
-        </div>
 
-        <div className="md:col-span-2">
-          <div className="bg-white p-6 rounded-xl border shadow-sm">
-            <h2 className="text-lg font-bold mb-4">Upcoming Events Calendar</h2>
-            <div className="space-y-3">
-              {events.length === 0 ? (
-                <p className="text-gray-400 text-sm italic">No events posted yet.</p>
-              ) : (
-                events.map((ev) => (
-                  <div key={ev.id} className="p-3 border-b flex justify-between items-center">
+            {/* Live Events Management List */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800 mb-4">Scheduled Events ({events.length})</h3>
+              <div className="divide-y divide-slate-100">
+                {events.map((evt) => (
+                  <div key={evt.id} className="py-3 flex justify-between items-center">
                     <div>
-                      <h3 className="font-semibold text-sm">{ev.title}</h3>
-                      <p className="text-xs text-gray-500">{new Date(ev.event_date).toLocaleDateString()} — {ev.venue || "TBA"}</p>
+                      <p className="font-semibold text-slate-800">{evt.title}</p>
+                      <p className="text-xs text-slate-500">Date: {evt.event_date} | Venue: {evt.venue || 'N/A'}</p>
                     </div>
-                    {ev.created_by && <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded">{ev.created_by}</span>}
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </main>
+
+      {/* Pop-up Sign In Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 relative">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold"
+            >
+              ✕
+            </button>
+
+            <h3 className="text-xl font-bold text-slate-800">Council Sign In</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-6">
+              Authorized teachers and council members only.
+            </p>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">School Email</label>
+                <input
+                  type="email"
+                  placeholder="hr4745@vidyagyan.in"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+              >
+                {loading ? 'Verifying...' : 'Send Magic Link'}
+              </button>
+            </form>
+
+            {message && (
+              <p className={`mt-4 text-xs text-center p-2.5 rounded-md ${
+                message.includes('sent') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              }`}>
+                {message}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
