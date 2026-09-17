@@ -3,9 +3,21 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Fail-safe initializer to prevent build-time prerendering crashes
+const getSupabaseClient = () => {
+  let url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+  let key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || 'placeholder';
+
+  try {
+    new URL(url);
+  } catch {
+    url = 'https://placeholder.supabase.co';
+  }
+
+  return createClient(url, key);
+};
+
+const supabase = getSupabaseClient();
 
 interface CalendarEvent {
   id: number;
