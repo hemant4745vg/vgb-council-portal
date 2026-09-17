@@ -3,21 +3,11 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Fail-safe initializer to prevent build-time prerendering crashes
-const getSupabaseClient = () => {
-  let url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
-  let key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || 'placeholder';
-
-  try {
-    new URL(url);
-  } catch {
-    url = 'https://placeholder.supabase.co';
-  }
-
-  return createClient(url, key);
-};
-
-const supabase = getSupabaseClient();
+// Direct client initialization bypassing Vercel env variable build caching
+const supabase = createClient(
+  'https://lllmgmfofwczpqbmigey.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss'
+);
 
 interface CalendarEvent {
   id: number;
@@ -74,7 +64,7 @@ export default function Home() {
     if (data?.role) setUserRole(data.role);
   };
 
-const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
@@ -315,5 +305,3 @@ const handleLogin = async (e: React.FormEvent) => {
     </div>
   );
 }
-
-
