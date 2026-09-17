@@ -30,8 +30,8 @@ const ANNUAL_EVENTS: CalendarEvent[] = [
   { title: 'VGB MUN 2026', category: 'Academic', target: 'Grades 9-12', event_date: '2026-08-07', venue: 'Conference Block', time: 'Full Day' },
   { title: 'Vidyagyan Day (VG Day)', category: 'Flagship', target: 'All Grades', event_date: '2026-08-08', venue: 'Main Ground', time: 'Full Day' },
   { title: 'STEAM Conclave', category: 'Academic', target: 'Grades 9-12 Science', event_date: '2026-08-12', venue: 'Labs', time: 'Full Day' },
-  { title: 'Kaafila & TED Event', category: 'Cultural', target: 'All Grades', event_date: '2026-08-20', venue: 'Auditorium', time: 'Evening Session' },
-  { title: 'Mid-Term Examinations', category: 'Exams', target: 'Grades 7-12', event_date: '2026-09-12', venue: 'Exam Halls', time: '08:30 AM - 11:30 AM' },
+  { title: 'TED Event', category: 'Cultural', target: 'All Grades', event_date: '2026-08-31', venue: 'Amphitheatre', time: 'Morning Session' },
+  { title: 'Mid-Term Examinations', category: 'Exams', target: 'Grades 7-12', event_date: '2026-09-12', venue: 'Classrooms', time: '08:00 AM - 11:00 AM' },
   { title: 'Trip to Physics Dham & Jaipur', category: 'Excursion', target: 'Selected Delegations', event_date: '2026-10-02', venue: 'Jaipur', time: 'Full Day Trip' },
   { title: 'Inter-Disciplinary Trip to Agra', category: 'Excursion', target: 'Grades 7-8 & 11-12 Eco', event_date: '2026-10-17', venue: 'Agra', time: 'Day Trip' },
   { title: 'Lit Fest 2026', category: 'Cultural', target: 'Inter-School Delegations', event_date: '2026-10-30', venue: 'Auditorium', time: 'Full Day' },
@@ -199,8 +199,8 @@ export default function Home() {
       {/* Header Bar */}
       <header className="bg-blue-900 text-white px-6 py-4 shadow-md flex justify-between items-center sticky top-0 z-40">
         <div>
-          <h1 className="text-xl font-bold tracking-wide">Vidyagyan Council Portal</h1>
-          <p className="text-xs text-blue-200">Honour Secretariat & Student Leadership</p>
+          <h1 className="text-xl font-bold tracking-wide">VidyaGyan Council Portal</h1>
+          <p className="text-xs text-blue-200">Student Leadership</p>
         </div>
 
         {session ? (
@@ -240,7 +240,7 @@ export default function Home() {
             {/* Hero Banner with Live Clock */}
             <section className="bg-gradient-to-r from-blue-950 via-indigo-900 to-blue-900 text-white rounded-3xl p-8 shadow-xl text-center relative overflow-hidden">
               <div className="relative z-10 space-y-4 max-w-3xl mx-auto">
-                <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight">Vidyagyan Student Leadership</h2>
+                <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight">VidyaGyan Student Leadership</h2>
                 <p className="text-blue-100 text-sm md:text-base">
                   Official Secretariat repository for student council agendas, announcements, and dynamic campus scheduling.
                 </p>
