@@ -227,7 +227,7 @@ export default function Home() {
             <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24">
               <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            <span className="text-sm font-medium pr-1">Council Sign In</span>
+            <span className="text-sm font-medium pr-1">Sign In</span>
           </button>
         )}
       </header>
@@ -406,7 +406,7 @@ export default function Home() {
               ✕
             </button>
 
-            <h3 className="text-xl font-bold text-slate-800">Council Sign In</h3>
+            <h3 className="text-xl font-bold text-slate-800">Sign In</h3>
             <p className="text-xs text-slate-500 mt-1 mb-6">
               Authorized teachers and council members only.
             </p>
@@ -416,7 +416,7 @@ export default function Home() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">School Email</label>
                 <input
                   type="email"
-                  placeholder="hr4745@vidyagyan.in"
+                  placeholder="username@vidyagyan.in"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
