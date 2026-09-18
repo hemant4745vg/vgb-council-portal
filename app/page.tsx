@@ -569,8 +569,7 @@ export default function Home() {
   // Events
   const [supabaseEvents, setSupabaseEvents] = useState<CalendarEvent[]>([]);
   const [displayEvents, setDisplayEvents] = useState<CalendarEvent[]>([]);
-  const [isToday, setIsToday] = useState(false);
-
+  
   // Clock
   const [clockTime, setClockTime] = useState('');
   const [clockDate, setClockDate] = useState('');
@@ -650,71 +649,64 @@ export default function Home() {
   /*
    * Recalculate public calendar whenever database events change.
    */
-  useEffect(() => {
-    evaluateCalendarDisplay();
-  }, [supabaseEvents]);
-
   /*
-   * Fetch events from Supabase.
-   */
-  const fetchEvents = async () => {
-    const { data, error } = await supabase
-      .from('calendar_events')
-      .select('*')
-      .order('event_date', { ascending: true });
+ * Recalculate public calendar whenever database events change.
+ */
 
-    if (!error && data) {
-      const formattedEvents: CalendarEvent[] = data.map((event: any) => ({
-        id: event.id,
-        title: event.title,
-        event_date: event.event_date,
-        description: event.description,
-        event_time: event.event_time,
-        category: event.category,
-        created_by: event.created_by,
 
-        // Map database fields into the public display model.
-        venue: event.description || 'Campus',
-        time: event.event_time || '',
-      }));
+/*
+ * Fetch events from Supabase.
+ */
+const fetchEvents = async () => {
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .select('*')
+    .order('event_date', { ascending: true });
 
-      setSupabaseEvents(formattedEvents);
-    }
-  };
+  if (error) {
+  console.error('Unable to fetch calendar events:', error);
+  return;
+}
 
-  /*
-   * Determine whether to show today's events
-   * or the next six upcoming events.
-   */
-  const evaluateCalendarDisplay = () => {
-    const combined = [...supabaseEvents, ...ANNUAL_EVENTS];
+if (data) {
+  const formattedEvents: CalendarEvent[] = data.map((event: any) => ({
+    id: event.id,
+    title: event.title,
+    event_date: event.event_date,
+    description: event.description,
+    event_time: event.event_time,
+    category: event.category,
+    created_by: event.created_by,
+    venue: event.description || 'Campus',
+    time: event.event_time || '',
+  }));
 
-    const now = new Date();
+  setSupabaseEvents(formattedEvents);
+}
+};
 
-    const todayStr =
-      now.getFullYear() +
-      '-' +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(now.getDate()).padStart(2, '0');
+/*
+ * Build the public calendar view.
+ * Show today's events followed by upcoming events,
+ * excluding events that have already passed.
+ */
+const evaluateCalendarDisplay = () => {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+  }).format(new Date());
 
-    const activeToday = combined.filter(
-      (evt) => evt.event_date === todayStr
-    );
+  const mergedEvents = [...ANNUAL_EVENTS, ...supabaseEvents]
+    .filter((event) => event.event_date)
+    .sort((a, b) => a.event_date.localeCompare(b.event_date));
 
-    if (activeToday.length > 0) {
-      setDisplayEvents(activeToday);
-      setIsToday(true);
-    } else {
-      const upcoming = combined
-        .filter((evt) => evt.event_date > todayStr)
-        .sort((a, b) => a.event_date.localeCompare(b.event_date))
-        .slice(0, 8);
+  return mergedEvents
+    .filter((event) => event.event_date >= today)
+    .slice(0, 8);
+};
 
-      setDisplayEvents(upcoming);
-      setIsToday(false);
-    }
-  };
+useEffect(() => {
+  setDisplayEvents(evaluateCalendarDisplay());
+}, [supabaseEvents]);
 
   /*
    * Retrieve the role assigned to the authenticated school email.
@@ -1148,28 +1140,19 @@ export default function Home() {
                   </p>
 
                   <h2 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight text-blue-950">
-                    {isToday ? "Today's Events" : 'Upcoming Schedule'}
+                    Upcoming Schedule
                   </h2>
 
                   <p className="text-sm text-slate-500 mt-2">
-                    {isToday
-                      ? 'An overview of scheduled activities taking place today.'
-                      : "No events are scheduled for today. Here's what's coming up next on campus."}
+                    Today's activities and the next scheduled events on campus.
                   </p>
                 </div>
 
                 <div>
-                  {isToday ? (
-                    <span className="px-4 py-1.5 bg-green-50 border border-green-200 text-green-700 text-xs font-bold rounded-full flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      Live Today
-                    </span>
-                  ) : (
-                    <span className="px-4 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-full flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                      Upcoming Events
-                    </span>
-                  )}
+                  <span className="px-4 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-full flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                    Live Calendar
+                  </span>
                 </div>
               </div>
 
@@ -1237,10 +1220,8 @@ export default function Home() {
                               </div>
 
                               <div className="text-xs text-slate-400 mt-1">
-                                {evt.venue ||
-                                  evt.description ||
-                                  evt.time ||
-                                  'Campus'}
+                                {evt.venue || 'Campus'}
+                                {evt.time && ` · ${evt.time}`}
                               </div>
                             </td>
                           </tr>
@@ -1305,10 +1286,14 @@ export default function Home() {
 
                               <span className="mx-2">·</span>
 
-                              {evt.venue ||
-                                evt.description ||
-                                evt.time ||
-                                'Campus'}
+                                {evt.venue || 'Campus'}
+
+                                {evt.time && (
+                               <>
+                             <span className="mx-2">·</span>
+                                {evt.time}
+                             </>
+                                )}
                             </div>
 
                           </div>
