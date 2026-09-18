@@ -1,22 +1,28 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { createClient, type Session } from '@supabase/supabase-js';
+import { createClient, Session } from '@supabase/supabase-js';
 
-/* =========================================================
-   SUPABASE
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/* Supabase                                                                    */
+/* -------------------------------------------------------------------------- */
 
-const supabase = createClient(
-  'https://lllmgmfofwczpqbmigey.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss'
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-/* =========================================================
-   TYPES
-========================================================= */
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.'
+  );
+}
 
-type Category =
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                       */
+/* -------------------------------------------------------------------------- */
+
+type EventCategory =
   | 'Flagship'
   | 'Academic'
   | 'Cultural'
@@ -28,37 +34,28 @@ interface CalendarEvent {
   id?: number;
   title: string;
   event_date: string;
-  description?: string;
-  event_time?: string;
-  category?: Category;
-  created_by?: string;
-
+  description?: string | null;
+  event_time?: string | null;
+  category?: EventCategory;
+  created_by?: string | null;
   venue?: string;
   target?: string;
   time?: string;
 }
 
-interface MenuDay {
-  breakfast: string;
-  morningSnack: string;
-  lunch: string;
-  eveningSnack: string;
-  dinner: string;
+type FeedbackType = 'success' | 'error' | 'info';
+
+interface Feedback {
+  type: FeedbackType;
+  text: string;
 }
 
-interface MealPeriod {
-  key: keyof MenuDay;
-  label: string;
-  time: string;
-  icon: string;
-}
-
-/* =========================================================
-   ANNUAL CALENDAR
-   Source: Vidyagyan Bulandshahr Annual Calendar 2026–27
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/* Master Annual Calendar                                                     */
+/* -------------------------------------------------------------------------- */
 
 const ANNUAL_EVENTS: CalendarEvent[] = [
+  /* September 2026 */
   {
     title: 'Math Rangoli',
     category: 'Academic',
@@ -118,6 +115,7 @@ const ANNUAL_EVENTS: CalendarEvent[] = [
     venue: 'Campus',
   },
 
+  /* October 2026 */
   {
     title: 'Gandhi Jayanti & Theatre Visit',
     category: 'Cultural',
@@ -247,6 +245,7 @@ const ANNUAL_EVENTS: CalendarEvent[] = [
     venue: 'Campus',
   },
 
+  /* November 2026 */
   {
     title: 'History for Peace 2026',
     category: 'Academic',
@@ -322,6 +321,7 @@ const ANNUAL_EVENTS: CalendarEvent[] = [
     time: 'Environmentalist Interaction',
   },
 
+  /* December 2026 */
   {
     title: 'Itihaas Anveshan',
     category: 'Academic',
@@ -394,6 +394,7 @@ const ANNUAL_EVENTS: CalendarEvent[] = [
     venue: 'Campus',
   },
 
+  /* January 2027 */
   {
     title: 'Reporting Day',
     category: 'Academic',
@@ -445,6 +446,7 @@ const ANNUAL_EVENTS: CalendarEvent[] = [
     venue: 'Book Fair',
   },
 
+  /* February 2027 */
   {
     title: 'Annual Examinations',
     category: 'Exams',
@@ -470,6 +472,7 @@ const ANNUAL_EVENTS: CalendarEvent[] = [
     time: 'Proposed · 22–27 Feb',
   },
 
+  /* March 2027 */
   {
     title: 'New Session Begins',
     category: 'Academic',
@@ -508,378 +511,238 @@ const ANNUAL_EVENTS: CalendarEvent[] = [
   },
 ];
 
-/* =========================================================
-   MESS MENU
-   Source: Summer Menu 17-08-2026
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                     */
+/* -------------------------------------------------------------------------- */
 
-const MENU_DATA: Record<string, MenuDay> = {
-  Monday: {
-    breakfast:
-      'Boiled egg + 2 full Aloo Sandwich + Sweet Daliya + Banana, Chutney',
-    morningSnack:
-      'Squash and Veg. Patties',
-    lunch:
-      'Rajma Dal, Jeera Aloo, Chapati, Jeera Rice, Raita & Chilli onion as salad',
-    eveningSnack:
-      'Roasted peanut chat with Squash / Pasta',
-    dinner:
-      'Dal Makhni / Arhar Dal, Seasonal Veg., Wheat Roti, Rice, Onion Cucumber',
-  },
+const INDIA_TIME_ZONE = 'Asia/Kolkata';
 
-  Tuesday: {
-    breakfast:
-      'Vada – 2, Idli PS – 2 Nos., Sambhar and Coconut Chutney (Rawa Idli)',
-    morningSnack:
-      'Samosa and Jaljeera (made in house)',
-    lunch:
-      'Mix Dal Fry, Any Green Leafy Vegetable, Wheat Roti, Rice, Jeera Raita',
-    eveningSnack:
-      'Cold Milk and bakery cookies',
-    dinner:
-      'Seasonal Veg. or Ramas Aloo Sabzi / Jeera Aloo, Chana Dal, Wheat Chapati, Rice and Seasonal Salad + Besan Ladoo',
-  },
-
-  Wednesday: {
-    breakfast:
-      'Puri with Aloo tomato / Black Channa ki sabji + Dahi',
-    morningSnack:
-      'Boiled Chana Chat & Squash PS – 1 cup',
-    lunch:
-      'Any seasonal veg., Dal, Rice, Roti, and cut cucumbers and onions (not mixed), Raita',
-    eveningSnack:
-      'Cut fruit one bowl – papaya, watermelon / guava or seasonal fruits',
-    dinner:
-      'Veg. Manchurian, Fried Rice, Noodles, Chilli Paneer, Fruit Custard / Ice-cream',
-  },
-
-  Thursday: {
-    breakfast:
-      '1. Poha with Peanut Butter Sandwich + Cold Coffee  2. Poha with Cornflakes + Hot Milk, & (Boiled egg / Banana for Veg. & N-veg.)',
-    morningSnack:
-      'Coconut Cookies / Bounce with flavoured milk',
-    lunch:
-      'Chole, Seasonal Veg., Jeera Rice, Chapati, Papad, Onion Salad',
-    eveningSnack:
-      'Macroni',
-    dinner:
-      'Soya bean Sabzi or Soya Chap, Mix Dal, Wheat Roti, Rice and Seasonal Salad + Kheer',
-  },
-
-  Friday: {
-    breakfast:
-      'Pav Bhaji (Pav must be heated in butter), Milk Porridge and Chutney',
-    morningSnack:
-      'Muffin Chocolate / Vanilla with Squash (Vanilla muffin once in a month)',
-    lunch:
-      'Tehri, Seasonal Veg. Gravy, Wheat Roti, Onion, Cucumber / Jeera Raita',
-    eveningSnack:
-      'Veg. S/w (cucumber and tomato with cheese) with Squash / Golgappa & Channa & Potato',
-    dinner:
-      'Paneer Curry / Chicken Curry, Dal, Wheat Chapati, Rice, Seasonal and Salad OR Veg/non-veg Biryani with Tomato chutney with dal and chapatti, Gulab Jamun / White Rasgulla once in a month',
-  },
-
-  Saturday: {
-    breakfast:
-      'Chole Kulcha 3 (3–5 for senior students), coffee',
-    morningSnack:
-      'Flavour Chocolate Milk & Rusk PS – 3 pcs',
-    lunch:
-      'Lobhiya, Rice, Chapati, Mixed Veg., Salad, Papad',
-    eveningSnack:
-      'Bhelpuri with Lemon water',
-    dinner:
-      'Seasonal Veg., Arhar Dal, Wheat Roti, Rice, Seasonal Salad',
-  },
-
-  Sunday: {
-    breakfast:
-      'Plain paratha with Aloo tomato ki sabji',
-    morningSnack:
-      'Cream Roll – 1 Pc / Seasonal Fruits (No Banana)',
-    lunch:
-      'Lauki Chana Dal, Seasonal Veg. Sukha, Wheat Chapati, Rice, Raita and Seasonal Salad',
-    eveningSnack:
-      'Dhokla with Squash / Papri Chat',
-    dinner:
-      'Paneer Curry / Egg Curry, Dal, Wheat Chapati, Rice, Salad',
-  },
-};
-
-const MEAL_PERIODS: MealPeriod[] = [
-  {
-    key: 'breakfast',
-    label: 'Breakfast',
-    time: '7:15 AM',
-    icon: '☀',
-  },
-  {
-    key: 'morningSnack',
-    label: 'Morning Snack',
-    time: '11:00 AM',
-    icon: '◌',
-  },
-  {
-    key: 'lunch',
-    label: 'Lunch',
-    time: '2:00 PM',
-    icon: '🍽',
-  },
-  {
-    key: 'eveningSnack',
-    label: 'Evening Snack',
-    time: '5:15 PM',
-    icon: '◒',
-  },
-  {
-    key: 'dinner',
-    label: 'Dinner',
-    time: '7:15 PM',
-    icon: '☾',
-  },
-];
-
-const MEAL_SCHEDULE = [
-  { label: 'Breakfast', start: '07:15', duration: 55 },
-  { label: 'Mid Day Fuel', start: '11:00', duration: 20 },
-  { label: 'Lunch', start: '14:00', duration: 60 },
-  { label: 'Evening Snacks', start: '17:15', duration: 30 },
-  { label: 'Dinner', start: '19:15', duration: 75 },
-];
-
-/* =========================================================
-   CONSTANTS
-========================================================= */
-
-const DAYS = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
-
-const CATEGORY_FILTERS = [
-  'All',
-  'Academic',
-  'Cultural',
-  'Exams',
-  'Sports',
-  'Excursion',
-  'Flagship',
-];
-
-/* =========================================================
-   HELPERS
-========================================================= */
-
-function getIndiaNow() {
-  return new Date(
-    new Date().toLocaleString('en-US', {
-      timeZone: 'Asia/Kolkata',
-    })
-  );
-}
-
-function getIndiaDateString() {
+function getIndiaDateString(date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
-  }).format(new Date());
-}
-
-function getIndiaDayName() {
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Kolkata',
-    weekday: 'long',
-  }).format(new Date());
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(`${dateString}T00:00:00`);
-
-  return date.toLocaleDateString('en-US', {
+    timeZone: INDIA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
     day: '2-digit',
+  }).format(date);
+}
+
+function formatDate(dateString: string): string {
+  if (!dateString) return 'Date not specified';
+
+  const [year, month, day] = dateString.split('-').map(Number);
+
+  if (!year || !month || !day) return dateString;
+
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: INDIA_TIME_ZONE,
+    day: 'numeric',
     month: 'short',
     year: 'numeric',
-  });
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function getRelativeLabel(dateString: string, todayString: string): string {
+  if (dateString === todayString) return 'Today';
+
+  const [ty, tm, td] = todayString.split('-').map(Number);
+  const [ey, em, ed] = dateString.split('-').map(Number);
+
+  const today = Date.UTC(ty, tm - 1, td);
+  const event = Date.UTC(ey, em - 1, ed);
+
+  const difference = Math.round((event - today) / 86400000);
+
+  if (difference === 1) return 'Tomorrow';
+  if (difference > 1 && difference <= 7) return `In ${difference} days`;
+
+  return '';
 }
 
 function getCategoryStyles(category?: string) {
   switch (category?.toLowerCase()) {
     case 'flagship':
       return {
-        bg: 'bg-amber-100',
+        bg: 'bg-amber-50',
         text: 'text-amber-800',
+        border: 'border-amber-200',
         dot: 'bg-amber-500',
       };
 
     case 'cultural':
       return {
-        bg: 'bg-rose-100',
+        bg: 'bg-rose-50',
         text: 'text-rose-800',
+        border: 'border-rose-200',
         dot: 'bg-rose-500',
       };
 
     case 'academic':
       return {
-        bg: 'bg-blue-100',
+        bg: 'bg-blue-50',
         text: 'text-blue-800',
+        border: 'border-blue-200',
         dot: 'bg-blue-500',
       };
 
     case 'exams':
       return {
-        bg: 'bg-purple-100',
+        bg: 'bg-purple-50',
         text: 'text-purple-800',
+        border: 'border-purple-200',
         dot: 'bg-purple-500',
       };
 
     case 'sports':
       return {
-        bg: 'bg-emerald-100',
+        bg: 'bg-emerald-50',
         text: 'text-emerald-800',
+        border: 'border-emerald-200',
         dot: 'bg-emerald-500',
       };
 
     case 'excursion':
       return {
-        bg: 'bg-cyan-100',
+        bg: 'bg-cyan-50',
         text: 'text-cyan-800',
+        border: 'border-cyan-200',
         dot: 'bg-cyan-500',
       };
 
     default:
       return {
-        bg: 'bg-indigo-100',
-        text: 'text-indigo-800',
-        dot: 'bg-indigo-500',
+        bg: 'bg-slate-50',
+        text: 'text-slate-700',
+        border: 'border-slate-200',
+        dot: 'bg-slate-500',
       };
   }
 }
 
-function getCurrentMealStatus() {
-  const now = getIndiaNow();
-
-  const minutes = now.getHours() * 60 + now.getMinutes();
-
-  const schedule = MEAL_SCHEDULE.map((item) => {
-    const [hour, minute] = item.start.split(':').map(Number);
-    const start = hour * 60 + minute;
-
-    return {
-      ...item,
-      startMinutes: start,
-      endMinutes: start + item.duration,
-    };
-  });
-
-  const current = schedule.find(
-    (item) =>
-      minutes >= item.startMinutes &&
-      minutes < item.endMinutes
-  );
-
-  if (current) {
-    return {
-      status: 'Serving Now',
-      meal: current.label,
-      active: true,
-    };
-  }
-
-  const next = schedule.find((item) => minutes < item.startMinutes);
-
-  if (next) {
-    return {
-      status: 'Next Meal',
-      meal: next.label,
-      active: false,
-    };
-  }
-
+function normaliseEvent(event: any): CalendarEvent {
   return {
-    status: 'Kitchen Closed',
-    meal: 'Tomorrow’s breakfast',
-    active: false,
+    id: event.id,
+    title: event.title,
+    event_date: event.event_date,
+    description: event.description,
+    event_time: event.event_time,
+    category: event.category,
+    created_by: event.created_by,
+    venue: event.description || 'Campus',
+    time: event.event_time || '',
   };
 }
 
-/* =========================================================
-   SMALL COMPONENTS
-========================================================= */
-
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-  action,
-}: {
-  eyebrow: string;
-  title: string;
-  description?: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 mb-7">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">
-          {eyebrow}
-        </p>
-
-        <h2 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight text-blue-950">
-          {title}
-        </h2>
-
-        {description && (
-          <p className="mt-2 text-sm leading-6 text-slate-500 max-w-2xl">
-            {description}
-          </p>
-        )}
-      </div>
-
-      {action}
-    </div>
-  );
-}
-
-/* =========================================================
-   MAIN
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/* Component                                                                   */
+/* -------------------------------------------------------------------------- */
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
   const [userRole, setUserRole] = useState('Council Member');
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginFeedback, setLoginFeedback] = useState<Feedback | null>(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const [supabaseEvents, setSupabaseEvents] = useState<CalendarEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState(false);
+
+  const [todayString, setTodayString] = useState(
+    getIndiaDateString()
+  );
 
   const [clockTime, setClockTime] = useState('');
   const [clockDate, setClockDate] = useState('');
 
-  const [supabaseEvents, setSupabaseEvents] = useState<CalendarEvent[]>([]);
-  const [calendarCategory, setCalendarCategory] = useState('All');
-  const [calendarSearch, setCalendarSearch] = useState('');
-
-  const [selectedMenuDay, setSelectedMenuDay] = useState('Monday');
-  const [mealStatus, setMealStatus] = useState(
-    getCurrentMealStatus()
-  );
-
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newVenue, setNewVenue] = useState('');
-  const [newTarget, setNewTarget] = useState('');
   const [newTime, setNewTime] = useState('');
+  const [newTarget, setNewTarget] = useState('');
   const [newCategory, setNewCategory] =
-    useState<Category>('Academic');
+    useState<EventCategory>('Academic');
 
-  /* =======================================================
-     CLOCK + AUTH + EVENTS
-  ======================================================= */
+  const [publishing, setPublishing] = useState(false);
+  const [eventFeedback, setEventFeedback] =
+    useState<Feedback | null>(null);
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  /* ------------------------------------------------------------------------ */
+  /* Derived calendar                                                         */
+  /* ------------------------------------------------------------------------ */
+
+  const mergedEvents = useMemo(() => {
+    const all = [...ANNUAL_EVENTS, ...supabaseEvents];
+
+    const seen = new Set<string>();
+
+    return all
+      .filter((event) => event.event_date && event.title)
+      .sort((a, b) => {
+        const dateDifference =
+          a.event_date.localeCompare(b.event_date);
+
+        if (dateDifference !== 0) return dateDifference;
+
+        return a.title.localeCompare(b.title);
+      })
+      .filter((event) => {
+        /*
+         * Do not aggressively remove duplicates here.
+         * Two similarly named events can legitimately have different
+         * targets or dates. Only exact duplicates are suppressed.
+         */
+        const key = [
+          event.title.trim().toLowerCase(),
+          event.event_date,
+          event.target || '',
+          event.venue || '',
+        ].join('|');
+
+        if (seen.has(key)) return false;
+
+        seen.add(key);
+        return true;
+      });
+  }, [supabaseEvents]);
+
+  const todaysEvents = useMemo(
+    () =>
+      mergedEvents.filter(
+        (event) => event.event_date === todayString
+      ),
+    [mergedEvents, todayString]
+  );
+
+  const upcomingEvents = useMemo(
+    () =>
+      mergedEvents
+        .filter((event) => event.event_date > todayString)
+        .slice(0, 8),
+    [mergedEvents, todayString]
+  );
+
+  const displayEvents =
+    todaysEvents.length > 0 ? todaysEvents : upcomingEvents;
+
+  const hasTodayEvents = todaysEvents.length > 0;
+
+  const canManageEvents =
+    isAuthorized &&
+    ['SUPER_ADMIN', 'ADMIN', 'TEACHER', 'SECRETARY'].includes(
+      userRole.toUpperCase()
+    );
+
+  /* ------------------------------------------------------------------------ */
+  /* Clock and date rollover                                                  */
+  /* ------------------------------------------------------------------------ */
 
   useEffect(() => {
     const updateClock = () => {
@@ -887,7 +750,7 @@ export default function Home() {
 
       setClockTime(
         now.toLocaleTimeString('en-US', {
-          timeZone: 'Asia/Kolkata',
+          timeZone: INDIA_TIME_ZONE,
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit',
@@ -897,7 +760,7 @@ export default function Home() {
 
       setClockDate(
         now.toLocaleDateString('en-US', {
-          timeZone: 'Asia/Kolkata',
+          timeZone: INDIA_TIME_ZONE,
           weekday: 'long',
           month: 'short',
           day: 'numeric',
@@ -905,2074 +768,1589 @@ export default function Home() {
         })
       );
 
-      setMealStatus(getCurrentMealStatus());
+      const currentIndiaDate = getIndiaDateString(now);
+
+      setTodayString((previous) =>
+        previous === currentIndiaDate ? previous : currentIndiaDate
+      );
     };
 
     updateClock();
 
-    const interval = setInterval(updateClock, 1000);
+    const interval = window.setInterval(updateClock, 1000);
 
-    supabase.auth.getSession().then(
-      ({ data: { session } }) => {
-        setSession(session);
+    return () => window.clearInterval(interval);
+  }, []);
 
-        if (session?.user?.email) {
-          fetchUserRole(session.user.email);
-        }
+  /* ------------------------------------------------------------------------ */
+  /* Authentication                                                            */
+  /* ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initialiseAuth = async () => {
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      setSession(currentSession);
+
+      if (currentSession?.user?.email) {
+        await fetchUserRole(currentSession.user.email);
       }
-    );
+
+      setAuthChecked(true);
+    };
+
+    initialiseAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (!mounted) return;
 
-        if (session?.user?.email) {
-          fetchUserRole(session.user.email);
-        }
+      setSession(newSession);
+
+      if (newSession?.user?.email) {
+        await fetchUserRole(newSession.user.email);
+      } else {
+        setUserRole('Council Member');
+        setIsAuthorized(false);
       }
-    );
 
-    fetchEvents();
+      setAuthChecked(true);
+    });
 
     return () => {
-      clearInterval(interval);
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
-  /* =======================================================
-     CURRENT MENU DAY
-  ======================================================= */
+  /* ------------------------------------------------------------------------ */
+  /* Fetch calendar                                                            */
+  /* ------------------------------------------------------------------------ */
 
   useEffect(() => {
-    const today = getIndiaDayName();
-
-    if (DAYS.includes(today)) {
-      setSelectedMenuDay(today);
-    }
+    fetchEvents();
   }, []);
 
-  /* =======================================================
-     USER ROLE
-  ======================================================= */
-
-  const fetchUserRole = async (userEmail: string) => {
-    const { data, error } = await supabase
-      .from('allowed_users')
-      .select('role')
-      .eq('email', userEmail.toLowerCase())
-      .single();
-
-    if (error) {
-      console.error('Unable to fetch user role:', error);
-      return;
-    }
-
-    if (data?.role) {
-      setUserRole(data.role);
-    }
-  };
-
-  /* =======================================================
-     FETCH DATABASE EVENTS
-  ======================================================= */
-
   const fetchEvents = async () => {
+    setEventsLoading(true);
+    setEventsError(false);
+
     const { data, error } = await supabase
       .from('calendar_events')
       .select('*')
       .order('event_date', { ascending: true });
 
     if (error) {
-      console.error(
-        'Unable to fetch calendar events:',
-        error
-      );
+      console.error('Unable to fetch calendar events:', error);
+      setEventsError(true);
+      setEventsLoading(false);
       return;
     }
 
-    if (!data) {
-      return;
-    }
-
-    const formattedEvents: CalendarEvent[] = data.map(
-      (event: any) => ({
-        id: event.id,
-        title: event.title,
-        event_date: event.event_date,
-        description: event.description,
-        event_time: event.event_time,
-        category: event.category,
-        created_by: event.created_by,
-
-        venue: event.description || 'Campus',
-        target: event.target || 'All Students',
-        time: event.event_time || '',
-      })
-    );
-
-    setSupabaseEvents(formattedEvents);
+    setSupabaseEvents((data || []).map(normaliseEvent));
+    setEventsLoading(false);
   };
 
-  /* =======================================================
-     MERGED CALENDAR
-  ======================================================= */
+  /* ------------------------------------------------------------------------ */
+  /* User authorization                                                        */
+  /* ------------------------------------------------------------------------ */
 
-  const mergedCalendar = useMemo(() => {
-    const merged = [...ANNUAL_EVENTS, ...supabaseEvents];
+  const fetchUserRole = async (userEmail: string) => {
+    const normalizedEmail = userEmail.trim().toLowerCase();
 
-    return merged
-      .filter((event) => event.event_date)
-      .filter((event) => {
-        const matchesCategory =
-          calendarCategory === 'All' ||
-          event.category === calendarCategory;
+    const { data, error } = await supabase
+      .from('allowed_users')
+      .select('role')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
 
-        const query = calendarSearch.trim().toLowerCase();
+    if (error) {
+      console.error('Unable to verify council authorization:', error);
+      setUserRole('Council Member');
+      setIsAuthorized(false);
+      return;
+    }
 
-        const matchesSearch =
-          !query ||
-          event.title.toLowerCase().includes(query) ||
-          (event.target || '').toLowerCase().includes(query) ||
-          (event.venue || '').toLowerCase().includes(query);
+    if (!data?.role) {
+      setUserRole('Unauthorized');
+      setIsAuthorized(false);
+      return;
+    }
 
-        return matchesCategory && matchesSearch;
-      })
-      .sort((a, b) =>
-        a.event_date.localeCompare(b.event_date)
-      );
-  }, [
-    supabaseEvents,
-    calendarCategory,
-    calendarSearch,
-  ]);
+    setUserRole(data.role);
+    setIsAuthorized(true);
+  };
 
-  const today = getIndiaDateString();
+  /* ------------------------------------------------------------------------ */
+  /* Login                                                                     */
+  /* ------------------------------------------------------------------------ */
 
-  const upcomingEvents = useMemo(() => {
-    return [...ANNUAL_EVENTS, ...supabaseEvents]
-      .filter((event) => event.event_date >= today)
-      .sort((a, b) =>
-        a.event_date.localeCompare(b.event_date)
-      )
-      .slice(0, 6);
-  }, [supabaseEvents, today]);
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-  const todayEvents = useMemo(() => {
-    return [...ANNUAL_EVENTS, ...supabaseEvents].filter(
-      (event) => event.event_date === today
-    );
-  }, [supabaseEvents, today]);
-
-  /* =======================================================
-     LOGIN
-  ======================================================= */
-
-  const handleLogin = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
-
-    setLoading(true);
-    setMessage('');
+    setLoginFeedback(null);
 
     const formattedEmail = email.trim().toLowerCase();
 
-    if (!formattedEmail.endsWith('@vidyagyan.in')) {
-      setMessage(
-        'Access denied. Use an official @vidyagyan.in school email.'
-      );
-      setLoading(false);
-      return;
-    }
-
-    const { error } =
-      await supabase.auth.signInWithOtp({
-        email: formattedEmail,
-        options: {
-          emailRedirectTo:
-            'https://vgb-student-council-portal.vercel.app',
-        },
+    if (!formattedEmail) {
+      setLoginFeedback({
+        type: 'error',
+        text: 'Please enter your school email address.',
       });
+      return;
+    }
+
+    if (!formattedEmail.endsWith('@vidyagyan.in')) {
+      setLoginFeedback({
+        type: 'error',
+        text: 'Please use your official @vidyagyan.in school email.',
+      });
+      return;
+    }
+
+    setLoginLoading(true);
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: formattedEmail,
+      options: {
+        emailRedirectTo:
+          'https://vgb-student-council-portal.vercel.app',
+      },
+    });
 
     if (error) {
-      setMessage(error.message);
+      console.error('Magic link error:', error);
+
+      setLoginFeedback({
+        type: 'error',
+        text:
+          'We could not send the sign-in link. Please check the email address and try again.',
+      });
     } else {
-      setMessage(
-        'Magic link sent. Check your Outlook inbox.'
-      );
+      setLoginFeedback({
+        type: 'success',
+        text:
+          'Magic link sent. Check your VidyaGyan Outlook inbox and open the link to continue.',
+      });
     }
 
-    setLoading(false);
+    setLoginLoading(false);
   };
 
-  /* =======================================================
-     CREATE EVENT
-  ======================================================= */
-
-  const handleCreateEvent = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
-
-    if (!session) {
-      setMessage('You must be signed in.');
-      return;
-    }
-
-    if (!newTitle || !newDate || !newCategory) {
-      setMessage(
-        'Please complete the required event fields.'
-      );
-      return;
-    }
-
-    const { error } =
-      await supabase.from('calendar_events').insert([
-        {
-          title: newTitle.trim(),
-          description: newVenue.trim() || null,
-          event_date: newDate,
-          event_time: newTime.trim() || null,
-          category: newCategory,
-          created_by:
-            session.user.email || null,
-
-          target: newTarget.trim() || null,
-        },
-      ]);
-
-    if (error) {
-      setMessage(
-        `Unable to publish event: ${error.message}`
-      );
-      return;
-    }
-
-    setNewTitle('');
-    setNewDate('');
-    setNewVenue('');
-    setNewTarget('');
-    setNewTime('');
-    setNewCategory('Academic');
-    setMessage('Event published successfully.');
-
-    await fetchEvents();
-  };
-
-  /* =======================================================
-     LOGOUT
-  ======================================================= */
+  /* ------------------------------------------------------------------------ */
+  /* Logout                                                                    */
+  /* ------------------------------------------------------------------------ */
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
 
     setSession(null);
     setUserRole('Council Member');
+    setIsAuthorized(false);
+    setLoginFeedback(null);
+    setEventFeedback(null);
   };
 
-  /* =======================================================
-     MENU
-  ======================================================= */
+  /* ------------------------------------------------------------------------ */
+  /* Event creation                                                             */
+  /* ------------------------------------------------------------------------ */
 
-  const selectedMenu = MENU_DATA[selectedMenuDay];
+  const handleCreateEvent = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
 
-  /* =======================================================
-     RENDER
-  ======================================================= */
+    if (!canManageEvents) {
+      setEventFeedback({
+        type: 'error',
+        text: 'You are not authorized to publish calendar events.',
+      });
+      return;
+    }
+
+    const title = newTitle.trim();
+    const venue = newVenue.trim();
+    const target = newTarget.trim();
+    const time = newTime.trim();
+
+    if (!title || !newDate || !newCategory) {
+      setEventFeedback({
+        type: 'error',
+        text: 'Please complete all required fields.',
+      });
+      return;
+    }
+
+    if (newDate < todayString) {
+      setEventFeedback({
+        type: 'error',
+        text: 'Please choose today or a future date.',
+      });
+      return;
+    }
+
+    setPublishing(true);
+    setEventFeedback(null);
+
+    /*
+     * Current database schema:
+     * calendar_events.description = nullable text
+     *
+     * Because the existing table does not have a venue column,
+     * venue is stored in description. The public formatter maps
+     * description back to venue.
+     */
+    const description = [
+      venue ? `Venue: ${venue}` : '',
+      target ? `Target: ${target}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const { error } = await supabase
+      .from('calendar_events')
+      .insert([
+        {
+          title,
+          description: description || null,
+          event_date: newDate,
+          event_time: time || null,
+          category: newCategory,
+          created_by: session?.user?.email || null,
+        },
+      ]);
+
+    if (error) {
+      console.error('Unable to publish event:', error);
+
+      setEventFeedback({
+        type: 'error',
+        text:
+          'The event could not be published. Please check your permissions and try again.',
+      });
+
+      setPublishing(false);
+      return;
+    }
+
+    setNewTitle('');
+    setNewDate('');
+    setNewVenue('');
+    setNewTime('');
+    setNewTarget('');
+    setNewCategory('Academic');
+
+    setEventFeedback({
+      type: 'success',
+      text: 'Event published successfully.',
+    });
+
+    await fetchEvents();
+
+    setPublishing(false);
+  };
+
+  /* ------------------------------------------------------------------------ */
+  /* Modal accessibility                                                       */
+  /* ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsModalOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () =>
+      document.removeEventListener('keydown', handleKeyDown);
+  }, [isModalOpen]);
+
+  /* ------------------------------------------------------------------------ */
+  /* Render helpers                                                            */
+  /* ------------------------------------------------------------------------ */
+
+  const renderFeedback = (
+    feedback: Feedback | null
+  ) => {
+    if (!feedback) return null;
+
+    const classes =
+      feedback.type === 'success'
+        ? 'border-green-200 bg-green-50 text-green-800'
+        : feedback.type === 'error'
+          ? 'border-red-200 bg-red-50 text-red-800'
+          : 'border-blue-200 bg-blue-50 text-blue-800';
+
+    return (
+      <div
+        role="status"
+        className={`rounded-xl border px-4 py-3 text-sm ${classes}`}
+      >
+        {feedback.text}
+      </div>
+    );
+  };
+
+  const renderEventRow = (
+    event: CalendarEvent,
+    index: number
+  ) => {
+    const styles = getCategoryStyles(event.category);
+    const relativeLabel = getRelativeLabel(
+      event.event_date,
+      todayString
+    );
+
+    const eventVenue =
+      event.venue ||
+      (event.description?.startsWith('Venue:')
+        ? event.description
+            .split(' · ')[0]
+            .replace('Venue:', '')
+            .trim()
+        : 'Campus');
+
+    return (
+      <tr
+        key={`${event.title}-${event.event_date}-${event.target}-${index}`}
+        className={`transition-colors hover:bg-slate-50 ${
+          event.event_date === todayString
+            ? 'bg-emerald-50/40'
+            : ''
+        }`}
+      >
+        <td className="p-4 align-top">
+          <div className="flex items-start gap-3">
+            <span
+              className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`}
+            />
+
+            <div>
+              <div className="font-semibold text-slate-900">
+                {event.title}
+              </div>
+
+              {event.time && (
+                <div className="mt-1 text-xs text-slate-500">
+                  {event.time}
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+
+        <td className="p-4 align-top">
+          <div className="flex flex-col items-start gap-1.5">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.bg} ${styles.text} ${styles.border}`}
+            >
+              {event.category || 'Council Event'}
+            </span>
+
+            <span className="text-xs text-slate-500">
+              {event.target || 'School Community'}
+            </span>
+          </div>
+        </td>
+
+        <td className="p-4 text-right align-top">
+          <div className="flex flex-col items-end">
+            {relativeLabel && (
+              <span
+                className={`mb-1 text-[10px] font-bold uppercase tracking-wide ${
+                  relativeLabel === 'Today'
+                    ? 'text-emerald-700'
+                    : 'text-slate-400'
+                }`}
+              >
+                {relativeLabel}
+              </span>
+            )}
+
+            <span className="font-semibold text-slate-700">
+              {formatDate(event.event_date)}
+            </span>
+
+            <span className="mt-1 text-xs text-slate-400">
+              {eventVenue}
+            </span>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  /* ------------------------------------------------------------------------ */
+  /* Page                                                                      */
+  /* ------------------------------------------------------------------------ */
 
   return (
-    <div className="min-h-screen bg-[#f7f8f5] text-slate-900 font-sans">
+    <div className="min-h-screen bg-[#f7f8f5] font-sans text-slate-900">
+      {/* ------------------------------------------------------------------ */}
+      {/* Header                                                              */}
+      {/* ------------------------------------------------------------------ */}
 
-      {/* =====================================================
-          NAVIGATION
-      ===================================================== */}
-
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-[#f7f8f5]/95 backdrop-blur-xl">
-
-        <div className="max-w-7xl mx-auto px-5 lg:px-8">
-
-          <div className="h-[72px] flex items-center justify-between gap-5">
-
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#f7f8f5]/95 backdrop-blur-md">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          <div className="flex h-20 items-center justify-between">
+            {/* Brand */}
             <a
               href="#home"
-              className="flex items-center gap-3 shrink-0"
+              className="flex items-center gap-3"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="VidyaGyan Council home"
             >
-              <div className="w-10 h-10 rounded-xl bg-blue-950 flex items-center justify-center shadow-sm">
-                <span className="text-white font-bold text-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-950 shadow-sm">
+                <span className="text-sm font-bold tracking-tight text-white">
                   VG
                 </span>
               </div>
 
               <div>
                 <div className="text-[15px] font-bold tracking-tight text-blue-950">
-                  VidyaGyan Portal
+                  VidyaGyan Council
                 </div>
 
-                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                  Bulandshahr · 2026–27
+                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                  Student Leadership
                 </div>
               </div>
             </a>
 
-            <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-600">
-
+            {/* Desktop navigation */}
+            <nav
+              className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex"
+              aria-label="Primary navigation"
+            >
               <a
                 href="#home"
-                className="hover:text-blue-950 transition"
+                className="text-blue-950 transition hover:text-blue-700"
               >
                 Home
               </a>
 
               <a
-                href="#schedule"
-                className="hover:text-blue-950 transition"
+                href="#about"
+                className="transition hover:text-blue-950"
               >
-                Schedule
+                About
               </a>
 
               <a
-                href="#mess"
-                className="hover:text-blue-950 transition"
+                href="#leadership"
+                className="transition hover:text-blue-950"
               >
-                Mess
-              </a>
-
-              <a
-                href="#activities"
-                className="hover:text-blue-950 transition"
-              >
-                Activities
+                Leadership
               </a>
 
               <a
                 href="#calendar"
-                className="hover:text-blue-950 transition"
+                className="transition hover:text-blue-950"
               >
                 Calendar
               </a>
 
               <a
-                href="#leadership"
-                className="hover:text-blue-950 transition"
+                href="#initiatives"
+                className="transition hover:text-blue-950"
               >
-                Leadership
+                Initiatives
               </a>
-
             </nav>
 
-            {session ? (
-              <div className="flex items-center gap-2 shrink-0">
+            {/* Desktop account */}
+            <div className="hidden items-center gap-3 md:flex">
+              {session ? (
+                <>
+                  <div className="hidden text-right lg:block">
+                    <div className="max-w-[220px] truncate text-xs font-semibold text-slate-800">
+                      {session.user.email}
+                    </div>
 
-                <div className="hidden xl:block text-right mr-2">
-                  <div className="text-xs font-semibold text-slate-800">
-                    {session.user.email}
+                    <div
+                      className={`text-[11px] ${
+                        isAuthorized
+                          ? 'text-slate-500'
+                          : 'text-red-600'
+                      }`}
+                    >
+                      {userRole}
+                    </div>
                   </div>
 
-                  <div className="text-[10px] text-slate-500">
-                    {userRole}
-                  </div>
-                </div>
-
-                <a
-                  href="#workspace"
-                  className="hidden sm:inline-flex px-3.5 py-2 rounded-lg bg-blue-950 text-white text-xs font-semibold hover:bg-blue-900 transition"
-                >
-                  Workspace
-                </a>
-
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
                 <button
-                  onClick={handleLogout}
-                  className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                  type="button"
+                  onClick={() => setIsModalOpen(true)}
+                  className="rounded-lg bg-blue-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
                 >
-                  Sign Out
+                  Council Sign In
                 </button>
+              )}
+            </div>
 
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="px-4 py-2.5 rounded-lg bg-blue-950 text-white text-xs font-semibold hover:bg-blue-900 transition"
-              >
-                Sign In
-              </button>
-            )}
-
+            {/* Mobile menu button */}
+            <button
+              type="button"
+              className="rounded-lg border border-slate-300 bg-white p-2.5 text-slate-700 md:hidden"
+              onClick={() =>
+                setMobileMenuOpen((previous) => !previous)
+              }
+              aria-label={
+                mobileMenuOpen
+                  ? 'Close navigation menu'
+                  : 'Open navigation menu'
+              }
+              aria-expanded={mobileMenuOpen}
+            >
+              <span className="text-lg leading-none">
+                {mobileMenuOpen ? '×' : '☰'}
+              </span>
+            </button>
           </div>
+
+          {/* Mobile navigation */}
+          {mobileMenuOpen && (
+            <div className="border-t border-slate-200 py-4 md:hidden">
+              <nav
+                className="flex flex-col gap-1"
+                aria-label="Mobile navigation"
+              >
+                {[
+                  ['Home', '#home'],
+                  ['About', '#about'],
+                  ['Leadership', '#leadership'],
+                  ['Calendar', '#calendar'],
+                  ['Initiatives', '#initiatives'],
+                ].map(([label, href]) => (
+                  <a
+                    key={href}
+                    href={href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-white hover:text-blue-950"
+                  >
+                    {label}
+                  </a>
+                ))}
+
+                {!session && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setIsModalOpen(true);
+                    }}
+                    className="mt-2 rounded-lg bg-blue-950 px-4 py-3 text-left text-sm font-semibold text-white"
+                  >
+                    Council Sign In
+                  </button>
+                )}
+
+                {session && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="mt-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700"
+                  >
+                    Sign Out
+                  </button>
+                )}
+              </nav>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* =====================================================
-          MAIN
-      ===================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Main                                                               */}
+      {/* ------------------------------------------------------------------ */}
 
       <main
         id="home"
-        className="max-w-7xl mx-auto px-5 lg:px-8 py-8 lg:py-12"
+        className="mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-14"
       >
-
-        {/* ===================================================
-            HERO
-        =================================================== */}
-
-        <section className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl">
-
-          <div className="absolute inset-0 pointer-events-none opacity-20">
-            <div className="absolute right-[-100px] top-[-100px] h-[380px] w-[380px] rounded-full border border-white/30" />
-            <div className="absolute right-[-30px] top-[-30px] h-[230px] w-[230px] rounded-full border border-white/20" />
-            <div className="absolute left-[-100px] bottom-[-160px] h-[350px] w-[350px] rounded-full border border-emerald-300/20" />
-          </div>
-
-          <div className="relative grid lg:grid-cols-[1fr_auto] gap-10 items-end px-7 py-10 md:px-12 md:py-14">
-
-            <div className="max-w-3xl">
-
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-300 mb-5">
-                VidyaGyan Bulandshahr
-              </p>
-
-              <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.04]">
-                One portal for
-                <br />
-                campus life.
-              </h1>
-
-              <p className="mt-6 max-w-2xl text-sm md:text-base leading-7 text-blue-100">
-                A unified student-facing platform for schedules,
-                campus events, mess information, activities,
-                announcements, resources and student leadership.
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-
-                <a
-                  href="#schedule"
-                  className="inline-flex items-center justify-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-blue-950 hover:bg-slate-100 transition"
-                >
-                  View Today
-                </a>
-
-                <a
-                  href="#mess"
-                  className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15 transition"
-                >
-                  Today&apos;s Menu
-                </a>
-
-                <a
-                  href="#calendar"
-                  className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15 transition"
-                >
-                  Calendar
-                </a>
-
-              </div>
+        <div className="space-y-10">
+          {/* Hero */}
+          <section className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl">
+            <div
+              className="pointer-events-none absolute inset-0 opacity-20"
+              aria-hidden="true"
+            >
+              <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-white/30" />
+              <div className="absolute -right-10 -top-10 h-52 w-52 rounded-full border border-white/20" />
             </div>
 
-            <div className="lg:min-w-[245px] lg:text-right">
-
-              <div className="text-[10px] uppercase tracking-[0.2em] text-blue-300">
-                Campus Time
-              </div>
-
-              <div className="mt-2 text-3xl md:text-4xl font-semibold tracking-tight">
-                {clockTime || '--:--:--'}
-              </div>
-
-              <div className="mt-1 text-sm text-blue-200">
-                {clockDate}
-              </div>
-
-              <div className="mt-5 inline-flex items-center gap-2 text-xs text-blue-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                India Standard Time
-              </div>
-
-            </div>
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            TODAY STRIP
-        =================================================== */}
-
-        <section
-          id="schedule"
-          className="mt-6 grid md:grid-cols-3 gap-4"
-        >
-
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
-
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                Today
-              </span>
-
-              <span className="text-xs text-slate-400">
-                {today}
-              </span>
-            </div>
-
-            <div className="mt-3 text-xl font-bold text-blue-950">
-              {todayEvents.length > 0
-                ? `${todayEvents.length} campus event${todayEvents.length > 1 ? 's' : ''}`
-                : 'Regular campus day'}
-            </div>
-
-            <p className="mt-1 text-sm text-slate-500">
-              {todayEvents.length > 0
-                ? todayEvents.map((e) => e.title).join(' · ')
-                : 'No annual-calendar event is recorded for today.'}
-            </p>
-
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
-
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-700">
-                Mess
-              </span>
-
-              <span
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                  mealStatus.active
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {mealStatus.status}
-              </span>
-            </div>
-
-            <div className="mt-3 text-xl font-bold text-blue-950">
-              {mealStatus.meal}
-            </div>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Follow the live meal schedule below.
-            </p>
-
-          </div>
-
-          <div className="bg-blue-950 rounded-2xl p-5 text-white shadow-sm">
-
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-              Next Up
-            </div>
-
-            <div className="mt-3 text-xl font-bold">
-              {upcomingEvents[0]?.title || 'No upcoming event'}
-            </div>
-
-            <p className="mt-1 text-sm text-blue-200">
-              {upcomingEvents[0]
-                ? formatDate(upcomingEvents[0].event_date)
-                : 'Calendar is clear'}
-            </p>
-
-          </div>
-
-        </section>
-
-        {/* ===================================================
-            QUICK ACCESS
-        =================================================== */}
-
-        <section className="mt-10">
-
-          <SectionHeading
-            eyebrow="Quick Access"
-            title="Everything students actually need."
-            description="The portal separates immediate daily information from longer-term reference material. Humanity has finally discovered that navigation matters."
-          />
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-            {[
-              {
-                title: 'Arrangements',
-                description: 'Daily campus arrangements and notices.',
-                href: '#arrangements',
-                icon: '▦',
-              },
-              {
-                title: 'Academic Timetable',
-                description: 'Academic schedule and routine reference.',
-                href: '#academic',
-                icon: '⌘',
-              },
-              {
-                title: 'Mess Menu',
-                description: 'Today and full weekly meal plan.',
-                href: '#mess',
-                icon: '◉',
-              },
-              {
-                title: 'Events Calendar',
-                description: 'Annual and live campus events.',
-                href: '#calendar',
-                icon: '□',
-              },
-            ].map((item) => (
-              <a
-                key={item.title}
-                href={item.href}
-                className="group bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
-              >
-
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-blue-950 font-bold">
-                  {item.icon}
-                </div>
-
-                <h3 className="mt-4 font-bold text-blue-950">
-                  {item.title}
-                </h3>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  {item.description}
+            <div className="relative grid items-end gap-10 px-7 py-10 lg:grid-cols-[1fr_auto] md:px-12 md:py-14">
+              <div className="max-w-3xl">
+                <p className="mb-5 text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">
+                  VidyaGyan Leadership Academy
                 </p>
 
-                <div className="mt-4 text-xs font-semibold text-emerald-700 group-hover:text-emerald-800">
-                  Open →
-                </div>
-
-              </a>
-            ))}
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            MESS MENU
-        =================================================== */}
-
-        <section
-          id="mess"
-          className="mt-12 scroll-mt-24"
-        >
-
-          <SectionHeading
-            eyebrow="Mess Menu"
-            title="Fuel for body & mind."
-            description="The weekly campus mess menu, presented by day and meal period."
-            action={
-              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 border border-orange-200 text-orange-700 text-xs font-semibold">
-                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                {mealStatus.status}
-              </div>
-            }
-          />
-
-          <div className="bg-white rounded-[1.75rem] border border-slate-200/80 shadow-sm overflow-hidden">
-
-            {/* Menu Header */}
-
-            <div className="bg-gradient-to-br from-orange-50 via-white to-amber-50 px-6 md:px-8 py-7 border-b border-orange-100">
-
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-5">
-
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-700">
-                    Kitchen Open
-                  </p>
-
-                  <h3 className="mt-2 text-2xl md:text-3xl font-bold text-blue-950">
-                    Weekly Mess Menu
-                  </h3>
-
-                  <p className="mt-2 text-sm text-slate-500">
-                    Select a day to view the complete menu.
-                  </p>
-                </div>
-
-                <div className="text-left md:text-right">
-
-                  <div className="text-xs text-slate-400">
-                    Current meal
-                  </div>
-
-                  <div className="mt-1 font-bold text-orange-700">
-                    {mealStatus.meal}
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* Day Tabs */}
-
-            <div className="px-4 md:px-6 pt-5 overflow-x-auto">
-
-              <div className="flex gap-2 min-w-max">
-
-                {DAYS.map((day) => {
-
-                  const active =
-                    selectedMenuDay === day;
-
-                  const todayDay =
-                    getIndiaDayName() === day;
-
-                  return (
-                    <button
-                      key={day}
-                      onClick={() =>
-                        setSelectedMenuDay(day)
-                      }
-                      className={`relative px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
-                        active
-                          ? 'bg-blue-950 text-white shadow-sm'
-                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      {day}
-
-                      {todayDay && (
-                        <span
-                          className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                            active
-                              ? 'bg-emerald-400'
-                              : 'bg-emerald-500'
-                          }`}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-
-              </div>
-
-            </div>
-
-            {/* Menu Cards */}
-
-            <div className="p-5 md:p-7">
-
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-
-                {MEAL_PERIODS.map((meal) => {
-
-                  const items =
-                    selectedMenu[meal.key];
-
-                  return (
-                    <div
-                      key={meal.key}
-                      className="rounded-2xl border border-slate-200 p-5 hover:border-slate-300 transition"
-                    >
-
-                      <div className="flex items-start justify-between gap-3">
-
-                        <div>
-
-                          <div className="flex items-center gap-2">
-
-                            <span className="w-8 h-8 rounded-lg bg-orange-50 text-orange-700 flex items-center justify-center text-sm">
-                              {meal.icon}
-                            </span>
-
-                            <div>
-                              <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                {meal.label}
-                              </div>
-
-                              <div className="text-[11px] text-slate-500">
-                                {meal.time}
-                              </div>
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                      <p className="mt-5 text-sm leading-6 text-slate-700">
-                        {items}
-                      </p>
-
-                    </div>
-                  );
-                })}
-
-              </div>
-
-              {/* Meal timings */}
-
-              <div className="mt-6 rounded-2xl bg-slate-50 border border-slate-200 p-5">
-
-                <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                  Daily Meal Schedule
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-
-                  {MEAL_SCHEDULE.map((meal) => (
-                    <div
-                      key={meal.label}
-                      className="bg-white rounded-xl border border-slate-200 p-3"
-                    >
-                      <div className="text-xs font-semibold text-blue-950">
-                        {meal.label}
-                      </div>
-
-                      <div className="mt-1 text-[11px] text-slate-500">
-                        {meal.start}
-                      </div>
-
-                    </div>
-                  ))}
-
-                </div>
-
-              </div>
-
-            </div>
-          </div>
-        </section>
-
-        {/* ===================================================
-            SCHOOL SERVICES
-        =================================================== */}
-
-        <section className="mt-12" id="arrangements">
-
-          <SectionHeading
-            eyebrow="School Services"
-            title="Campus information, organised."
-            description="These sections form the wider school portal. They can later be connected to their respective live school data sources."
-          />
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-
-            {[
-              {
-                id: 'arrangements',
-                title: 'Arrangements',
-                label: 'Daily',
-                text: 'Campus arrangements, special instructions and operational notices.',
-              },
-              {
-                id: 'academic',
-                title: 'Academic Timetable',
-                label: 'Academic',
-                text: 'Academic timetable and class-related schedule information.',
-              },
-              {
-                id: 'normal-routine',
-                title: 'Normal Routine',
-                label: 'Routine',
-                text: 'Reference for the regular daily school routine.',
-              },
-              {
-                id: 'evening-prep',
-                title: 'Evening Prep',
-                label: 'Evening',
-                text: 'Evening preparation schedule and relevant campus information.',
-              },
-            ].map((item) => (
-              <div
-                key={item.id}
-                id={item.id}
-                className="scroll-mt-24 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm"
-              >
-
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
-                    {item.label}
-                  </span>
-
-                  <span className="text-xs text-slate-300">
-                    →
-                  </span>
-                </div>
-
-                <h3 className="mt-4 font-bold text-blue-950">
-                  {item.title}
-                </h3>
-
-                <p className="mt-2 text-xs leading-5 text-slate-500">
-                  {item.text}
+                <h1 className="text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
+                  Student leadership,
+                  <br />
+                  organised with purpose.
+                </h1>
+
+                <p className="mt-6 max-w-2xl text-sm leading-7 text-blue-100 md:text-base">
+                  The VidyaGyan Council Portal brings together the
+                  Council&apos;s calendar, announcements, initiatives,
+                  resources and operational workspace in one
+                  institutional platform.
                 </p>
 
-                <div className="mt-4 text-[11px] font-semibold text-slate-400">
-                  School data integration
-                </div>
-
-              </div>
-            ))}
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            SATURDAY / SUNDAY
-        =================================================== */}
-
-        <section className="mt-12">
-
-          <div className="grid md:grid-cols-2 gap-5">
-
-            <div className="bg-white rounded-[1.5rem] border border-slate-200/80 p-6 shadow-sm">
-
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">
-                Weekend
-              </p>
-
-              <h3 className="mt-2 text-xl font-bold text-blue-950">
-                Saturday Routine
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Dedicated space for Saturday arrangements,
-                activities, sports and the weekend campus schedule.
-              </p>
-
-              <a
-                href="#mess"
-                onClick={() =>
-                  setSelectedMenuDay('Saturday')
-                }
-                className="inline-flex mt-5 text-xs font-semibold text-blue-950"
-              >
-                View Saturday Menu →
-              </a>
-
-            </div>
-
-            <div className="bg-white rounded-[1.5rem] border border-slate-200/80 p-6 shadow-sm">
-
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-700">
-                Weekend
-              </p>
-
-              <h3 className="mt-2 text-xl font-bold text-blue-950">
-                Sunday Routine
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Dedicated space for Sunday arrangements,
-                activities and campus information.
-              </p>
-
-              <a
-                href="#mess"
-                onClick={() =>
-                  setSelectedMenuDay('Sunday')
-                }
-                className="inline-flex mt-5 text-xs font-semibold text-blue-950"
-              >
-                View Sunday Menu →
-              </a>
-
-            </div>
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            CALENDAR
-        =================================================== */}
-
-        <section
-          id="calendar"
-          className="mt-12 scroll-mt-24"
-        >
-
-          <SectionHeading
-            eyebrow="Events Calendar"
-            title="What is happening next."
-            description="Annual calendar events are combined with events published through the authenticated portal workspace."
-            action={
-              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold">
-                <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                Live + Annual Calendar
-              </span>
-            }
-          />
-
-          {/* Filters */}
-
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 md:p-5 mb-4">
-
-            <div className="flex flex-col lg:flex-row gap-3">
-
-              <div className="flex-1">
-
-                <input
-                  type="search"
-                  value={calendarSearch}
-                  onChange={(e) =>
-                    setCalendarSearch(e.target.value)
-                  }
-                  placeholder="Search events, targets or venues..."
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                />
-
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto">
-
-                {CATEGORY_FILTERS.map((category) => (
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <a
+                    href="#calendar"
+                    className="inline-flex items-center justify-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-blue-950 transition hover:bg-slate-100"
+                  >
+                    Explore Calendar
+                  </a>
 
                   <button
-                    key={category}
-                    onClick={() =>
-                      setCalendarCategory(category)
-                    }
-                    className={`shrink-0 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                      calendarCategory === category
-                        ? 'bg-blue-950 text-white'
-                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-                    }`}
+                    type="button"
+                    onClick={() => setIsModalOpen(true)}
+                    className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                   >
-                    {category}
+                    Council Workspace
                   </button>
-
-                ))}
-
+                </div>
               </div>
 
-            </div>
-          </div>
-
-          {/* Upcoming */}
-
-          <div className="bg-white rounded-[1.75rem] border border-slate-200/80 shadow-sm overflow-hidden">
-
-            <div className="px-6 md:px-8 py-6 border-b border-slate-100">
-
-              <div className="flex items-center justify-between">
-
-                <div>
-                  <h3 className="text-lg font-bold text-blue-950">
-                    Upcoming Schedule
-                  </h3>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    {mergedCalendar.length} matching event
-                    {mergedCalendar.length !== 1 ? 's' : ''}
-                  </p>
+              {/* Campus clock */}
+              <div className="lg:min-w-[230px] lg:text-right">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-blue-300">
+                  Campus Time · IST
                 </div>
 
-                <a
-                  href="#calendar"
-                  className="text-xs font-semibold text-blue-950"
-                >
-                  Full calendar
-                </a>
+                <div className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
+                  {clockTime || '00:00:00 AM'}
+                </div>
 
+                <div className="mt-1 text-sm text-blue-200">
+                  {clockDate}
+                </div>
+
+                <div className="mt-5 inline-flex items-center gap-2 text-xs text-blue-200">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+                  Portal online
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ---------------------------------------------------------------- */}
+          {/* About                                                             */}
+          {/* ---------------------------------------------------------------- */}
+
+          <section
+            id="about"
+            className="grid gap-5 md:grid-cols-3"
+          >
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm md:col-span-2">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">
+                About the Portal
+              </p>
+
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-blue-950">
+                One institutional layer for student leadership.
+              </h2>
+
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+                The portal is designed to make Council activities
+                visible, organised and easier to operate. The public
+                layer provides institutional information, while the
+                authenticated workspace supports authorised Council
+                operations.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+              <div className="text-3xl font-bold text-blue-950">
+                {mergedEvents.length}
               </div>
 
+              <div className="mt-1 text-sm font-semibold text-slate-700">
+                Calendar records
+              </div>
+
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Annual institutional schedule combined with live
+                Council entries.
+              </p>
             </div>
+          </section>
 
-            <div className="hidden md:block overflow-x-auto">
+          {/* ---------------------------------------------------------------- */}
+          {/* Calendar                                                          */}
+          {/* ---------------------------------------------------------------- */}
 
-              <table className="w-full text-left border-collapse">
+          <section
+            id="calendar"
+            className="rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm md:p-8"
+          >
+            <div className="mb-6 flex flex-col gap-4 border-b border-slate-100 pb-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-lg"
+                    aria-hidden="true"
+                  >
+                    📅
+                  </span>
 
-                <thead>
-                  <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-
-                    <th className="p-4">
-                      Event
-                    </th>
-
-                    <th className="p-4">
-                      Category
-                    </th>
-
-                    <th className="p-4">
-                      Target
-                    </th>
-
-                    <th className="p-4 text-right">
-                      Date
-                    </th>
-
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100">
-
-                  {mergedCalendar.map(
-                    (event, index) => {
-
-                      const styles =
-                        getCategoryStyles(
-                          event.category
-                        );
-
-                      return (
-                        <tr
-                          key={`${event.id ?? event.title}-${index}`}
-                          className="hover:bg-slate-50/70 transition"
-                        >
-
-                          <td className="p-4">
-
-                            <div className="flex items-start gap-3">
-
-                              <span
-                                className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${styles.dot}`}
-                              />
-
-                              <div>
-                                <div className="font-semibold text-sm text-slate-800">
-                                  {event.title}
-                                </div>
-
-                                <div className="mt-1 text-xs text-slate-400">
-                                  {event.venue || 'Campus'}
-                                  {event.time &&
-                                    ` · ${event.time}`}
-                                </div>
-                              </div>
-
-                            </div>
-
-                          </td>
-
-                          <td className="p-4">
-
-                            <span
-                              className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-semibold ${styles.bg} ${styles.text}`}
-                            >
-                              {event.category ||
-                                'Campus'}
-                            </span>
-
-                          </td>
-
-                          <td className="p-4 text-xs text-slate-500">
-                            {event.target ||
-                              'All Students'}
-                          </td>
-
-                          <td className="p-4 text-right">
-
-                            <div className="text-sm font-medium text-slate-700">
-                              {formatDate(
-                                event.event_date
-                              )}
-                            </div>
-
-                          </td>
-
-                        </tr>
-                      );
-                    }
-                  )}
-
-                </tbody>
-              </table>
-
-            </div>
-
-            <div className="md:hidden p-4 space-y-3">
-
-              {mergedCalendar.map(
-                (event, index) => {
-
-                  const styles =
-                    getCategoryStyles(
-                      event.category
-                    );
-
-                  return (
-                    <div
-                      key={`${event.id ?? event.title}-mobile-${index}`}
-                      className="rounded-2xl border border-slate-200 p-4"
-                    >
-
-                      <div className="flex items-start gap-3">
-
-                        <span
-                          className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${styles.dot}`}
-                        />
-
-                        <div className="flex-1 min-w-0">
-
-                          <h3 className="font-semibold text-sm text-slate-800">
-                            {event.title}
-                          </h3>
-
-                          <div className="mt-2 flex flex-wrap gap-2">
-
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${styles.bg} ${styles.text}`}
-                            >
-                              {event.category ||
-                                'Campus'}
-                            </span>
-
-                            <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-semibold">
-                              {event.target ||
-                                'All Students'}
-                            </span>
-
-                          </div>
-
-                          <div className="mt-3 text-xs text-slate-500">
-
-                            <span className="font-medium text-slate-700">
-                              {formatDate(
-                                event.event_date
-                              )}
-                            </span>
-
-                            <span className="mx-2">
-                              ·
-                            </span>
-
-                            {event.venue ||
-                              'Campus'}
-
-                            {event.time && (
-                              <>
-                                <span className="mx-2">
-                                  ·
-                                </span>
-
-                                {event.time}
-                              </>
-                            )}
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                    </div>
-                  );
-                }
-              )}
-
-              {mergedCalendar.length === 0 && (
-                <div className="p-8 text-center text-sm text-slate-400">
-                  No matching events found.
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                    {hasTodayEvents
+                      ? "Today's Schedule"
+                      : 'Upcoming Schedule'}
+                  </h2>
                 </div>
-              )}
 
-            </div>
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            ACTIVITIES
-        =================================================== */}
-
-        <section
-          id="activities"
-          className="mt-12 scroll-mt-24"
-        >
-
-          <SectionHeading
-            eyebrow="Activity Portal"
-            title="Student life beyond the timetable."
-            description="A central landing space for clubs, competitions, cultural programmes, sports and student-led initiatives."
-          />
-
-          <div className="grid md:grid-cols-3 gap-5">
-
-            {[
-              {
-                title: 'Sports',
-                text: 'Inter-house competitions, practice schedules, sports events and campus athletics.',
-                label: 'Competition',
-              },
-              {
-                title: 'Cultural & Literary',
-                text: 'Lit fests, recitations, music, theatre, arts and cultural programmes.',
-                label: 'Expression',
-              },
-              {
-                title: 'Student Initiatives',
-                text: 'Student-led projects, leadership programmes, social initiatives and campus activities.',
-                label: 'Leadership',
-              },
-            ].map((item) => (
-
-              <div
-                key={item.title}
-                className="bg-white rounded-[1.5rem] border border-slate-200/80 p-6 shadow-sm"
-              >
-
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                  {item.label}
-                </span>
-
-                <h3 className="mt-3 text-xl font-bold text-blue-950">
-                  {item.title}
-                </h3>
-
-                <p className="mt-3 text-sm leading-6 text-slate-500">
-                  {item.text}
+                <p className="mt-1 text-xs text-slate-500 md:text-sm">
+                  {hasTodayEvents
+                    ? 'Activities scheduled for today on campus.'
+                    : "No activities are scheduled for today. Here's what comes next."}
                 </p>
-
-                <div className="mt-5 text-xs font-semibold text-slate-400">
-                  Activity Portal
-                </div>
-
-              </div>
-
-            ))}
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            ANNOUNCEMENTS
-        =================================================== */}
-
-        <section className="mt-12">
-
-          <SectionHeading
-            eyebrow="Announcements"
-            title="Important information, without the noise."
-            description="This area is ready to become the central announcement stream once the announcements table is connected."
-          />
-
-          <div className="bg-white rounded-[1.5rem] border border-slate-200/80 p-6 md:p-8">
-
-            <div className="grid md:grid-cols-[auto_1fr_auto] gap-5 items-center">
-
-              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-950 font-bold">
-                !
               </div>
 
               <div>
-
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">
-                  Portal Infrastructure
-                </div>
-
-                <h3 className="mt-1 font-bold text-blue-950">
-                  Announcements will live here.
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Staff or authorised student leaders can eventually publish
-                  notices with priority, audience, expiry date and attachments.
-                </p>
-
-              </div>
-
-              <span className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">
-                Coming online
-              </span>
-
-            </div>
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            LEADERSHIP
-        =================================================== */}
-
-        <section
-          id="leadership"
-          className="mt-12 scroll-mt-24"
-        >
-
-          <SectionHeading
-            eyebrow="Student Leadership"
-            title="Leadership as an institution."
-            description="The portal connects public information with the operational work behind student leadership."
-          />
-
-          <div className="grid md:grid-cols-3 gap-5">
-
-            <div className="bg-blue-950 rounded-[1.5rem] p-7 text-white">
-
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                Council
-              </div>
-
-              <h3 className="mt-4 text-2xl font-bold">
-                Student Leadership
-              </h3>
-
-              <p className="mt-3 text-sm leading-6 text-blue-200">
-                Roles, responsibilities, structures and student
-                representation.
-              </p>
-
-            </div>
-
-            <div className="bg-white rounded-[1.5rem] border border-slate-200/80 p-7 shadow-sm">
-
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                Initiatives
-              </div>
-
-              <h3 className="mt-4 text-2xl font-bold text-blue-950">
-                Projects
-              </h3>
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Student-led projects can move from planning to tasks,
-                execution, outcomes and reports.
-              </p>
-
-            </div>
-
-            <div className="bg-white rounded-[1.5rem] border border-slate-200/80 p-7 shadow-sm">
-
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                Institutional Memory
-              </div>
-
-              <h3 className="mt-4 text-2xl font-bold text-blue-950">
-                Archive
-              </h3>
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Meetings, documents, reports, decisions and completed
-                initiatives can become searchable institutional records.
-              </p>
-
-            </div>
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            RESOURCES
-        =================================================== */}
-
-        <section
-          id="resources"
-          className="mt-12 scroll-mt-24"
-        >
-
-          <SectionHeading
-            eyebrow="Resources"
-            title="Useful school information."
-            description="A future home for documents, links, academic resources and institutional references."
-          />
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-            {[
-              'School Documents',
-              'Academic Resources',
-              'Useful Links',
-              'Institutional Archive',
-            ].map((resource) => (
-
-              <div
-                key={resource}
-                className="bg-white rounded-2xl border border-slate-200/80 p-5"
-              >
-
-                <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-blue-950">
-                  ↗
-                </div>
-
-                <h3 className="mt-4 text-sm font-bold text-blue-950">
-                  {resource}
-                </h3>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Portal resource space.
-                </p>
-
-              </div>
-
-            ))}
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            AUTHENTICATED WORKSPACE
-        =================================================== */}
-
-        {session && (
-
-          <section
-            id="workspace"
-            className="mt-14 pt-10 border-t border-slate-200 scroll-mt-24"
-          >
-
-            <SectionHeading
-              eyebrow="Authorised Area"
-              title="Workspace"
-              description="Operational tools for authorised teachers and student leaders."
-              action={
-                <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-
-                  <span className="text-xs font-semibold text-emerald-700">
-                    {userRole}
+                {hasTodayEvents ? (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-bold text-emerald-700">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                    Live Today
                   </span>
-                </div>
-              }
-            />
-
-            {/* Workspace Overview */}
-
-            <div className="grid md:grid-cols-4 gap-4 mb-6">
-
-              {[
-                {
-                  number: supabaseEvents.length,
-                  label: 'Live Events',
-                },
-                {
-                  number: upcomingEvents.length,
-                  label: 'Upcoming',
-                },
-                {
-                  number: '—',
-                  label: 'Open Tasks',
-                },
-                {
-                  number: '—',
-                  label: 'Projects',
-                },
-              ].map((stat) => (
-
-                <div
-                  key={stat.label}
-                  className="bg-white rounded-2xl border border-slate-200 p-5"
-                >
-
-                  <div className="text-2xl font-bold text-blue-950">
-                    {stat.number}
-                  </div>
-
-                  <div className="mt-1 text-xs text-slate-500">
-                    {stat.label}
-                  </div>
-
-                </div>
-
-              ))}
-
+                ) : (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-xs font-bold text-blue-700">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    Upcoming Events
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Event Publishing */}
-
-            <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm p-6 md:p-8">
-
-              <div className="mb-6">
-
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                  Calendar Management
-                </p>
-
-                <h3 className="mt-2 text-xl font-bold text-blue-950">
-                  Publish New Event
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Publish an event to the live calendar.
-                </p>
-
-              </div>
-
-              <form
-                onSubmit={handleCreateEvent}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            {/* Error banner */}
+            {eventsError && (
+              <div
+                role="status"
+                className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
               >
-
-                <div>
-
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Event Title
-                  </label>
-
-                  <input
-                    type="text"
-                    value={newTitle}
-                    onChange={(e) =>
-                      setNewTitle(e.target.value)
-                    }
-                    placeholder="Council Meeting"
-                    required
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  />
-
-                </div>
-
-                <div>
-
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Date
-                  </label>
-
-                  <input
-                    type="date"
-                    value={newDate}
-                    onChange={(e) =>
-                      setNewDate(e.target.value)
-                    }
-                    required
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  />
-
-                </div>
-
-                <div>
-
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Category
-                  </label>
-
-                  <select
-                    value={newCategory}
-                    onChange={(e) =>
-                      setNewCategory(
-                        e.target.value as Category
-                      )
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  >
-                    <option value="Academic">
-                      Academic
-                    </option>
-
-                    <option value="Flagship">
-                      Flagship
-                    </option>
-
-                    <option value="Cultural">
-                      Cultural
-                    </option>
-
-                    <option value="Exams">
-                      Exams
-                    </option>
-
-                    <option value="Sports">
-                      Sports
-                    </option>
-
-                    <option value="Excursion">
-                      Excursion
-                    </option>
-                  </select>
-
-                </div>
-
-                <div>
-
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Venue
-                  </label>
-
-                  <input
-                    type="text"
-                    value={newVenue}
-                    onChange={(e) =>
-                      setNewVenue(e.target.value)
-                    }
-                    placeholder="Auditorium"
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  />
-
-                </div>
-
-                <div>
-
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Target
-                  </label>
-
-                  <input
-                    type="text"
-                    value={newTarget}
-                    onChange={(e) =>
-                      setNewTarget(e.target.value)
-                    }
-                    placeholder="Grades 9–12"
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  />
-
-                </div>
-
-                <div>
-
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Time / Range
-                  </label>
-
-                  <input
-                    type="text"
-                    value={newTime}
-                    onChange={(e) =>
-                      setNewTime(e.target.value)
-                    }
-                    placeholder="10:00 AM / Full Day"
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  />
-
-                </div>
-
-                <button
-                  type="submit"
-                  className="lg:col-span-3 md:col-span-2 rounded-xl bg-blue-950 text-white py-3 font-semibold text-sm hover:bg-blue-900 transition"
-                >
-                  Publish Event
-                </button>
-
-              </form>
-
-              {message && (
-                <div
-                  className={`mt-5 rounded-xl px-4 py-3 text-xs ${
-                    message.toLowerCase().includes('success') ||
-                    message.toLowerCase().includes('published')
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}
-                >
-                  {message}
-                </div>
-              )}
-
-            </div>
-
-            {/* Database Events */}
-
-            <div className="mt-6 bg-white rounded-[1.5rem] border border-slate-200 shadow-sm p-6 md:p-8">
-
-              <div className="flex items-center justify-between mb-5">
-
-                <div>
-
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">
-                    Supabase
-                  </p>
-
-                  <h3 className="mt-2 text-xl font-bold text-blue-950">
-                    Live Database Events
-                  </h3>
-
-                </div>
-
-                <span className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
-                  {supabaseEvents.length}
-                </span>
-
+                Live calendar data could not be reached. The
+                institutional annual calendar is still being shown.
               </div>
+            )}
 
-              <div className="divide-y divide-slate-100">
+            {/* Loading */}
+            {eventsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((item) => (
+                  <div
+                    key={item}
+                    className="h-16 animate-pulse rounded-xl bg-slate-100"
+                  />
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Desktop table */}
+                <div className="hidden overflow-hidden rounded-2xl border border-slate-100 md:block">
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+                        <th className="border-b border-slate-100 p-4">
+                          Event / Program
+                        </th>
 
-                {supabaseEvents.length > 0 ? (
+                        <th className="border-b border-slate-100 p-4">
+                          Category & Target
+                        </th>
 
-                  supabaseEvents.map((event) => {
+                        <th className="border-b border-slate-100 p-4 text-right">
+                          Date & Venue
+                        </th>
+                      </tr>
+                    </thead>
 
-                    const styles =
-                      getCategoryStyles(
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {displayEvents.length > 0 ? (
+                        displayEvents.map(renderEventRow)
+                      ) : (
+                        <tr>
+                          <td
+                            colSpan={3}
+                            className="p-10 text-center"
+                          >
+                            <div className="text-sm font-semibold text-slate-700">
+                              No upcoming events listed.
+                            </div>
+
+                            <div className="mt-1 text-xs text-slate-400">
+                              The calendar will update when new
+                              events are published.
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="space-y-3 md:hidden">
+                  {displayEvents.length > 0 ? (
+                    displayEvents.map((event, index) => {
+                      const styles = getCategoryStyles(
                         event.category
                       );
 
-                    return (
-                      <div
-                        key={event.id}
-                        className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-                      >
+                      const relativeLabel = getRelativeLabel(
+                        event.event_date,
+                        todayString
+                      );
 
-                        <div className="flex items-start gap-3">
+                      const eventVenue =
+                        event.venue || 'Campus';
 
-                          <span
-                            className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${styles.dot}`}
-                          />
+                      return (
+                        <article
+                          key={`${event.title}-${event.event_date}-${index}`}
+                          className={`rounded-2xl border p-4 ${
+                            event.event_date === todayString
+                              ? 'border-emerald-200 bg-emerald-50/40'
+                              : 'border-slate-200 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex min-w-0 items-start gap-3">
+                              <span
+                                className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`}
+                              />
 
-                          <div>
+                              <div className="min-w-0">
+                                <h3 className="font-semibold text-slate-900">
+                                  {event.title}
+                                </h3>
 
-                            <p className="font-semibold text-sm text-slate-800">
-                              {event.title}
-                            </p>
+                                {event.time && (
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {event.time}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
 
-                            <p className="mt-1 text-xs text-slate-500">
-                              {formatDate(
-                                event.event_date
-                              )}
-                              {' · '}
-                              {event.venue ||
-                                event.description ||
-                                'Campus'}
-
-                              {event.time &&
-                                ` · ${event.time}`}
-                            </p>
-
+                            {relativeLabel && (
+                              <span
+                                className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${
+                                  relativeLabel === 'Today'
+                                    ? 'text-emerald-700'
+                                    : 'text-slate-400'
+                                }`}
+                              >
+                                {relativeLabel}
+                              </span>
+                            )}
                           </div>
 
-                        </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.bg} ${styles.text} ${styles.border}`}
+                            >
+                              {event.category ||
+                                'Council Event'}
+                            </span>
 
-                        <span
-                          className={`self-start sm:self-auto px-2.5 py-1 rounded-full text-[10px] font-semibold ${styles.bg} ${styles.text}`}
-                        >
-                          {event.category ||
-                            'Campus'}
-                        </span>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                              {event.target ||
+                                'School Community'}
+                            </span>
+                          </div>
 
+                          <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                            <span className="font-semibold text-slate-700">
+                              {formatDate(event.event_date)}
+                            </span>
+
+                            <span className="mx-2">·</span>
+
+                            {eventVenue}
+
+                            {event.time && (
+                              <>
+                                <span className="mx-2">·</span>
+                                {event.time}
+                              </>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
+                      <div className="text-sm font-semibold text-slate-700">
+                        No upcoming events listed.
                       </div>
-                    );
-                  })
 
-                ) : (
+                      <div className="mt-1 text-xs text-slate-400">
+                        The calendar will update when new events
+                        are published.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
 
-                  <div className="py-8 text-center text-sm text-slate-500">
-                    No events are currently stored in the{' '}
-                    <code className="bg-slate-100 px-1.5 py-1 rounded text-xs">
-                      calendar_events
-                    </code>{' '}
-                    table.
-                  </div>
+          {/* ---------------------------------------------------------------- */}
+          {/* Leadership                                                        */}
+          {/* ---------------------------------------------------------------- */}
 
-                )}
+          <section
+            id="leadership"
+            className="rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm md:p-8"
+          >
+            <div className="max-w-3xl">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">
+                Leadership
+              </p>
 
-              </div>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-blue-950">
+                Student leadership, structured for responsibility.
+              </h2>
 
+              <p className="mt-4 text-sm leading-7 text-slate-600">
+                The Council Portal provides a common operational
+                layer for student leaders, authorised staff and
+                institutional activities. Public information and
+                internal operations remain separate.
+              </p>
             </div>
 
-            {/* Future Workspace Modules */}
-
-            <div className="mt-6 grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
               {[
-                'Announcements',
-                'Tasks',
-                'Projects',
-                'Meetings',
-                'Documents',
-                'Reports',
-                'Members',
-                'Archive',
-              ].map((module) => (
-
+                {
+                  title: 'Leadership',
+                  text: 'Council roles, responsibilities and institutional representation.',
+                },
+                {
+                  title: 'Operations',
+                  text: 'Events, tasks, meetings and initiatives in one workspace.',
+                },
+                {
+                  title: 'Continuity',
+                  text: 'A structured institutional record of Council activity.',
+                },
+              ].map((item) => (
                 <div
-                  key={module}
-                  className="bg-white rounded-2xl border border-slate-200 p-5"
+                  key={item.title}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-5"
                 >
-
-                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    Workspace
-                  </div>
-
-                  <h3 className="mt-3 font-bold text-blue-950">
-                    {module}
+                  <h3 className="font-semibold text-slate-900">
+                    {item.title}
                   </h3>
 
-                  <p className="mt-1 text-xs text-slate-500">
-                    Module prepared for the next database layer.
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    {item.text}
                   </p>
+                </div>
+              ))}
+            </div>
+          </section>
 
+          {/* ---------------------------------------------------------------- */}
+          {/* Initiatives                                                       */}
+          {/* ---------------------------------------------------------------- */}
+
+          <section
+            id="initiatives"
+            className="rounded-[1.75rem] bg-blue-950 p-6 text-white shadow-sm md:p-8"
+          >
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-300">
+              Initiatives
+            </p>
+
+            <h2 className="mt-2 text-2xl font-bold tracking-tight">
+              From ideas to institutional memory.
+            </h2>
+
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-blue-100">
+              The portal is designed to eventually connect projects,
+              tasks, meetings, outcomes, reports and archived
+              documentation, so Council work does not disappear
+              when the academic year changes.
+            </p>
+
+            <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                'Projects',
+                'Tasks',
+                'Meetings',
+                'Archive',
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-semibold text-white"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ---------------------------------------------------------------- */}
+          {/* Authenticated Workspace                                           */}
+          {/* ---------------------------------------------------------------- */}
+
+          {authChecked && session && (
+            <section
+              id="workspace"
+              className="space-y-6 border-t border-slate-200 pt-10"
+            >
+              {/* Workspace header */}
+              <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
+                      Council Workspace
+                    </span>
+                  </div>
+
+                  <h2 className="mt-2 text-2xl font-bold tracking-tight text-blue-950">
+                    Welcome to the workspace.
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    {session.user.email}
+                  </p>
                 </div>
 
-              ))}
+                <div className="self-start rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 md:self-auto">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Access level
+                  </div>
 
-            </div>
+                  <div
+                    className={`mt-1 text-sm font-semibold ${
+                      isAuthorized
+                        ? 'text-blue-950'
+                        : 'text-red-700'
+                    }`}
+                  >
+                    {userRole}
+                  </div>
+                </div>
+              </div>
 
-          </section>
-        )}
+              {/* Unauthorized state */}
+              {!isAuthorized ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
+                  <h3 className="font-bold text-red-900">
+                    Workspace access not authorised
+                  </h3>
 
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-red-800">
+                    Your email has authenticated successfully, but
+                    it is not currently listed in the Council
+                    access registry. Authentication and authorization
+                    are separate checks.
+                  </p>
+
+                  <p className="mt-3 text-xs text-red-700">
+                    If you believe this is an error, contact the
+                    authorised portal administrator.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Workspace navigation */}
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                    <div className="flex min-w-max gap-1">
+                      {[
+                        'Dashboard',
+                        'Calendar',
+                        'Announcements',
+                        'Tasks',
+                        'Projects',
+                        'Meetings',
+                        'Documents',
+                      ].map((item, index) => (
+                        <button
+                          key={item}
+                          type="button"
+                          className={`rounded-xl px-4 py-2.5 text-xs font-semibold transition ${
+                            index === 0
+                              ? 'bg-blue-950 text-white'
+                              : 'text-slate-600 hover:bg-slate-50 hover:text-blue-950'
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Dashboard overview */}
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      {
+                        label: 'Calendar Events',
+                        value: supabaseEvents.length,
+                      },
+                      {
+                        label: 'Upcoming',
+                        value: upcomingEvents.length,
+                      },
+                      {
+                        label: 'Role',
+                        value: userRole,
+                      },
+                      {
+                        label: 'System',
+                        value: 'Online',
+                      },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                      >
+                        <div className="text-xs font-medium text-slate-500">
+                          {stat.label}
+                        </div>
+
+                        <div
+                          className={`mt-2 font-bold ${
+                            stat.label === 'Role'
+                              ? 'text-lg text-blue-950'
+                              : 'text-2xl text-blue-950'
+                          }`}
+                        >
+                          {stat.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Event management */}
+                  {canManageEvents && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                      <div className="mb-6">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
+                          Calendar Management
+                        </p>
+
+                        <h3 className="mt-1 text-xl font-bold text-slate-900">
+                          Publish an event
+                        </h3>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          Required fields are marked with{' '}
+                          <span className="font-bold text-red-500">
+                            *
+                          </span>
+                          .
+                        </p>
+                      </div>
+
+                      {renderFeedback(eventFeedback)}
+
+                      <form
+                        onSubmit={handleCreateEvent}
+                        className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2"
+                      >
+                        <div>
+                          <label
+                            htmlFor="event-title"
+                            className="mb-1.5 block text-xs font-semibold text-slate-700"
+                          >
+                            Event Title{' '}
+                            <span className="text-red-500">
+                              *
+                            </span>
+                          </label>
+
+                          <input
+                            id="event-title"
+                            type="text"
+                            value={newTitle}
+                            onChange={(event) =>
+                              setNewTitle(event.target.value)
+                            }
+                            placeholder="e.g. Council Meeting"
+                            maxLength={120}
+                            required
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="event-date"
+                            className="mb-1.5 block text-xs font-semibold text-slate-700"
+                          >
+                            Date{' '}
+                            <span className="text-red-500">
+                              *
+                            </span>
+                          </label>
+
+                          <input
+                            id="event-date"
+                            type="date"
+                            value={newDate}
+                            min={todayString}
+                            onChange={(event) =>
+                              setNewDate(event.target.value)
+                            }
+                            required
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="event-category"
+                            className="mb-1.5 block text-xs font-semibold text-slate-700"
+                          >
+                            Category{' '}
+                            <span className="text-red-500">
+                              *
+                            </span>
+                          </label>
+
+                          <select
+                            id="event-category"
+                            value={newCategory}
+                            onChange={(event) =>
+                              setNewCategory(
+                                event.target
+                                  .value as EventCategory
+                              )
+                            }
+                            required
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                          >
+                            <option value="Academic">
+                              Academic
+                            </option>
+                            <option value="Cultural">
+                              Cultural
+                            </option>
+                            <option value="Exams">
+                              Exams
+                            </option>
+                            <option value="Sports">
+                              Sports
+                            </option>
+                            <option value="Excursion">
+                              Excursion
+                            </option>
+                            <option value="Flagship">
+                              Flagship
+                            </option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="event-target"
+                            className="mb-1.5 block text-xs font-semibold text-slate-700"
+                          >
+                            Target Audience
+                          </label>
+
+                          <input
+                            id="event-target"
+                            type="text"
+                            value={newTarget}
+                            onChange={(event) =>
+                              setNewTarget(event.target.value)
+                            }
+                            placeholder="e.g. Grade 11 Council"
+                            maxLength={100}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="event-venue"
+                            className="mb-1.5 block text-xs font-semibold text-slate-700"
+                          >
+                            Venue
+                          </label>
+
+                          <input
+                            id="event-venue"
+                            type="text"
+                            value={newVenue}
+                            onChange={(event) =>
+                              setNewVenue(event.target.value)
+                            }
+                            placeholder="e.g. Conference Room"
+                            maxLength={100}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="event-time"
+                            className="mb-1.5 block text-xs font-semibold text-slate-700"
+                          >
+                            Time / Range
+                          </label>
+
+                          <input
+                            id="event-time"
+                            type="text"
+                            value={newTime}
+                            onChange={(event) =>
+                              setNewTime(event.target.value)
+                            }
+                            placeholder="e.g. 4:00 PM – 5:30 PM"
+                            maxLength={100}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <button
+                            type="submit"
+                            disabled={publishing}
+                            className="w-full rounded-lg bg-blue-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {publishing
+                              ? 'Publishing…'
+                              : 'Publish Event'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Live database events */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                          Live Database
+                        </p>
+
+                        <h3 className="mt-1 text-xl font-bold text-slate-900">
+                          Published events
+                        </h3>
+                      </div>
+
+                      <span className="text-xs font-medium text-slate-400">
+                        {supabaseEvents.length} database record
+                        {supabaseEvents.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+
+                    <div className="mt-5 divide-y divide-slate-100">
+                      {supabaseEvents.length > 0 ? (
+                        supabaseEvents.map((event) => (
+                          <div
+                            key={event.id}
+                            className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div>
+                              <div className="font-semibold text-slate-900">
+                                {event.title}
+                              </div>
+
+                              <div className="mt-1 text-xs text-slate-500">
+                                {formatDate(event.event_date)}
+                                {' · '}
+                                {event.venue || 'Campus'}
+                                {event.time
+                                  ? ` · ${event.time}`
+                                  : ''}
+                              </div>
+                            </div>
+
+                            <span
+                              className={`self-start rounded-full border px-2.5 py-1 text-[11px] font-semibold sm:self-auto ${
+                                getCategoryStyles(
+                                  event.category
+                                ).bg
+                              } ${
+                                getCategoryStyles(
+                                  event.category
+                                ).text
+                              } ${
+                                getCategoryStyles(
+                                  event.category
+                                ).border
+                              }`}
+                            >
+                              {event.category ||
+                                'Council Event'}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-8 text-center">
+                          <div className="text-sm font-semibold text-slate-700">
+                            No live events have been published.
+                          </div>
+
+                          <div className="mt-1 text-xs text-slate-400">
+                            The public annual calendar remains
+                            available independently.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+        </div>
       </main>
 
-      {/* =====================================================
-          SIGN-IN MODAL
-      ===================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Footer                                                              */}
+      {/* ------------------------------------------------------------------ */}
+
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-8 text-xs text-slate-500 md:flex-row md:items-center md:justify-between lg:px-8">
+          <div>
+            <span className="font-semibold text-slate-700">
+              VidyaGyan Council Portal
+            </span>
+            <span className="mx-2">·</span>
+            Student Leadership
+          </div>
+
+          <div>
+            2026–27 · Campus Time: IST
+          </div>
+        </div>
+      </footer>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Sign-in modal                                                        */}
+      {/* ------------------------------------------------------------------ */}
 
       {isModalOpen && (
-
         <div
-          className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setIsModalOpen(false)}
-        >
-
-          <div
-            className="bg-white rounded-[1.5rem] shadow-2xl max-w-md w-full p-7 relative"
-            onClick={(e) =>
-              e.stopPropagation()
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="signin-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsModalOpen(false);
             }
-          >
-
+          }}
+        >
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <button
+              type="button"
               onClick={() => setIsModalOpen(false)}
-              className="absolute right-4 top-4 w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-              aria-label="Close"
+              className="absolute right-4 top-4 rounded-lg p-2 text-lg leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-700"
+              aria-label="Close sign-in dialog"
             >
               ×
             </button>
 
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-              Authorised Workspace
-            </p>
+            <div className="pr-8">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
+                Council Workspace
+              </p>
 
-            <h3 className="mt-2 text-2xl font-bold text-blue-950">
-              Sign In
-            </h3>
+              <h2
+                id="signin-title"
+                className="mt-2 text-2xl font-bold tracking-tight text-slate-900"
+              >
+                Sign in to continue
+              </h2>
 
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Use your official VidyaGyan school email to access
-              authorised portal functions.
-            </p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Authorised teachers and Council members can access
+                the operational workspace using their official
+                VidyaGyan email.
+              </p>
+            </div>
 
             <form
               onSubmit={handleLogin}
-              className="mt-7 space-y-4"
+              className="mt-6 space-y-4"
             >
-
               <div>
-
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label
+                  htmlFor="school-email"
+                  className="mb-1.5 block text-xs font-semibold text-slate-700"
+                >
                   School Email
                 </label>
 
                 <input
+                  id="school-email"
                   type="email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
+                  inputMode="email"
+                  autoComplete="email"
                   placeholder="username@vidyagyan.in"
+                  value={email}
+                  onChange={(event) =>
+                    setEmail(event.target.value)
+                  }
                   required
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                  autoFocus
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                 />
-
               </div>
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full rounded-xl bg-blue-950 text-white py-3 font-semibold text-sm hover:bg-blue-900 transition disabled:opacity-50"
+                disabled={loginLoading}
+                className="w-full rounded-lg bg-blue-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading
-                  ? 'Sending...'
+                {loginLoading
+                  ? 'Sending…'
                   : 'Send Magic Link'}
               </button>
-
             </form>
 
-            {message && (
-              <div
-                className={`mt-4 rounded-xl p-3 text-xs text-center ${
-                  message.toLowerCase().includes('sent')
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-red-50 text-red-700 border border-red-200'
-                }`}
-              >
-                {message}
+            {loginFeedback && (
+              <div className="mt-4">
+                {renderFeedback(loginFeedback)}
               </div>
             )}
 
-            <p className="mt-5 text-[10px] text-center text-slate-400">
-              Access is restricted to official
-              @vidyagyan.in accounts.
+            <p className="mt-5 text-center text-[11px] leading-5 text-slate-400">
+              Access requires both successful authentication and
+              authorised Council membership.
             </p>
-
           </div>
-
         </div>
       )}
-
-      {/* =====================================================
-          FOOTER
-      ===================================================== */}
-
-      <footer className="mt-16 border-t border-slate-200 bg-white">
-
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
-
-          <div className="grid md:grid-cols-3 gap-8">
-
-            <div>
-
-              <div className="font-bold text-blue-950">
-                VidyaGyan Portal
-              </div>
-
-              <p className="mt-2 text-xs leading-5 text-slate-500 max-w-sm">
-                A unified digital layer for campus information,
-                student life and institutional leadership.
-              </p>
-
-            </div>
-
-            <div>
-
-              <div className="text-xs font-bold text-slate-700">
-                Portal
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
-
-                <a href="#schedule" className="hover:text-blue-950">
-                  Schedule
-                </a>
-
-                <a href="#mess" className="hover:text-blue-950">
-                  Mess Menu
-                </a>
-
-                <a href="#calendar" className="hover:text-blue-950">
-                  Calendar
-                </a>
-
-                <a href="#activities" className="hover:text-blue-950">
-                  Activities
-                </a>
-
-                <a href="#leadership" className="hover:text-blue-950">
-                  Leadership
-                </a>
-
-                <a href="#resources" className="hover:text-blue-950">
-                  Resources
-                </a>
-
-              </div>
-
-            </div>
-
-            <div className="md:text-right">
-
-              <div className="text-xs font-bold text-slate-700">
-                VidyaGyan Bulandshahr
-              </div>
-
-              <p className="mt-2 text-xs text-slate-400">
-                Student Portal · 2026–27
-              </p>
-
-              <p className="mt-1 text-xs text-slate-400">
-                Campus Time · Asia/Kolkata
-              </p>
-
-            </div>
-
-          </div>
-
-          <div className="mt-8 pt-5 border-t border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-
-            <span className="text-[10px] text-slate-400">
-              VidyaGyan Leadership Academy
-            </span>
-
-            <span className="text-[10px] text-slate-400">
-              Portal Infrastructure · 2026–27
-            </span>
-
-          </div>
-
-        </div>
-
-      </footer>
-
     </div>
   );
 }
