@@ -26,133 +26,534 @@ interface CalendarEvent {
 
 // 2026–27 Master Annual Calendar Dataset
 const ANNUAL_EVENTS: CalendarEvent[] = [
+  // =========================
+  // SEPTEMBER 2026
+  // =========================
+
   {
-    title: 'Science-iquisition',
+    title: 'Math Rangoli',
     category: 'Academic',
-    target: 'All Grades',
-    event_date: '2026-04-16',
+    target: 'Grade 6',
+    event_date: '2026-09-18',
     venue: 'Campus',
-    time: 'Day Event',
+    time: 'Evening Prep',
   },
+
   {
-    title: 'Investiture Ceremony',
-    category: 'Flagship',
-    target: 'All Grades',
-    event_date: '2026-04-18',
-    venue: 'Auditorium',
-    time: 'Morning Event',
-  },
-  {
-    title: 'Trip to Biodiversity Park (SNU)',
-    category: 'Excursion',
-    target: 'Grade 9',
-    event_date: '2026-04-22',
-    venue: 'SNU Noida',
-    time: 'Day Trip',
-  },
-  {
-    title: "Bard's Day",
-    category: 'Cultural',
-    target: 'All Grades',
-    event_date: '2026-04-23',
-    venue: 'Amphitheatre',
-    time: 'Evening Event',
-  },
-  {
-    title: 'Periodic Test 1 (PT-1)',
+    title: 'Mid-Term Examinations End',
     category: 'Exams',
-    target: 'Grades 7-12',
-    event_date: '2026-05-04',
-    venue: 'Classrooms',
-    time: 'Morning Session',
+    target: 'Grades 11-12',
+    event_date: '2026-09-21',
+    venue: 'Exam Halls',
   },
+
   {
-    title: 'VGB MUN 2026',
-    category: 'Academic',
-    target: 'Grades 9-12',
-    event_date: '2026-08-07',
-    venue: 'Conference Block',
-    time: 'Full Day',
-  },
-  {
-    title: 'Vidyagyan Day (VG Day)',
-    category: 'Flagship',
-    target: 'All Grades',
-    event_date: '2026-08-08',
-    venue: 'Main Ground',
-    time: 'Full Day',
-  },
-  {
-    title: 'STEAM Conclave',
-    category: 'Academic',
-    target: 'Grades 9-12 Science',
-    event_date: '2026-08-12',
-    venue: 'Labs',
-    time: 'Full Day',
-  },
-  {
-    title: 'TED Event',
-    category: 'Cultural',
-    target: 'All Grades',
-    event_date: '2026-08-31',
-    venue: 'Amphitheatre',
-    time: 'Morning Session',
-  },
-  {
-    title: 'Mid-Term Examinations',
+    title: 'Mid-Term Examinations End',
     category: 'Exams',
-    target: 'Grades 7-12',
-    event_date: '2026-09-12',
-    venue: 'Classrooms',
-    time: '08:00 AM - 11:00 AM',
+    target: 'Grades 9-10',
+    event_date: '2026-09-23',
+    venue: 'Exam Halls',
   },
+
   {
-    title: 'Trip to Physics Dham & Jaipur',
-    category: 'Excursion',
-    target: 'Selected Delegations',
+    title: 'Mid-Term Examinations End',
+    category: 'Exams',
+    target: 'Grades 7-8',
+    event_date: '2026-09-25',
+    venue: 'Exam Halls',
+  },
+
+  {
+    title: 'SPANDAN Lit Fest',
+    category: 'Cultural',
+    target: 'Teachers',
+    event_date: '2026-09-25',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Inter-Section English Recitation',
+    category: 'Cultural',
+    target: 'Grade 6',
+    event_date: '2026-09-25',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Cultural Week',
+    category: 'Cultural',
+    target: 'School Community',
+    event_date: '2026-09-28',
+    venue: 'Campus',
+    time: '28 Sep – 1 Oct',
+  },
+
+  {
+    title: 'Cultural Week Ends',
+    category: 'Cultural',
+    target: 'School Community',
+    event_date: '2026-10-01',
+    venue: 'Campus',
+  },
+
+  // =========================
+  // OCTOBER 2026
+  // =========================
+
+  {
+    title: 'Gandhi Jayanti & Theatre Visit',
+    category: 'Cultural',
+    target: 'School Community',
     event_date: '2026-10-02',
-    venue: 'Jaipur',
-    time: 'Full Day Trip',
+    venue: 'Campus / Theatre',
   },
+
+  {
+    title: 'Trip to Physics Dham – Jaipur',
+    category: 'Excursion',
+    target: 'Selected Students',
+    event_date: '2026-10-02',
+    venue: 'Physics Dham / Jaipur',
+  },
+
+  {
+    title: 'IH Kabaddi',
+    category: 'Sports',
+    target: 'Inter-House',
+    event_date: '2026-10-05',
+    venue: 'Sports Ground',
+    time: '5–7 Oct & 11–12 Oct',
+  },
+
+  {
+    title: 'Mid-Term Review',
+    category: 'Academic',
+    target: 'Grades 11-12',
+    event_date: '2026-10-08',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Mid-Term Review',
+    category: 'Academic',
+    target: 'Grades 9-10',
+    event_date: '2026-10-09',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Mid-Term Review',
+    category: 'Academic',
+    target: 'Grades 7-8',
+    event_date: '2026-10-10',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Delhi Zoo Visit',
+    category: 'Excursion',
+    target: 'Grade 6',
+    event_date: '2026-10-12',
+    venue: 'Delhi Zoo',
+  },
+
+  {
+    title: 'Workshop',
+    category: 'Academic',
+    target: 'Grades 6-8',
+    event_date: '2026-10-14',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'IH Painting Competition',
+    category: 'Cultural',
+    target: 'Grades 6-7',
+    event_date: '2026-10-15',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'IH Painting Competition',
+    category: 'Cultural',
+    target: 'Grades 8-9',
+    event_date: '2026-10-16',
+    venue: 'Campus',
+  },
+
   {
     title: 'Inter-Disciplinary Trip to Agra',
     category: 'Excursion',
     target: 'Grades 7-8 & 11-12 Eco',
     event_date: '2026-10-17',
     venue: 'Agra',
-    time: 'Day Trip',
   },
+
+  {
+    title: 'Maha Navami',
+    category: 'Cultural',
+    target: 'School Community',
+    event_date: '2026-10-19',
+  },
+
+  {
+    title: 'Dussehra',
+    category: 'Cultural',
+    target: 'School Community',
+    event_date: '2026-10-20',
+  },
+
+  {
+    title: 'IH Badminton',
+    category: 'Sports',
+    target: 'Inter-House',
+    event_date: '2026-10-21',
+    venue: 'Sports Ground',
+    time: '21–24 Oct',
+  },
+
+  {
+    title: 'Visit to Delhi Haat',
+    category: 'Excursion',
+    target: 'Commerce & Economics',
+    event_date: '2026-10-26',
+    venue: 'Delhi Haat',
+  },
+
+  {
+    title: 'Annual Sports Practice',
+    category: 'Sports',
+    target: 'School Community',
+    event_date: '2026-10-26',
+    venue: 'Sports Ground',
+    time: '26–31 Oct · Evening',
+  },
+
   {
     title: 'Lit Fest 2026',
     category: 'Cultural',
     target: 'Inter-School Delegations',
     event_date: '2026-10-30',
-    venue: 'Auditorium',
-    time: 'Full Day',
+    venue: 'Campus',
+    time: '30–31 Oct',
   },
+
+  {
+    title: 'Syllabus Completion',
+    category: 'Academic',
+    target: 'Grades 10 & 12',
+    event_date: '2026-10-31',
+    venue: 'Campus',
+  },
+
+  // =========================
+  // NOVEMBER 2026
+  // =========================
+
+  {
+    title: 'History for Peace 2026',
+    category: 'Academic',
+    target: 'School Community',
+    event_date: '2026-11-02',
+    venue: 'Campus',
+    time: '2–3 Nov',
+  },
+
+  {
+    title: 'PTM',
+    category: 'Academic',
+    target: 'Parents & Students',
+    event_date: '2026-11-04',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Deepawali Break',
+    category: 'Flagship',
+    target: 'Students',
+    event_date: '2026-11-05',
+    time: '5–21 Nov',
+  },
+
+  {
+    title: 'Reporting Day',
+    category: 'Academic',
+    target: 'Teachers',
+    event_date: '2026-11-17',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'OLE',
+    category: 'Academic',
+    target: 'Teachers',
+    event_date: '2026-11-18',
+    venue: 'Campus',
+    time: '18–21 Nov',
+  },
+
+  {
+    title: 'Reporting Day',
+    category: 'Academic',
+    target: 'Students',
+    event_date: '2026-11-22',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Classes Begin',
+    category: 'Academic',
+    target: 'Students',
+    event_date: '2026-11-23',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Annual Sports Practice',
+    category: 'Sports',
+    target: 'School Community',
+    event_date: '2026-11-23',
+    venue: 'Sports Ground',
+    time: '23–24 Nov · Evening',
+  },
+
   {
     title: 'Annual Sports Day',
     category: 'Sports',
     target: 'All Houses',
     event_date: '2026-11-28',
     venue: 'Sports Complex',
-    time: '08:00 AM - 04:00 PM',
   },
+
+  {
+    title: 'Interaction with Mr. Solanki',
+    category: 'Academic',
+    target: 'School Community',
+    event_date: '2026-11-30',
+    venue: 'Campus',
+    time: 'Environmentalist Interaction',
+  },
+
+  // =========================
+  // DECEMBER 2026
+  // =========================
+
+  {
+    title: 'Itihaas Anveshan',
+    category: 'Academic',
+    target: 'School Community',
+    event_date: '2026-12-05',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'VGEE',
+    category: 'Academic',
+    target: 'Eligible Students',
+    event_date: '2026-12-06',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Periodic Tests',
+    category: 'Exams',
+    target: 'Relevant Grades',
+    event_date: '2026-12-08',
+    venue: 'Exam Halls',
+    time: '8–14 Dec',
+  },
+
   {
     title: 'Pre-Board Examinations',
     category: 'Exams',
     target: 'Grades 10 & 12',
     event_date: '2026-12-08',
     venue: 'Exam Halls',
-    time: '09:00 AM - 12:00 PM',
+    time: '8–16 Dec',
   },
+
+  {
+    title: 'Inter-Section Choir',
+    category: 'Cultural',
+    target: 'Grade 6',
+    event_date: '2026-12-17',
+    venue: 'Morning Assembly',
+  },
+
+  {
+    title: 'PTM',
+    category: 'Academic',
+    target: 'Grades 6-9 & 11',
+    event_date: '2026-12-19',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Winter Break Begins',
+    category: 'Flagship',
+    target: 'Grades 6-9 & 11',
+    event_date: '2026-12-20',
+    time: '20 Dec – 9 Jan',
+  },
+
+  {
+    title: 'Winter Camp',
+    category: 'Academic',
+    target: 'Grades 10 & 12',
+    event_date: '2026-12-21',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Christmas',
+    category: 'Cultural',
+    target: 'School Community',
+    event_date: '2026-12-25',
+  },
+
+  {
+    title: 'New Year Eve Celebration',
+    category: 'Cultural',
+    target: 'School Community',
+    event_date: '2026-12-31',
+    venue: 'Campus',
+  },
+
+  // =========================
+  // JANUARY 2027
+  // =========================
+
+  {
+    title: 'Reporting Day',
+    category: 'Academic',
+    target: 'Teachers',
+    event_date: '2027-01-09',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Reporting Day',
+    category: 'Academic',
+    target: 'Students',
+    event_date: '2027-01-10',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Classes Begin',
+    category: 'Academic',
+    target: 'Students',
+    event_date: '2027-01-11',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'ICCR International Festival',
+    category: 'Cultural',
+    target: 'Grade 8',
+    event_date: '2027-01-21',
+    venue: 'Campus',
+    time: '21–23 Jan',
+  },
+
+  {
+    title: 'IH Music Competition',
+    category: 'Cultural',
+    target: 'Grades 7-9',
+    event_date: '2027-01-25',
+    venue: 'Campus',
+    time: 'Singing / Orchestra',
+  },
+
+  {
+    title: 'Republic Day',
+    category: 'Flagship',
+    target: 'School Community',
+    event_date: '2027-01-26',
+  },
+
+  {
+    title: 'Visit to Book Fair',
+    category: 'Excursion',
+    target: 'Students',
+    event_date: '2027-01-30',
+    venue: 'Book Fair',
+  },
+
+  // =========================
+  // FEBRUARY 2027
+  // =========================
+
   {
     title: 'Annual Examinations',
     category: 'Exams',
-    target: 'Grades 9 & 11',
+    target: 'Grade 11',
     event_date: '2027-02-09',
     venue: 'Exam Halls',
-    time: 'Morning Session',
+    time: '9–17 Feb',
+  },
+
+  {
+    title: 'Annual Examinations',
+    category: 'Exams',
+    target: 'Grade 9',
+    event_date: '2027-02-09',
+    venue: 'Exam Halls',
+    time: '9–19 Feb',
+  },
+
+  {
+    title: 'OLE',
+    category: 'Academic',
+    target: 'Grades 9 & 11',
+    event_date: '2027-02-22',
+    venue: 'Campus',
+    time: 'Proposed · 22–27 Feb',
+  },
+
+  // =========================
+  // MARCH 2027
+  // =========================
+
+  {
+    title: 'New Session Begins',
+    category: 'Academic',
+    target: 'Grades 10 & 12',
+    event_date: '2027-03-01',
+    venue: 'Campus',
+  },
+
+  {
+    title: 'Annual Examinations',
+    category: 'Exams',
+    target: 'Grades 6-8',
+    event_date: '2027-03-09',
+    venue: 'Exam Halls',
+    time: '9–23 Mar',
+  },
+
+  {
+    title: 'Holi',
+    category: 'Cultural',
+    target: 'School Community',
+    event_date: '2027-03-22',
+  },
+
+  {
+    title: 'Session Break',
+    category: 'Academic',
+    target: 'Students',
+    event_date: '2027-03-27',
+    time: '27–31 Mar',
+  },
+
+  {
+    title: 'In-Service Training',
+    category: 'Academic',
+    target: 'Staff',
+    event_date: '2027-03-29',
+    venue: 'Campus',
+    time: '29–30 Mar',
   },
 ];
 
@@ -308,7 +709,7 @@ export default function Home() {
       const upcoming = combined
         .filter((evt) => evt.event_date > todayStr)
         .sort((a, b) => a.event_date.localeCompare(b.event_date))
-        .slice(0, 6);
+        .slice(0, 8);
 
       setDisplayEvents(upcoming);
       setIsToday(false);
