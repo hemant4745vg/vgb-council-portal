@@ -239,6 +239,7 @@ function HouseCard({
     <article
       className={`group relative overflow-hidden rounded-[2rem] border ${style.border} bg-white shadow-[0_16px_45px_-28px_rgba(15,23,42,0.35)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-28px_rgba(15,23,42,0.45)]`}
     >
+      {/* House Header */}
       <div
         className={`relative overflow-hidden bg-gradient-to-br ${style.gradient} px-6 py-7 sm:px-7`}
       >
@@ -267,43 +268,55 @@ function HouseCard({
         </div>
       </div>
 
+      {/* House Masters */}
       <div className="p-6 sm:p-7">
-        <div className={`rounded-2xl ${style.soft} p-5`}>
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${style.accent}`}
-            />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* House Master */}
+          <div
+            className={`rounded-2xl border ${style.border} ${style.soft} p-5`}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${style.accent}`}
+              />
 
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-              House Master
+              <p
+                className={`text-[10px] font-bold uppercase tracking-[0.14em] ${style.text}`}
+              >
+                House Master
+              </p>
+            </div>
+
+            <p className="mt-4 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+              {hm}
             </p>
           </div>
 
-          <p className="mt-3 text-lg font-bold tracking-tight text-slate-950">
-            {hm}
-          </p>
-        </div>
+          {/* Co-House Master */}
+          <div
+            className={`rounded-2xl border ${style.border} ${style.soft} p-5`}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${style.accent}`}
+              />
 
-        <div className="my-5 flex items-center gap-3">
-          <div className={`h-px flex-1 ${style.accent} opacity-20`} />
+              <p
+                className={`text-[10px] font-bold uppercase tracking-[0.14em] ${style.text}`}
+              >
+                Co-House Master
+              </p>
+            </div>
 
-          <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">
-            Co-House Master
-          </span>
-
-          <div className={`h-px flex-1 ${style.accent} opacity-20`} />
-        </div>
-
-        <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
-          <p className="text-lg font-bold tracking-tight text-slate-900">
-            {chm}
-          </p>
+            <p className="mt-4 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+              {chm}
+            </p>
+          </div>
         </div>
       </div>
     </article>
   );
 }
-
 export default function LeadershipPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#f6f7f3] text-slate-900">
