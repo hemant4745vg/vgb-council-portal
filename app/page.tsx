@@ -195,66 +195,154 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+    <div className="min-h-screen bg-[#f7f8f5] text-slate-900 font-sans">
       {/* Header Bar */}
-      <header className="bg-blue-900 text-white px-6 py-4 shadow-md flex justify-between items-center sticky top-0 z-40">
-        <div>
-          <h1 className="text-xl font-bold tracking-wide">VidyaGyan Council Portal</h1>
-          <p className="text-xs text-blue-200">Student Leadership</p>
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#f7f8f5]/95 backdrop-blur-md">
+  <div className="max-w-7xl mx-auto px-5 lg:px-8">
+    <div className="h-20 flex items-center justify-between">
+
+      {/* Brand */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-blue-950 flex items-center justify-center shadow-sm">
+          <span className="text-white font-bold text-sm tracking-tight">
+            VG
+          </span>
         </div>
 
-        {session ? (
-          <div className="flex items-center space-x-4">
-            <div className="text-right text-sm">
-              <span className="block font-medium">{session.user.email}</span>
-              <span className="inline-block bg-blue-700 text-xs text-blue-100 px-2 py-0.5 rounded-full mt-0.5">
-                {userRole}
-              </span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 hover:bg-red-700 text-xs px-3 py-2 rounded-md font-medium transition"
-            >
-              Sign Out
-            </button>
+        <div>
+          <div className="text-[15px] font-bold tracking-tight text-blue-950">
+            VidyaGyan Council
           </div>
-        ) : (
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            Student Leadership
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-600">
+        <a href="#home" className="text-blue-950">
+          Home
+        </a>
+        <a href="#about" className="hover:text-blue-950 transition">
+          About
+        </a>
+        <a href="#leadership" className="hover:text-blue-950 transition">
+          Leadership
+        </a>
+        <a href="#calendar" className="hover:text-blue-950 transition">
+          Calendar
+        </a>
+        <a href="#initiatives" className="hover:text-blue-950 transition">
+          Initiatives
+        </a>
+      </nav>
+
+      {/* Account */}
+      {session ? (
+        <div className="flex items-center gap-3">
+          <div className="hidden lg:block text-right">
+            <div className="text-xs font-semibold text-slate-800">
+              {session.user.email}
+            </div>
+            <div className="text-[11px] text-slate-500">
+              {userRole}
+            </div>
+          </div>
+
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="p-2 hover:bg-blue-800 rounded-lg transition border border-blue-700 flex items-center space-x-2"
-            title="Account Menu"
+            onClick={handleLogout}
+            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
           >
-            <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24">
-              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span className="text-sm font-medium pr-1">Sign In</span>
+            Sign Out
           </button>
-        )}
-      </header>
+        </div>
+      ) : (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="px-4 py-2.5 rounded-lg bg-blue-950 text-white text-sm font-semibold hover:bg-blue-900 transition shadow-sm"
+        >
+          Council Sign In
+        </button>
+      )}
+    </div>
+  </div>
+</header>
 
       {/* Main Content Area */}
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+      <main id="home" className="max-w-7xl mx-auto px-5 lg:px-8 py-10 lg:py-14">
         {!session ? (
           /* Public Unauthenticated View */
           <div className="space-y-8">
             {/* Hero Banner with Live Clock */}
-            <section className="bg-gradient-to-r from-blue-950 via-indigo-900 to-blue-900 text-white rounded-3xl p-8 shadow-xl text-center relative overflow-hidden">
-              <div className="relative z-10 space-y-4 max-w-3xl mx-auto">
-                <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight">VidyaGyan Student Leadership</h2>
-                <p className="text-blue-100 text-sm md:text-base">
-                  Official Secretariat repository for student council agendas, announcements, and dynamic campus scheduling.
-                </p>
+            <section className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl">
+  <div className="absolute inset-0 opacity-20">
+    <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-white/30" />
+    <div className="absolute -right-10 -top-10 h-52 w-52 rounded-full border border-white/20" />
+  </div>
 
-                {/* Live Clock Display */}
-                <div className="mt-6 inline-block bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-8 py-4 shadow-2xl">
-                  <div className="text-3xl md:text-5xl font-mono font-bold tracking-tight text-white">{clockTime || '00:00:00 AM'}</div>
-                  <div className="text-xs md:text-sm text-blue-200 mt-1 uppercase tracking-wider">{clockDate}</div>
-                </div>
-              </div>
-            </section>
+  <div className="relative grid lg:grid-cols-[1fr_auto] gap-10 items-end px-7 py-10 md:px-12 md:py-14">
+
+    <div className="max-w-3xl">
+      <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300 mb-5">
+        VidyaGyan Leadership Academy
+      </p>
+
+      <h2 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.05]">
+        Student leadership,
+        <br />
+        organised with purpose.
+      </h2>
+
+      <p className="mt-6 max-w-2xl text-sm md:text-base leading-7 text-blue-100">
+        The VidyaGyan Council Portal brings together the Council's
+        calendar, announcements, initiatives, resources and operational
+        workspace in one institutional platform.
+      </p>
+
+      <div className="mt-8 flex flex-wrap gap-3">
+        <a
+          href="#calendar"
+          className="inline-flex items-center justify-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-blue-950 hover:bg-slate-100 transition"
+        >
+          Explore Calendar
+        </a>
+
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15 transition"
+        >
+          Council Workspace
+        </button>
+      </div>
+    </div>
+
+    <div className="lg:min-w-[210px] lg:text-right">
+      <div className="text-[11px] uppercase tracking-[0.2em] text-blue-300">
+        Campus Time
+      </div>
+
+      <div className="mt-2 text-3xl md:text-4xl font-semibold tracking-tight">
+        {clockTime || "00:00:00 AM"}
+      </div>
+
+      <div className="mt-1 text-sm text-blue-200">
+        {clockDate}
+      </div>
+
+      <div className="mt-5 inline-flex items-center gap-2 text-xs text-blue-200">
+        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+        Portal online
+      </div>
+    </div>
+  </div>
+</section>
 
             {/* Dynamic Calendar Section */}
-            <section className="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 md:p-8">
+            <section
+  id="calendar"
+  className="mt-10 bg-white rounded-[1.75rem] shadow-sm border border-slate-200/80 p-6 md:p-8"
+>
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-6 mb-6 border-b border-slate-100 gap-4">
                 <div>
                   <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
