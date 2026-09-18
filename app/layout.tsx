@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Vidyagyan Council Portal",
-  description: "Honour Secretariat & Student Leadership Portal",
+  title: "VidyaGyan Council Portal",
+  description: "Student Leadership",
 };
 
 export default function RootLayout({
