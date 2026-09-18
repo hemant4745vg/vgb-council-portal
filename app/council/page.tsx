@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 const EXECUTIVE_LEADERSHIP = [
   {
     title: "Head Boy",
-    gender: "Boy",
     primary: "Vinay Kumar Maurya",
     primaryClass: "Class 12",
     viceTitle: "Vice Head Boy",
@@ -14,7 +13,6 @@ const EXECUTIVE_LEADERSHIP = [
   },
   {
     title: "Head Girl",
-    gender: "Girl",
     primary: "Satakshi Gangwar",
     primaryClass: "Class 12",
     viceTitle: "Vice Head Girl",
@@ -30,10 +28,10 @@ const FUNCTIONAL_LEADERSHIP = [
     title: "Sports",
     description:
       "Leading sporting activities, participation and representation across the campus.",
-    primaryLabel: "Sports Captain",
+    primaryLabel: "Sports Captains",
     primaryBoy: "Nitin",
     primaryGirl: "Roshini",
-    secondaryLabel: "Vice Sports Captain",
+    secondaryLabel: "Vice Sports Captains",
     secondaryBoy: "Abhimanyu",
     secondaryGirl: "Nainshee Mishra",
     accent: "bg-emerald-500",
@@ -46,10 +44,10 @@ const FUNCTIONAL_LEADERSHIP = [
     title: "Honour",
     description:
       "Supporting student responsibility, discipline and representation.",
-    primaryLabel: "Honour Secretary",
+    primaryLabel: "Honour Secretaries",
     primaryBoy: "Krish",
     primaryGirl: "Pravesh",
-    secondaryLabel: "Joint Honour Secretary",
+    secondaryLabel: "Joint Honour Secretaries",
     secondaryBoy: "Hemant Rathore",
     secondaryGirl: "Tejaswani",
     accent: "bg-indigo-500",
@@ -62,10 +60,10 @@ const FUNCTIONAL_LEADERSHIP = [
     title: "Cultural",
     description:
       "Coordinating cultural activities, participation and student expression.",
-    primaryLabel: "Cultural Secretary",
+    primaryLabel: "Cultural Secretaries",
     primaryBoy: "Dheeraj",
     primaryGirl: "Preet",
-    secondaryLabel: "Joint Cultural Secretary",
+    secondaryLabel: "Joint Cultural Secretaries",
     secondaryBoy: "Aditya Maurya",
     secondaryGirl: "Satakshi Sharma",
     accent: "bg-fuchsia-500",
@@ -212,41 +210,8 @@ function SectionHeader({
   );
 }
 
-function Person({
-  name,
-  gender,
-  primary = false,
-}: {
-  name: string;
-  gender: string;
-  primary?: boolean;
-}) {
-  return (
-    <div className="min-w-0">
-      <p
-        className={`text-[10px] font-bold uppercase tracking-[0.13em] ${
-          primary ? "text-slate-500" : "text-slate-400"
-        }`}
-      >
-        {gender}
-      </p>
-
-      <p
-        className={`mt-1 truncate ${
-          primary
-            ? "text-base font-bold text-slate-950 sm:text-lg"
-            : "text-sm font-semibold text-slate-800 sm:text-base"
-        }`}
-      >
-        {name}
-      </p>
-    </div>
-  );
-}
-
 function ExecutiveCard({
   title,
-  gender,
   primary,
   primaryClass,
   viceTitle,
@@ -256,7 +221,6 @@ function ExecutiveCard({
   glow,
 }: {
   title: string;
-  gender: string;
   primary: string;
   primaryClass: string;
   viceTitle: string;
@@ -267,71 +231,56 @@ function ExecutiveCard({
 }) {
   return (
     <article className="group relative overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_25px_60px_-28px_rgba(15,23,42,0.45)]">
-      <div className={`relative overflow-hidden bg-gradient-to-br ${gradient} px-6 py-7 sm:px-8 sm:py-8`}>
+      <div
+        className={`relative overflow-hidden bg-gradient-to-br ${gradient} px-6 py-7 sm:px-8 sm:py-8`}
+      >
         <div
           className={`absolute -right-12 -top-12 h-36 w-36 rounded-full ${glow} blur-2xl`}
         />
 
         <div className="absolute -bottom-16 -left-8 h-32 w-32 rounded-full bg-white/10 blur-xl" />
 
+        <div className="absolute right-6 top-6 h-20 w-20 rounded-full border border-white/10" />
+
         <div className="relative">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">
-                Executive leadership
-              </p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">
+            Executive
+          </p>
 
-              <h3 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                {title}
-              </h3>
-            </div>
-
-            <span className="rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white backdrop-blur-sm">
-              {gender}
-            </span>
-          </div>
-
-          <div className="mt-8">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/65">
-              {primaryClass} · Primary office
-            </p>
-
-            <p className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              {primary}
-            </p>
-          </div>
+          <h3 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            {title}
+          </h3>
         </div>
       </div>
 
-      <div className="relative px-6 py-6 sm:px-8 sm:py-7">
-        <div className="absolute left-8 top-0 h-7 w-px bg-gradient-to-b from-transparent via-slate-300 to-slate-300 sm:left-10" />
+      <div className="grid grid-cols-2 divide-x divide-slate-200">
+        <div className="px-6 py-7 sm:px-8 sm:py-8">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+            {primaryClass}
+          </p>
 
-        <div className="flex gap-4">
-          <div className="relative mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-400 shadow-sm">
-            ↳
-          </div>
+          <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+            {title}
+          </p>
 
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
-              {viceClass} · Corresponding office
-            </p>
-
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
-              {viceTitle}
-            </p>
-
-            <p className="mt-1 text-base font-bold text-slate-900 sm:text-lg">
-              {vice}
-            </p>
-          </div>
+          <p className="mt-2 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+            {primary}
+          </p>
         </div>
-      </div>
 
-      <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-3 sm:px-8">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400">
-          Class 12 primary <span className="mx-1 text-slate-300">·</span>{" "}
-          Class 11 vice
-        </p>
+        <div className="px-6 py-7 sm:px-8 sm:py-8">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+            {viceClass}
+          </p>
+
+          <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
+            {viceTitle}
+          </p>
+
+          <p className="mt-2 text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+            {vice}
+          </p>
+        </div>
       </div>
     </article>
   );
@@ -341,26 +290,25 @@ function LeadershipPair({
   label,
   boy,
   girl,
-  primary,
 }: {
   label: string;
   boy: string;
   girl: string;
-  primary?: boolean;
 }) {
   return (
     <div>
-      <p
-        className={`text-[10px] font-bold uppercase tracking-[0.13em] ${
-          primary ? "text-slate-500" : "text-slate-400"
-        }`}
-      >
+      <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-500">
         {label}
       </p>
 
       <div className="mt-3 grid grid-cols-2 gap-4">
-        <Person name={boy} gender="Boy" primary={primary} />
-        <Person name={girl} gender="Girl" primary={primary} />
+        <p className="truncate text-base font-bold text-slate-950 sm:text-lg">
+          {boy}
+        </p>
+
+        <p className="truncate text-base font-bold text-slate-950 sm:text-lg">
+          {girl}
+        </p>
       </div>
     </div>
   );
@@ -412,11 +360,7 @@ function FunctionalCard({
           </div>
 
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-              Functional leadership
-            </p>
-
-            <h3 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
+            <h3 className="text-xl font-bold tracking-tight text-slate-950">
               {title}
             </h3>
 
@@ -432,15 +376,14 @@ function FunctionalCard({
           label={`${primaryLabel} · Class 12`}
           boy={primaryBoy}
           girl={primaryGirl}
-          primary
         />
 
-        <div className="my-6 flex items-center gap-3">
-          <div className={`h-1.5 w-1.5 rounded-full ${accent}`} />
-          <div className="h-px flex-1 bg-slate-100" />
-          <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-300">
-            supporting leadership
-          </span>
+        <div className="my-6 flex items-center justify-center gap-3">
+          <div className={`h-px flex-1 ${accent} opacity-20`} />
+
+          <span className="text-[10px] font-bold text-slate-300">↓</span>
+
+          <div className={`h-px flex-1 ${accent} opacity-20`} />
         </div>
 
         <LeadershipPair
@@ -457,34 +400,25 @@ function HousePerson({
   role,
   boy,
   girl,
-  primary = false,
 }: {
   role: string;
   boy: string;
   girl: string;
-  primary?: boolean;
 }) {
   return (
     <div>
-      <div className="flex items-center gap-2">
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${
-            primary ? "bg-current" : "bg-slate-300"
-          }`}
-        />
-
-        <p
-          className={`text-[10px] font-bold uppercase tracking-[0.14em] ${
-            primary ? "text-slate-500" : "text-slate-400"
-          }`}
-        >
-          {role}
-        </p>
-      </div>
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+        {role}
+      </p>
 
       <div className="mt-3 grid grid-cols-2 gap-4">
-        <Person name={boy} gender="Boy" primary={primary} />
-        <Person name={girl} gender="Girl" primary={primary} />
+        <p className="truncate text-base font-bold text-slate-950 sm:text-lg">
+          {boy}
+        </p>
+
+        <p className="truncate text-base font-bold text-slate-950 sm:text-lg">
+          {girl}
+        </p>
       </div>
     </div>
   );
@@ -515,7 +449,9 @@ function HouseCard({
     <article
       className={`group relative overflow-hidden rounded-[2rem] border ${style.border} bg-white shadow-[0_16px_45px_-28px_rgba(15,23,42,0.35)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-28px_rgba(15,23,42,0.45)]`}
     >
-      <div className={`relative overflow-hidden bg-gradient-to-br ${style.gradient} px-6 py-7 sm:px-7`}>
+      <div
+        className={`relative overflow-hidden bg-gradient-to-br ${style.gradient} px-6 py-7 sm:px-7`}
+      >
         <div
           className={`absolute -right-10 -top-14 h-40 w-40 rounded-full ${style.glow} blur-2xl`}
         />
@@ -548,19 +484,16 @@ function HouseCard({
       <div className="p-6 sm:p-7">
         <div className={`rounded-2xl ${style.soft} p-5`}>
           <HousePerson
-            role="House Captains · Primary"
+            role="House Captains"
             boy={captainBoy}
             girl={captainGirl}
-            primary
           />
         </div>
 
         <div className="my-5 flex items-center gap-3">
           <div className={`h-px flex-1 ${style.accent} opacity-20`} />
 
-          <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">
-            supporting leadership
-          </span>
+          <span className="text-[10px] font-bold text-slate-300">↓</span>
 
           <div className={`h-px flex-1 ${style.accent} opacity-20`} />
         </div>
@@ -574,25 +507,6 @@ function HouseCard({
         </div>
       </div>
     </article>
-  );
-}
-
-function HierarchyConnector() {
-  return (
-    <div
-      aria-hidden="true"
-      className="my-7 hidden items-center justify-center md:flex"
-    >
-      <div className="h-px w-16 bg-gradient-to-r from-transparent to-slate-300" />
-
-      <div className="relative flex h-9 items-center rounded-full border border-slate-200 bg-white px-4 shadow-sm">
-        <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">
-          functional leadership
-        </span>
-      </div>
-
-      <div className="h-px w-16 bg-gradient-to-l from-transparent to-slate-300" />
-    </div>
   );
 }
 
@@ -688,6 +602,7 @@ export default function CouncilPage() {
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
                 Executive
               </p>
+
               <p className="mt-1 text-sm font-bold text-slate-900">
                 Head Boy · Head Girl
               </p>
@@ -697,6 +612,7 @@ export default function CouncilPage() {
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
                 Functional
               </p>
+
               <p className="mt-1 text-sm font-bold text-slate-900">
                 Sports · Honour · Cultural
               </p>
@@ -706,6 +622,7 @@ export default function CouncilPage() {
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
                 Houses
               </p>
+
               <p className="mt-1 text-sm font-bold text-slate-900">
                 Jal · Vayu · Agni · Prithvi
               </p>
@@ -721,14 +638,14 @@ export default function CouncilPage() {
         <SectionHeader
           eyebrow="01 · School Council"
           title="School-wide leadership"
-          description="The school-wide structure begins with executive leadership and extends into three functional areas. Class 12 and Class 11 office-bearers are presented with equal visual prominence, while their respective roles establish the hierarchy."
+          description="The school-wide structure begins with executive leadership and extends into three functional areas."
         />
 
         <div className="mb-6 flex items-center gap-3">
           <div className="h-px w-8 bg-slate-300" />
 
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-            Executive leadership
+            Executive
           </p>
         </div>
 
@@ -738,13 +655,23 @@ export default function CouncilPage() {
           ))}
         </div>
 
-        <HierarchyConnector />
+        <div className="my-10 hidden items-center justify-center gap-4 md:flex">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-300" />
 
-        <div className="mt-12 mb-6 flex items-center gap-3">
+          <div className="flex h-9 items-center rounded-full border border-slate-200 bg-white px-4 shadow-sm">
+            <span className="text-[10px] font-bold tracking-[0.16em] text-slate-300">
+              ↓
+            </span>
+          </div>
+
+          <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-300" />
+        </div>
+
+        <div className="mb-6 mt-12 flex items-center gap-3">
           <div className="h-px w-8 bg-slate-300" />
 
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-            Functional leadership
+            Portfolios
           </p>
         </div>
 
@@ -781,7 +708,9 @@ export default function CouncilPage() {
                     className={`h-2 w-2 rounded-full ${style.accent}`}
                   />
 
-                  <span className={`text-[10px] font-bold uppercase tracking-[0.12em] ${style.text}`}>
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-[0.12em] ${style.text}`}
+                  >
                     {house.name}
                   </span>
                 </div>
