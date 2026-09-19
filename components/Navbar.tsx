@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { name: "Home", href: "/" },
-  { name: "Council", href: "/council" },
   { name: "Leadership", href: "/leadership" },
+  { name: "Council", href: "/council" },
   { name: "Cafeteria", href: "/cafeteria" },
   { name: "Calendar", href: "/calendar" },
   { name: "Activities", href: "/activities" },
@@ -63,8 +63,19 @@ export default function Navbar() {
             );
           })}
 
-          {/* Dashboard */}
-          <div className="ml-2 border-l border-slate-200 pl-3">
+          {/* Authentication */}
+          <div className="ml-2 flex items-center gap-2 border-l border-slate-200 pl-3">
+            <Link
+              href="/signin"
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
+                pathname.startsWith("/signin")
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              Sign In
+            </Link>
+
             <Link
               href="/dashboard"
               className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
