@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.lllmgmfofwczpqbmigey!;
-const supabaseAnonKey = process.env.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss!;
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/*
+  Use the same Supabase project configuration already used by
+  the existing Home page.
+*/
+const supabase = createClient(
+  "https://lllmgmfofwczpqbmigey.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
+);
 
 type MaterialType =
   | "Notes"
@@ -105,12 +109,15 @@ export default function StudyMaterialPage() {
 
   const [selectedClass, setSelectedClass] = useState("All");
   const [selectedSubject, setSelectedSubject] = useState("All");
+
   const [selectedType, setSelectedType] = useState<
     MaterialType | "All"
   >("All");
-  const [selectedExam, setSelectedExam] = useState<ExamType | "All">(
-    "All"
-  );
+
+  const [selectedExam, setSelectedExam] = useState<
+    ExamType | "All"
+  >("All");
+
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -128,9 +135,11 @@ export default function StudyMaterialPage() {
 
     if (error) {
       console.error("Study material fetch failed:", error);
+
       setError(
         "We couldn't load the study material right now. Please try again."
       );
+
       setMaterials([]);
     } else {
       setMaterials((data || []) as StudyMaterial[]);
@@ -258,26 +267,31 @@ export default function StudyMaterialPage() {
             </p>
           </div>
 
-          {/* QUICK STATS */}
+          {/* STATS */}
           <div className="mt-8 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCard
               value={materials.length}
               label="Resources"
             />
+
             <StatCard
               value={
-                new Set(materials.map((material) => material.subject))
-                  .size
+                new Set(
+                  materials.map((material) => material.subject)
+                ).size
               }
               label="Subjects"
             />
+
             <StatCard
               value={
-                new Set(materials.map((material) => material.class_level))
-                  .size
+                new Set(
+                  materials.map((material) => material.class_level)
+                ).size
               }
               label="Classes"
             />
+
             <StatCard
               value={
                 materials.filter(
@@ -291,7 +305,7 @@ export default function StudyMaterialPage() {
         </div>
       </section>
 
-      {/* CONTENT */}
+      {/* MAIN CONTENT */}
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* FILTER PANEL */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -317,7 +331,7 @@ export default function StudyMaterialPage() {
             />
           </div>
 
-          {/* CLASS FILTER */}
+          {/* CLASS */}
           <div className="mt-5">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Class
@@ -359,9 +373,16 @@ export default function StudyMaterialPage() {
             <FilterSelect
               label="Material Type"
               value={selectedType}
-              options={["All", ...MATERIAL_TYPES.map((item) => item.value)]}
+              options={[
+                "All",
+                ...MATERIAL_TYPES.map(
+                  (item) => item.value
+                ),
+              ]}
               onChange={(value) =>
-                setSelectedType(value as MaterialType | "All")
+                setSelectedType(
+                  value as MaterialType | "All"
+                )
               }
             />
 
@@ -370,7 +391,9 @@ export default function StudyMaterialPage() {
               value={selectedExam}
               options={["All", ...EXAM_TYPES]}
               onChange={(value) =>
-                setSelectedExam(value as ExamType | "All")
+                setSelectedExam(
+                  value as ExamType | "All"
+                )
               }
             />
 
@@ -387,7 +410,7 @@ export default function StudyMaterialPage() {
           </div>
         </div>
 
-        {/* MATERIAL TYPE GUIDE */}
+        {/* MATERIAL TYPE CARDS */}
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {MATERIAL_TYPES.map((type) => (
             <button
@@ -395,7 +418,9 @@ export default function StudyMaterialPage() {
               type="button"
               onClick={() =>
                 setSelectedType(
-                  selectedType === type.value ? "All" : type.value
+                  selectedType === type.value
+                    ? "All"
+                    : type.value
                 )
               }
               className={`rounded-2xl border bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${
@@ -463,9 +488,13 @@ export default function StudyMaterialPage() {
                 className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"
               >
                 <div className="h-10 w-10 rounded-xl bg-slate-200" />
+
                 <div className="mt-5 h-4 w-3/4 rounded bg-slate-200" />
+
                 <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
+
                 <div className="mt-6 h-3 w-full rounded bg-slate-100" />
+
                 <div className="mt-2 h-3 w-5/6 rounded bg-slate-100" />
               </div>
             ))}
@@ -479,7 +508,9 @@ export default function StudyMaterialPage() {
               Unable to load study material
             </h3>
 
-            <p className="mt-1 text-sm text-red-700">{error}</p>
+            <p className="mt-1 text-sm text-red-700">
+              {error}
+            </p>
 
             <button
               type="button"
@@ -492,34 +523,38 @@ export default function StudyMaterialPage() {
         )}
 
         {/* RESULTS */}
-        {!loading && !error && filteredMaterials.length > 0 && (
-          <div className="mt-6 space-y-10">
-            {groupedMaterials.map(([subject, subjectMaterials]) => (
-              <section key={subject}>
-                <div className="mb-4 flex items-center gap-3">
-                  <h3 className="text-lg font-bold text-slate-900">
-                    {subject}
-                  </h3>
+        {!loading &&
+          !error &&
+          filteredMaterials.length > 0 && (
+            <div className="mt-6 space-y-10">
+              {groupedMaterials.map(
+                ([subject, subjectMaterials]) => (
+                  <section key={subject}>
+                    <div className="mb-4 flex items-center gap-3">
+                      <h3 className="text-lg font-bold text-slate-900">
+                        {subject}
+                      </h3>
 
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
-                    {subjectMaterials.length}
-                  </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                        {subjectMaterials.length}
+                      </span>
 
-                  <div className="h-px flex-1 bg-slate-200" />
-                </div>
+                      <div className="h-px flex-1 bg-slate-200" />
+                    </div>
 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {subjectMaterials.map((material) => (
-                    <MaterialCard
-                      key={material.id}
-                      material={material}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {subjectMaterials.map((material) => (
+                        <MaterialCard
+                          key={material.id}
+                          material={material}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )
+              )}
+            </div>
+          )}
 
         {/* EMPTY STATE */}
         {!loading &&
@@ -535,9 +570,9 @@ export default function StudyMaterialPage() {
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                There is no material matching the current filters.
-                Try another class, subject, material type, or search
-                term.
+                There is no material matching the current
+                filters. Try another class, subject, material
+                type, or search term.
               </p>
 
               {hasActiveFilters && (
@@ -569,7 +604,10 @@ function StatCard({
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="text-2xl font-bold text-slate-950">{value}</div>
+      <div className="text-2xl font-bold text-slate-950">
+        {value}
+      </div>
+
       <div className="mt-1 text-xs font-medium text-slate-500">
         {label}
       </div>
@@ -601,7 +639,9 @@ function FilterSelect({
       >
         {options.map((option) => (
           <option key={option} value={option}>
-            {option === "All" ? `All ${label}s` : option}
+            {option === "All"
+              ? `All ${label === "Exam" ? "Exams" : `${label}s`}`
+              : option}
           </option>
         ))}
       </select>
@@ -617,7 +657,9 @@ function MaterialCard({
   const style = TYPE_STYLES[material.material_type];
 
   const resourceUrl =
-    material.external_url || material.file_path || null;
+    material.external_url ||
+    material.file_path ||
+    null;
 
   return (
     <article
