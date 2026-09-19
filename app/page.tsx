@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
 
 /* =========================================================
@@ -9,7 +15,7 @@ import { createClient, type Session } from "@supabase/supabase-js";
 
 const supabase = createClient(
   "https://lllmgmfofwczpqbmigey.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
 );
 
 /* =========================================================
@@ -39,10 +45,6 @@ interface CalendarEvent {
 
 /* =========================================================
    ANNUAL CALENDAR
-   Keep the same ANNUAL_EVENTS array from your current file.
-   
-   IMPORTANT:
-   Paste your existing ANNUAL_EVENTS array here unchanged.
 ========================================================= */
 
 const ANNUAL_EVENTS: CalendarEvent[] = [
@@ -495,10 +497,28 @@ function formatDate(dateString: string) {
   const date = new Date(`${dateString}T00:00:00`);
 
   return date.toLocaleDateString("en-US", {
-    day: "2-digit",
+    day: "numeric",
     month: "short",
     year: "numeric",
   });
+}
+
+function getShortDate(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00`);
+
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function daysUntil(dateString: string, today: string) {
+  const start = new Date(`${today}T00:00:00`).getTime();
+  const end = new Date(`${dateString}T00:00:00`).getTime();
+
+  return Math.round(
+    (end - start) / (1000 * 60 * 60 * 24)
+  );
 }
 
 function getCategoryStyles(category?: string) {
@@ -562,26 +582,32 @@ function SectionHeading({
   eyebrow,
   title,
   description,
+  action,
 }: {
   eyebrow: string;
   title: string;
   description?: string;
+  action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6">
-      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">
-        {eyebrow}
-      </p>
-
-      <h2 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight text-blue-950">
-        {title}
-      </h2>
-
-      {description && (
-        <p className="mt-2 text-sm leading-6 text-slate-500 max-w-2xl">
-          {description}
+    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">
+          {eyebrow}
         </p>
-      )}
+
+        <h2 className="mt-2 text-2xl font-bold tracking-tight text-blue-950 md:text-3xl">
+          {title}
+        </h2>
+
+        {description && (
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            {description}
+          </p>
+        )}
+      </div>
+
+      {action}
     </div>
   );
 }
@@ -693,7 +719,7 @@ export default function Home() {
   };
 
   /* =======================================================
-     FETCH DATABASE EVENTS
+     DATABASE EVENTS
   ======================================================= */
 
   const fetchEvents = async () => {
@@ -732,7 +758,7 @@ export default function Home() {
   };
 
   /* =======================================================
-     CALENDAR DATA FOR HOMEPAGE
+     DERIVED DATA
   ======================================================= */
 
   const today = getIndiaDateString();
@@ -741,32 +767,43 @@ export default function Home() {
     return [...ANNUAL_EVENTS, ...supabaseEvents];
   }, [supabaseEvents]);
 
+  const sortedEvents = useMemo(() => {
+    return [...allEvents].sort((a, b) =>
+      a.event_date.localeCompare(b.event_date)
+    );
+  }, [allEvents]);
+
   const todayEvents = useMemo(() => {
-    return allEvents.filter(
+    return sortedEvents.filter(
       (event) => event.event_date === today
     );
-  }, [allEvents, today]);
+  }, [sortedEvents, today]);
 
   const upcomingEvents = useMemo(() => {
-    return allEvents
+    return sortedEvents
       .filter(
         (event) => event.event_date >= today
       )
-      .sort((a, b) =>
-        a.event_date.localeCompare(
-          b.event_date
-        )
-      )
-      .slice(0, 7);
+      .slice(0, 5);
+  }, [sortedEvents, today]);
+
+  const nextEvent = upcomingEvents[0];
+
+  const nextEventDays = nextEvent
+    ? daysUntil(nextEvent.event_date, today)
+    : null;
+
+  const futureEventCount = useMemo(() => {
+    return allEvents.filter(
+      (event) => event.event_date >= today
+    ).length;
   }, [allEvents, today]);
 
   /* =======================================================
      LOGIN
   ======================================================= */
 
-  const handleLogin = async (
-    e: React.FormEvent
-  ) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
 
     setLoading(true);
@@ -831,70 +868,71 @@ export default function Home() {
   ======================================================= */
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0,_#f7f8f5_42%,_#eef2ef_100%)] text-slate-900 font-sans scroll-smooth">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0,_#f7f8f5_42%,_#eef2ef_100%)] text-slate-900 font-sans">
 
-      <main className="max-w-7xl mx-auto px-5 lg:px-8 py-7 lg:py-10">
+      <main className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
 
         {/* =================================================
             HERO
         ================================================= */}
 
-        <section
-          id="home"
-          className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl"
-        >
-          <div className="absolute inset-0 pointer-events-none opacity-20">
+        <section className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl">
+
+          <div className="pointer-events-none absolute inset-0 opacity-20">
             <div className="absolute right-[-100px] top-[-100px] h-[380px] w-[380px] rounded-full border border-white/30" />
-
             <div className="absolute right-[-30px] top-[-30px] h-[230px] w-[230px] rounded-full border border-white/20" />
-
-            <div className="absolute left-[-100px] bottom-[-160px] h-[350px] w-[350px] rounded-full border border-emerald-300/20" />
+            <div className="absolute bottom-[-160px] left-[-100px] h-[350px] w-[350px] rounded-full border border-emerald-300/20" />
           </div>
 
-          <div className="relative grid lg:grid-cols-[1fr_auto] gap-10 items-end px-7 py-10 md:px-12 md:py-14">
+          <div className="relative grid items-end gap-10 px-7 py-10 lg:grid-cols-[1fr_auto] lg:px-12 lg:py-14">
 
             <div className="max-w-3xl">
 
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-300 mb-5">
-                VidyaGyan Bulandshahr
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
 
-              <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.04]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
+                  VidyaGyan Bulandshahr
+                </p>
+              </div>
+
+              <h1 className="mt-5 text-4xl font-bold leading-[1.03] tracking-tight md:text-6xl">
                 One portal for
                 <br />
                 campus life.
               </h1>
 
-              <p className="mt-6 max-w-2xl text-sm md:text-base leading-7 text-blue-100">
-                A unified student-facing platform for
-                campus information, events, activities,
-                leadership and essential resources.
+              <p className="mt-6 max-w-2xl text-sm leading-7 text-blue-100 md:text-base">
+                Your central space for campus events,
+                student leadership, cafeteria information,
+                activities and essential resources.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
 
-                <a
+                <Link
                   href="#today"
-                  className="inline-flex items-center justify-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-blue-950 hover:bg-slate-100 transition"
+                  className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-blue-950 transition hover:bg-slate-100"
                 >
                   View Today
-                </a>
+                </Link>
 
-                <a
+                <Link
+                  href="/calendar"
+                  className="inline-flex items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+                >
+                  Open Calendar
+                </Link>
+
+                <Link
                   href="/cafeteria"
-                  className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15 transition"
+                  className="inline-flex items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                 >
                   Today&apos;s Menu
-                </a>
-
-                <a
-                  href="/calendar"
-                  className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15 transition"
-                >
-                  Calendar
-                </a>
+                </Link>
 
               </div>
+
             </div>
 
             <div className="lg:min-w-[245px] lg:text-right">
@@ -903,7 +941,7 @@ export default function Home() {
                 Campus Time
               </div>
 
-              <div className="mt-2 text-3xl md:text-4xl font-semibold tracking-tight">
+              <div className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
                 {clockTime || "--:--:--"}
               </div>
 
@@ -911,12 +949,12 @@ export default function Home() {
                 {clockDate}
               </div>
 
-              <div className="mt-5 inline-flex items-center gap-2 text-xs text-blue-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                India Standard Time
+              <div className="mt-5 text-xs text-blue-300">
+                India Standard Time · Asia/Kolkata
               </div>
 
             </div>
+
           </div>
         </section>
 
@@ -926,19 +964,20 @@ export default function Home() {
 
         <section
           id="today"
-          className="mt-6 scroll-mt-24"
+          className="mt-10 scroll-mt-24"
         >
+
           <SectionHeading
             eyebrow="Today"
             title="What matters right now."
-            description="A compact snapshot of the campus, without making you scroll through the entire institution."
+            description="A quick campus snapshot. The detailed pages contain the full information."
           />
 
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid gap-4 md:grid-cols-3">
 
-            {/* Today */}
+            {/* Campus status */}
 
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
 
               <div className="flex items-center justify-between">
 
@@ -947,102 +986,167 @@ export default function Home() {
                 </span>
 
                 <span className="text-xs text-slate-400">
-                  {today}
+                  {formatDate(today)}
                 </span>
 
               </div>
 
-              <div className="mt-3 text-xl font-bold text-blue-950">
+              <h3 className="mt-4 text-xl font-bold text-blue-950">
                 {todayEvents.length > 0
-                  ? `${todayEvents.length} event${
+                  ? `${todayEvents.length} scheduled event${
                       todayEvents.length > 1
                         ? "s"
                         : ""
-                    } today`
-                  : "Regular campus day"}
-              </div>
+                    }`
+                  : "No recorded events"}
+              </h3>
 
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                {todayEvents.length > 0
-                  ? todayEvents
-                      .map(
-                        (event) =>
-                          event.title
-                      )
-                      .join(" · ")
-                  : "No annual-calendar event is recorded for today."}
-              </p>
+              {todayEvents.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {todayEvents.slice(0, 3).map(
+                    (event, index) => {
+                      const styles =
+                        getCategoryStyles(
+                          event.category
+                        );
 
-            </div>
+                      return (
+                        <div
+                          key={`${event.title}-${index}`}
+                          className="flex items-start gap-3"
+                        >
+                          <span
+                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${styles.dot}`}
+                          />
 
-            {/* Next Event */}
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-800">
+                              {event.title}
+                            </p>
 
-            <div className="bg-blue-950 rounded-2xl p-5 text-white shadow-sm">
-
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                Next Up
-              </div>
-
-              {upcomingEvents[0] ? (
-                <>
-                  <div className="mt-3 text-xl font-bold">
-                    {upcomingEvents[0].title}
-                  </div>
-
-                  <p className="mt-2 text-sm text-blue-200">
-                    {formatDate(
-                      upcomingEvents[0]
-                        .event_date
-                    )}
-                  </p>
-
-                  {upcomingEvents[0].target && (
-                    <p className="mt-1 text-xs text-blue-300">
-                      {upcomingEvents[0].target}
-                    </p>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {event.target ||
+                                "School Community"}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
                   )}
-                </>
-              ) : (
-                <div className="mt-3 text-xl font-bold">
-                  No upcoming event
+
+                  {todayEvents.length > 3 && (
+                    <Link
+                      href="/calendar"
+                      className="inline-block pt-1 text-xs font-semibold text-blue-900 hover:text-emerald-700"
+                    >
+                      + {todayEvents.length - 3} more on Calendar →
+                    </Link>
+                  )}
                 </div>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  No event is recorded for today in the
+                  current calendar.
+                </p>
               )}
 
             </div>
 
-            {/* Cafeteria */}
+            {/* Next event */}
 
-            <a
-              href="/cafeteria"
-              className="group bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
-            >
+            <div className="relative overflow-hidden rounded-2xl bg-blue-950 p-5 text-white shadow-sm">
+
+              <div className="pointer-events-none absolute right-[-40px] top-[-40px] h-32 w-32 rounded-full border border-white/10" />
+
+              <div className="relative">
+
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                  Next Up
+                </div>
+
+                {nextEvent ? (
+                  <>
+                    <h3 className="mt-4 text-xl font-bold">
+                      {nextEvent.title}
+                    </h3>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+
+                      <span className="text-sm text-blue-200">
+                        {formatDate(
+                          nextEvent.event_date
+                        )}
+                      </span>
+
+                      {nextEvent.category && (
+                        <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-blue-100">
+                          {nextEvent.category}
+                        </span>
+                      )}
+
+                    </div>
+
+                    <p className="mt-3 text-xs leading-5 text-blue-300">
+                      {nextEvent.target ||
+                        "School Community"}
+
+                      {nextEvent.venue &&
+                        ` · ${nextEvent.venue}`}
+                    </p>
+
+                    <div className="mt-5 inline-flex rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white">
+                      {nextEventDays === 0
+                        ? "Happening today"
+                        : nextEventDays === 1
+                        ? "Tomorrow"
+                        : `${nextEventDays} days away`}
+                    </div>
+                  </>
+                ) : (
+                  <h3 className="mt-4 text-xl font-bold">
+                    No upcoming events
+                  </h3>
+                )}
+
+              </div>
+
+            </div>
+
+            {/* Portal status */}
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
 
               <div className="flex items-center justify-between">
 
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-700">
-                  Cafeteria
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-purple-700">
+                  Calendar
                 </span>
 
-                <span className="text-slate-400 group-hover:text-orange-600 transition">
-                  →
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">
+                  {futureEventCount} upcoming
                 </span>
 
               </div>
 
-              <div className="mt-3 text-xl font-bold text-blue-950">
-                Today&apos;s Menu
-              </div>
+              <h3 className="mt-4 text-xl font-bold text-blue-950">
+                Plan ahead.
+              </h3>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                View the complete daily and weekly
-                cafeteria menu.
+                Browse the complete academic year,
+                including examinations, sports,
+                cultural programmes and excursions.
               </p>
 
-              <div className="mt-4 text-xs font-semibold text-orange-700">
-                Open Cafeteria →
-              </div>
+              <Link
+                href="/calendar"
+                className="mt-5 inline-flex items-center text-xs font-semibold text-blue-950 transition hover:text-emerald-700"
+              >
+                Explore full calendar
+                <span className="ml-1">→</span>
+              </Link>
 
-            </a>
+            </div>
 
           </div>
         </section>
@@ -1051,15 +1155,23 @@ export default function Home() {
             UPCOMING
         ================================================= */}
 
-        <section className="mt-12">
+        <section className="mt-14">
 
           <SectionHeading
             eyebrow="Upcoming"
-            title="The next few things on the calendar."
-            description="The homepage shows only the immediate horizon. The full calendar has its own page, because apparently one calendar deserves one calendar."
+            title="The immediate horizon."
+            description="Only the next few events appear here. The complete calendar remains on the Calendar page."
+            action={
+              <Link
+                href="/calendar"
+                className="text-sm font-semibold text-blue-950 hover:text-emerald-700"
+              >
+                View full calendar →
+              </Link>
+            }
           />
 
-          <div className="bg-white rounded-[1.5rem] border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
 
             {upcomingEvents.length > 0 ? (
               <div className="divide-y divide-slate-100">
@@ -1071,25 +1183,41 @@ export default function Home() {
                         event.category
                       );
 
+                    const isToday =
+                      event.event_date === today;
+
                     return (
-                      <div
+                      <Link
                         key={`${event.title}-${event.event_date}-${index}`}
-                        className="px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                        href={`/calendar?date=${event.event_date}`}
+                        className="group flex flex-col gap-4 px-5 py-5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:px-6"
                       >
 
-                        <div className="flex items-start gap-4">
+                        <div className="flex min-w-0 items-start gap-4">
 
-                          <div
-                            className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${styles.dot}`}
-                          />
+                          <div className="pt-1">
+                            <span
+                              className={`block h-2.5 w-2.5 rounded-full ${styles.dot}`}
+                            />
+                          </div>
 
-                          <div>
+                          <div className="min-w-0">
 
-                            <div className="font-semibold text-slate-800">
-                              {event.title}
+                            <div className="flex flex-wrap items-center gap-2">
+
+                              <h3 className="font-semibold text-slate-800 group-hover:text-blue-950">
+                                {event.title}
+                              </h3>
+
+                              {isToday && (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-800">
+                                  Today
+                                </span>
+                              )}
+
                             </div>
 
-                            <div className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-slate-500">
                               {event.target ||
                                 "School Community"}
 
@@ -1098,30 +1226,34 @@ export default function Home() {
 
                               {event.time &&
                                 ` · ${event.time}`}
-                            </div>
+                            </p>
 
                           </div>
 
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex shrink-0 items-center gap-3 sm:justify-end">
 
                           <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${styles.bg} ${styles.text}`}
+                            className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${styles.bg} ${styles.text}`}
                           >
                             {event.category ||
                               "Campus"}
                           </span>
 
-                          <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">
-                            {formatDate(
+                          <span className="text-xs font-semibold whitespace-nowrap text-slate-500">
+                            {getShortDate(
                               event.event_date
                             )}
                           </span>
 
+                          <span className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-950">
+                            →
+                          </span>
+
                         </div>
 
-                      </div>
+                      </Link>
                     );
                   }
                 )}
@@ -1133,101 +1265,100 @@ export default function Home() {
               </div>
             )}
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100">
-
-              <a
-                href="/calendar"
-                className="text-sm font-semibold text-blue-950 hover:text-emerald-700 transition"
-              >
-                View Full Calendar →
-              </a>
-
-            </div>
-
           </div>
         </section>
 
         {/* =================================================
-            EXPLORE PORTAL
+            QUICK ACCESS
         ================================================= */}
 
-        <section className="mt-12">
+        <section className="mt-14">
 
           <SectionHeading
             eyebrow="Explore"
-            title="The rest of the portal."
-            description="Each section now has its own proper home, instead of being crammed into this one."
+            title="Everything else, in its proper place."
+            description="Each section has a focused page instead of making Home carry the entire school on its back."
           />
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
             {[
               {
                 title: "Leadership",
                 description:
-                  "Institutional leadership and house administration.",
+                  "Institutional leadership, house administration and campus structure.",
                 href: "/leadership",
+                eyebrow: "Institution",
                 accent:
                   "from-blue-50 to-indigo-50",
               },
               {
                 title: "Council",
                 description:
-                  "Student Council and house leadership for 2026–27.",
+                  "Student Council, functional leadership and house representatives.",
                 href: "/council",
+                eyebrow: "Student Leadership",
                 accent:
                   "from-emerald-50 to-teal-50",
               },
               {
                 title: "Cafeteria",
                 description:
-                  "Daily and weekly mess menu information.",
+                  "Daily and weekly menu information for the campus.",
                 href: "/cafeteria",
+                eyebrow: "Campus Life",
                 accent:
                   "from-orange-50 to-amber-50",
               },
               {
                 title: "Calendar",
                 description:
-                  "Complete annual and live campus calendar.",
+                  "Annual events, live additions and the complete campus schedule.",
                 href: "/calendar",
+                eyebrow: "Planning",
                 accent:
                   "from-purple-50 to-violet-50",
               },
               {
                 title: "Activities",
                 description:
-                  "Sports, cultural programmes and student initiatives.",
+                  "Sports, cultural programmes, student initiatives and participation.",
                 href: "/activities",
+                eyebrow: "Student Life",
                 accent:
                   "from-rose-50 to-pink-50",
               },
               {
                 title: "Resources",
                 description:
-                  "Documents, links and institutional references.",
+                  "Useful documents, links and institutional references.",
                 href: "/resources",
+                eyebrow: "Reference",
                 accent:
                   "from-cyan-50 to-sky-50",
               },
             ].map((item) => (
-              <a
+              <Link
                 key={item.title}
                 href={item.href}
-                className={`group rounded-2xl border border-slate-200/80 bg-gradient-to-br ${item.accent} p-6 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition`}
+                className={`group rounded-2xl border border-slate-200/80 bg-gradient-to-br ${item.accent} p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
               >
 
                 <div className="flex items-center justify-between">
 
-                  <h3 className="font-bold text-blue-950">
-                    {item.title}
-                  </h3>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    {item.eyebrow}
+                  </span>
 
-                  <span className="text-slate-400 group-hover:text-blue-950 transition">
+                  <span className="text-slate-400 transition group-hover:translate-x-1 group-hover:text-blue-950">
                     →
                   </span>
 
                 </div>
+
+                <h3 className="mt-4 text-lg font-bold text-blue-950">
+                  {item.title}
+                </h3>
 
                 <p className="mt-2 text-xs leading-5 text-slate-600">
                   {item.description}
@@ -1237,7 +1368,7 @@ export default function Home() {
                   Explore →
                 </div>
 
-              </a>
+              </Link>
             ))}
 
           </div>
@@ -1252,49 +1383,55 @@ export default function Home() {
           className="mt-14 scroll-mt-24"
         >
 
-          <div className="rounded-[1.75rem] bg-white border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-sm">
 
             <div className="grid lg:grid-cols-[1fr_420px]">
 
               {/* Information */}
 
-              <div className="bg-blue-950 text-white p-8 md:p-10">
+              <div className="relative overflow-hidden bg-blue-950 p-8 text-white md:p-10">
 
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
-                  Authorised Access
-                </p>
+                <div className="pointer-events-none absolute right-[-80px] top-[-80px] h-64 w-64 rounded-full border border-white/10" />
 
-                <h2 className="mt-3 text-3xl font-bold tracking-tight">
-                  Sign in to the portal.
-                </h2>
+                <div className="relative">
 
-                <p className="mt-4 max-w-xl text-sm leading-6 text-blue-200">
-                  Use your official VidyaGyan school
-                  email to access authorised portal
-                  functions and your leadership workspace.
-                </p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
+                    Authorised Access
+                  </p>
 
-                {session && (
-                  <div className="mt-7 rounded-xl border border-white/10 bg-white/10 p-4">
+                  <h2 className="mt-3 text-3xl font-bold tracking-tight">
+                    Your portal workspace.
+                  </h2>
 
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-blue-300">
-                      Signed in as
+                  <p className="mt-4 max-w-xl text-sm leading-6 text-blue-200">
+                    Sign in with your official
+                    VidyaGyan school account to access
+                    authorised portal functions.
+                  </p>
+
+                  {session && (
+                    <div className="mt-7 rounded-xl border border-white/10 bg-white/10 p-4">
+
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-blue-300">
+                        Current account
+                      </div>
+
+                      <div className="mt-1 break-all text-sm font-semibold">
+                        {session.user.email}
+                      </div>
+
+                      <div className="mt-1 text-xs text-blue-300">
+                        {userRole}
+                      </div>
+
                     </div>
+                  )}
 
-                    <div className="mt-1 text-sm font-semibold">
-                      {session.user.email}
-                    </div>
-
-                    <div className="mt-1 text-xs text-blue-300">
-                      {userRole}
-                    </div>
-
-                  </div>
-                )}
+                </div>
 
               </div>
 
-              {/* Form / Signed-in state */}
+              {/* Form */}
 
               <div className="p-8 md:p-10">
 
@@ -1306,26 +1443,26 @@ export default function Home() {
                     </p>
 
                     <h3 className="mt-2 text-xl font-bold text-blue-950">
-                      Your session is active.
+                      You&apos;re signed in.
                     </h3>
 
                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                      Continue to the authorised dashboard
-                      to manage portal operations.
+                      Continue to your authorised
+                      dashboard or sign out of this session.
                     </p>
 
                     <div className="mt-6 flex flex-wrap gap-3">
 
-                      <a
+                      <Link
                         href="/dashboard"
-                        className="inline-flex items-center justify-center rounded-xl bg-blue-950 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-900 transition"
+                        className="inline-flex items-center justify-center rounded-xl bg-blue-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-900"
                       >
                         Open Dashboard
-                      </a>
+                      </Link>
 
                       <button
                         onClick={handleLogout}
-                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
                         Sign Out
                       </button>
@@ -1344,8 +1481,8 @@ export default function Home() {
                     </h3>
 
                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                      Enter your official school email.
-                      No password required.
+                      No password required. Use your
+                      official school email.
                     </p>
 
                     <form
@@ -1355,11 +1492,15 @@ export default function Home() {
 
                       <div>
 
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        <label
+                          htmlFor="school-email"
+                          className="mb-1.5 block text-xs font-semibold text-slate-600"
+                        >
                           School Email
                         </label>
 
                         <input
+                          id="school-email"
                           type="email"
                           value={email}
                           onChange={(e) =>
@@ -1369,7 +1510,8 @@ export default function Home() {
                           }
                           placeholder="username@vidyagyan.in"
                           required
-                          className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                          autoComplete="email"
+                          className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                         />
 
                       </div>
@@ -1377,7 +1519,7 @@ export default function Home() {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="w-full rounded-xl bg-blue-950 text-white py-3 font-semibold text-sm hover:bg-blue-900 transition disabled:opacity-50"
+                        className="w-full rounded-xl bg-blue-950 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {loading
                           ? "Sending..."
@@ -1388,23 +1530,22 @@ export default function Home() {
 
                     {message && (
                       <div
-                        className={`mt-4 rounded-xl p-3 text-xs text-center ${
+                        className={`mt-4 rounded-xl border p-3 text-center text-xs ${
                           message
                             .toLowerCase()
                             .includes("sent")
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-red-50 text-red-700 border border-red-200"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-red-200 bg-red-50 text-red-700"
                         }`}
                       >
                         {message}
                       </div>
                     )}
 
-                    <p className="mt-5 text-[10px] text-center text-slate-400">
+                    <p className="mt-5 text-center text-[10px] text-slate-400">
                       Access is restricted to official
                       @vidyagyan.in accounts.
                     </p>
-
                   </>
                 )}
 
@@ -1413,7 +1554,6 @@ export default function Home() {
             </div>
 
           </div>
-
         </section>
 
       </main>
@@ -1424,9 +1564,9 @@ export default function Home() {
 
       <footer className="mt-16 border-t border-slate-200 bg-white">
 
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
+        <div className="mx-auto max-w-7xl px-5 py-10 lg:px-8">
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
 
             <div>
 
@@ -1434,7 +1574,7 @@ export default function Home() {
                 VidyaGyan Portal
               </div>
 
-              <p className="mt-2 text-xs leading-5 text-slate-500 max-w-sm">
+              <p className="mt-2 max-w-sm text-xs leading-5 text-slate-500">
                 A unified digital layer for campus
                 information, student life and
                 institutional leadership.
@@ -1448,49 +1588,49 @@ export default function Home() {
                 Portal
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+              <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-slate-500">
 
-                <a
+                <Link
                   href="/leadership"
-                  className="hover:text-blue-950"
+                  className="transition hover:text-blue-950"
                 >
                   Leadership
-                </a>
+                </Link>
 
-                <a
+                <Link
                   href="/council"
-                  className="hover:text-blue-950"
+                  className="transition hover:text-blue-950"
                 >
                   Council
-                </a>
+                </Link>
 
-                <a
+                <Link
                   href="/cafeteria"
-                  className="hover:text-blue-950"
+                  className="transition hover:text-blue-950"
                 >
                   Cafeteria
-                </a>
+                </Link>
 
-                <a
+                <Link
                   href="/calendar"
-                  className="hover:text-blue-950"
+                  className="transition hover:text-blue-950"
                 >
                   Calendar
-                </a>
+                </Link>
 
-                <a
+                <Link
                   href="/activities"
-                  className="hover:text-blue-950"
+                  className="transition hover:text-blue-950"
                 >
                   Activities
-                </a>
+                </Link>
 
-                <a
+                <Link
                   href="/resources"
-                  className="hover:text-blue-950"
+                  className="transition hover:text-blue-950"
                 >
                   Resources
-                </a>
+                </Link>
 
               </div>
 
@@ -1514,7 +1654,7 @@ export default function Home() {
 
           </div>
 
-          <div className="mt-8 pt-5 border-t border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+          <div className="mt-8 flex flex-col gap-2 border-t border-slate-100 pt-5 md:flex-row md:items-center md:justify-between">
 
             <span className="text-[10px] text-slate-400">
               VidyaGyan Leadership Academy
