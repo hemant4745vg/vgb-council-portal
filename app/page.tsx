@@ -835,14 +835,11 @@ export default function Home() {
       });
 
     if (error) {
-      console.error(
-        "Magic-link sign-in failed:",
-        error
-      );
+  console.error("Magic-link sign-in failed:", error);
 
-      setMessage(
-        "We could not send the sign-in link. Please verify the email address and try again."
-      );
+  setMessage(
+    `Sign-in failed: ${error.message}`
+  );
     } else {
       setMessage(
         "Magic link sent. Check your Outlook inbox, then open the link to continue."
