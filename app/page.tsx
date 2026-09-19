@@ -873,91 +873,163 @@ export default function Home() {
       <main className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
 
         {/* =================================================
-            HERO
-        ================================================= */}
+    HERO
+================================================= */}
 
-        <section className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl">
+<section
+  id="home"
+  className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl"
+>
+  {/* Background geometry */}
+  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div className="absolute -right-32 -top-32 h-[460px] w-[460px] rounded-full border border-white/[0.08]" />
 
-          <div className="pointer-events-none absolute inset-0 opacity-20">
-            <div className="absolute right-[-100px] top-[-100px] h-[380px] w-[380px] rounded-full border border-white/30" />
-            <div className="absolute right-[-30px] top-[-30px] h-[230px] w-[230px] rounded-full border border-white/20" />
-            <div className="absolute bottom-[-160px] left-[-100px] h-[350px] w-[350px] rounded-full border border-emerald-300/20" />
-          </div>
+    <div className="absolute -right-8 -top-8 h-[300px] w-[300px] rounded-full border border-white/[0.07]" />
 
-          <div className="relative grid items-end gap-10 px-7 py-10 lg:grid-cols-[1fr_auto] lg:px-12 lg:py-14">
+    <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.025]" />
 
-            <div className="max-w-3xl">
+    <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full border border-emerald-300/[0.08]" />
 
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+    <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+  </div>
 
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
-                  VidyaGyan Bulandshahr
-                </p>
-              </div>
+  <div className="relative px-6 py-10 sm:px-10 md:px-14 md:py-12 lg:px-16 lg:py-14">
 
-              <h1 className="mt-5 text-4xl font-bold leading-[1.03] tracking-tight md:text-6xl">
-                One portal for
-                <br />
-                campus life.
-              </h1>
+    {/* ─────────────────────────────────────────────
+        BRAND / INTRO
+    ───────────────────────────────────────────── */}
 
-              <p className="mt-6 max-w-2xl text-sm leading-7 text-blue-100 md:text-base">
-                Your central space for campus events,
-                student leadership, cafeteria information,
-                activities and essential resources.
-              </p>
+    <div className="text-center">
 
-              <div className="mt-8 flex flex-wrap gap-3">
+      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-3.5 py-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
 
-                <Link
-                  href="#today"
-                  className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-blue-950 transition hover:bg-slate-100"
-                >
-                  View Today
-                </Link>
+        <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
+          VidyaGyan Bulandshahr
+        </span>
+      </div>
 
-                <Link
-                  href="/calendar"
-                  className="inline-flex items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
-                >
-                  Open Calendar
-                </Link>
+      <h1 className="mt-6 text-4xl font-bold tracking-[-0.035em] leading-[1.05] sm:text-5xl md:text-6xl">
+        One portal for
+        <br />
+        <span className="text-white/90">
+          campus life.
+        </span>
+      </h1>
 
-                <Link
-                  href="/cafeteria"
-                  className="inline-flex items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
-                >
-                  Today&apos;s Menu
-                </Link>
+      <p className="mx-auto mt-5 max-w-2xl text-sm leading-6 text-blue-100/80 md:text-base">
+        A unified student-facing platform for campus information,
+        events, activities, leadership and essential resources.
+      </p>
 
-              </div>
+    </div>
 
-            </div>
 
-            <div className="lg:min-w-[245px] lg:text-right">
+    {/* ─────────────────────────────────────────────
+        CAMPUS TIME
+    ───────────────────────────────────────────── */}
 
-              <div className="text-[10px] uppercase tracking-[0.2em] text-blue-300">
-                Campus Time
-              </div>
+    <div className="mx-auto mt-9 max-w-xl">
 
-              <div className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
-                {clockTime || "--:--:--"}
-              </div>
+      <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] px-5 py-6 shadow-inner backdrop-blur-sm sm:px-8 sm:py-7">
 
-              <div className="mt-1 text-sm text-blue-200">
-                {clockDate}
-              </div>
+        {/* Label */}
 
-              <div className="mt-5 text-xs text-blue-300">
-                India Standard Time · Asia/Kolkata
-              </div>
+        <div className="flex items-center justify-center gap-2">
 
-            </div>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
 
-          </div>
-        </section>
+          <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">
+            Campus Time
+          </span>
 
+        </div>
+
+
+        {/* Clock */}
+
+        <div
+          className="mt-3 text-center text-4xl font-semibold tracking-[-0.04em] tabular-nums text-white sm:text-5xl md:text-6xl"
+          aria-live="polite"
+        >
+          {clockTime || "--:--:--"}
+        </div>
+
+
+        {/* Date */}
+
+        <div className="mt-2 text-center text-sm font-medium text-blue-200">
+          {clockDate || "Loading campus time..."}
+        </div>
+
+
+        {/* Timezone */}
+
+        <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] text-blue-300/80">
+
+          <span>India Standard Time</span>
+
+          <span className="h-1 w-1 rounded-full bg-blue-400/60" />
+
+          <span>UTC +05:30</span>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    {/* ─────────────────────────────────────────────
+        ACTIONS
+    ───────────────────────────────────────────── */}
+
+    <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+
+      <a
+        href="#today"
+        className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-blue-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-100 hover:shadow-md"
+      >
+        View Today
+      </a>
+
+      <a
+        href="/cafeteria"
+        className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
+      >
+        Today&apos;s Menu
+      </a>
+
+      <a
+        href="/calendar"
+        className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
+      >
+        Open Calendar
+      </a>
+
+    </div>
+
+
+    {/* ─────────────────────────────────────────────
+        BOTTOM STATUS
+    ───────────────────────────────────────────── */}
+
+    <div className="mt-8 flex items-center justify-center gap-3 text-[10px] text-blue-300/60">
+
+      <span className="h-px w-10 bg-white/10" />
+
+      <span>
+        Student Portal · 2026–27
+      </span>
+
+      <span className="h-px w-10 bg-white/10" />
+
+    </div>
+
+  </div>
+</section>
+
+        
         {/* =================================================
             TODAY
         ================================================= */}
