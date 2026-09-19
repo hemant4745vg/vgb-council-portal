@@ -412,6 +412,62 @@ const DAY_SHORT: Record<number, string> = {
   6: "SAT",
 };
 
+const CAFETERIA_COMMITTEE = [
+  "Col. Abhishake Rai",
+  "Bhupal Giri Goswami",
+  "Narendra",
+];
+
+const HOUSE_SUPPORT = [
+  {
+    house: "Jal",
+    person: "Sushil Thapa",
+    color:
+      "from-blue-500 to-cyan-400",
+    soft:
+      "bg-blue-50 border-blue-100 text-blue-950",
+    accent: "bg-blue-500",
+  },
+  {
+    house: "Vayu",
+    person: "Tarannum",
+    color:
+      "from-amber-400 to-yellow-300",
+    soft:
+      "bg-amber-50 border-amber-100 text-amber-950",
+    accent: "bg-amber-400",
+  },
+  {
+    house: "Agni",
+    person: "Animesh Singh",
+    color:
+      "from-red-500 to-orange-400",
+    soft:
+      "bg-red-50 border-red-100 text-red-950",
+    accent: "bg-red-500",
+  },
+  {
+    house: "Prithvi",
+    person: "Sakshi",
+    color:
+      "from-emerald-500 to-green-400",
+    soft:
+      "bg-emerald-50 border-emerald-100 text-emerald-950",
+    accent: "bg-emerald-500",
+  },
+];
+
+const HONOUR_LEADERSHIP = [
+  {
+    role: "Honour Secretaries",
+    people: ["Krish", "Pravesh"],
+  },
+  {
+    role: "Joint Honour Secretaries",
+    people: ["Hemant Rathore", "Tejaswani"],
+  },
+];
+
 function formatDate(date: Date) {
   return date.toLocaleDateString("en-IN", {
     day: "numeric",
@@ -430,9 +486,7 @@ function MealCard({
   return (
     <article
       className={`group relative overflow-hidden rounded-[1.75rem] border bg-white shadow-[0_14px_40px_-28px_rgba(15,23,42,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_-28px_rgba(15,23,42,0.42)] ${
-        featured
-          ? "border-slate-300"
-          : "border-slate-200/80"
+        featured ? "border-slate-300" : "border-slate-200/80"
       }`}
     >
       <div
@@ -487,24 +541,25 @@ function MealCard({
           ))}
         </div>
 
-        {meal.alternatives && meal.alternatives.length > 0 && (
-          <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">
-              Alternatives / options
-            </p>
+        {meal.alternatives &&
+          meal.alternatives.length > 0 && (
+            <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+              <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">
+                Alternatives / options
+              </p>
 
-            <div className="mt-3 space-y-2">
-              {meal.alternatives.map((item, index) => (
-                <p
-                  key={`${item}-${index}`}
-                  className="text-xs font-semibold leading-5 text-slate-600"
-                >
-                  {item}
-                </p>
-              ))}
+              <div className="mt-3 space-y-2">
+                {meal.alternatives.map((item, index) => (
+                  <p
+                    key={`${item}-${index}`}
+                    className="text-xs font-semibold leading-5 text-slate-600"
+                  >
+                    {item}
+                  </p>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {meal.notes && meal.notes.length > 0 && (
           <div className="mt-5 border-t border-slate-100 pt-4">
@@ -576,10 +631,126 @@ function DaySelector({
   );
 }
 
-export default function MenuPage() {
+function CommitteeCard({
+  name,
+  index,
+}: {
+  name: string;
+  index: number;
+}) {
+  return (
+    <div className="group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-[0_14px_35px_-26px_rgba(15,23,42,0.35)] transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_20px_45px_-26px_rgba(15,23,42,0.4)]">
+      <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-emerald-500 via-cyan-400 to-blue-500" />
+
+      <div className="flex items-center gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-sm font-black text-white">
+          {String(index + 1).padStart(2, "0")}
+        </div>
+
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">
+            Committee Member
+          </p>
+
+          <h3 className="mt-1 text-lg font-bold tracking-tight text-slate-950">
+            {name}
+          </h3>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HouseSupportCard({
+  house,
+  person,
+  color,
+  soft,
+  accent,
+}: {
+  house: string;
+  person: string;
+  color: string;
+  soft: string;
+  accent: string;
+}) {
+  return (
+    <article
+      className={`group relative overflow-hidden rounded-[1.5rem] border p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_45px_-26px_rgba(15,23,42,0.35)] ${soft}`}
+    >
+      <div
+        className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${color}`}
+      />
+
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] opacity-60">
+            {house} House
+          </p>
+
+          <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.14em] opacity-60">
+            Co-House Master
+          </p>
+
+          <h3 className="mt-1 text-xl font-bold tracking-tight">
+            {person}
+          </h3>
+        </div>
+
+        <span
+          className={`h-10 w-10 shrink-0 rounded-2xl ${accent} opacity-90 shadow-sm`}
+        />
+      </div>
+    </article>
+  );
+}
+
+function StudentLeadershipCard({
+  role,
+  people,
+}: {
+  role: string;
+  people: string[];
+}) {
+  return (
+    <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_-28px_rgba(15,23,42,0.28)]">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
+            Student Leadership
+          </p>
+
+          <h3 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
+            {role}
+          </h3>
+        </div>
+
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-sm text-white">
+          ✦
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        {people.map((person) => (
+          <div
+            key={person}
+            className="rounded-2xl bg-slate-50 px-4 py-4"
+          >
+            <p className="text-sm font-bold text-slate-800">
+              {person}
+            </p>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+export default function CafeteriaPage() {
   const [today, setToday] = useState("MON");
   const [selectedDay, setSelectedDay] = useState("MON");
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const [currentDate, setCurrentDate] =
+    useState<Date | null>(null);
 
   useEffect(() => {
     const now = new Date();
@@ -789,6 +960,7 @@ export default function MenuPage() {
                 key={day.day}
                 onClick={() => {
                   setSelectedDay(day.day);
+
                   document
                     .getElementById("daily-menu")
                     ?.scrollIntoView({
@@ -826,9 +998,7 @@ export default function MenuPage() {
                       key={meal.title}
                       className="flex items-center gap-2"
                     >
-                      <span className="text-sm">
-                        {meal.icon}
-                      </span>
+                      <span className="text-sm">{meal.icon}</span>
 
                       <span className="text-xs font-medium text-slate-500">
                         {meal.title}
@@ -848,13 +1018,109 @@ export default function MenuPage() {
         </div>
       </section>
 
+      {/* CAFETERIA COMMITTEE */}
+      <section className="relative overflow-hidden bg-[#f6f7f3] py-20 lg:py-28">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(16,185,129,0.09),transparent_24%),radial-gradient(circle_at_85%_85%,rgba(59,130,246,0.07),transparent_24%)]" />
+
+        <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
+          <div className="mb-10 max-w-3xl">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+              03 · Cafeteria Committee
+            </p>
+
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              Cafeteria Committee
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+              The institutional team associated with cafeteria and mess
+              coordination.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {CAFETERIA_COMMITTEE.map((name, index) => (
+              <CommitteeCard
+                key={name}
+                name={name}
+                index={index}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* HOUSE SUPPORT */}
+      <section className="relative overflow-hidden bg-white py-20 lg:py-28">
+        <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
+          <div className="mb-10 max-w-3xl">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+              04 · House coordination
+            </p>
+
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              House support.
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+              Co-House Masters connected with each house.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {HOUSE_SUPPORT.map((house) => (
+              <HouseSupportCard
+                key={house.house}
+                house={house.house}
+                person={house.person}
+                color={house.color}
+                soft={house.soft}
+                accent={house.accent}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* STUDENT REPRESENTATIVES */}
+      <section className="relative overflow-hidden bg-[#f6f7f3] py-20 lg:py-28">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(245,158,11,0.08),transparent_25%),radial-gradient(circle_at_10%_85%,rgba(59,130,246,0.07),transparent_25%)]" />
+
+        <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
+          <div className="mb-10 max-w-3xl">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+              05 · Student representatives
+            </p>
+
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              Student representatives.
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+              Student leadership connected with cafeteria coordination and
+              representation.
+            </p>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            {HONOUR_LEADERSHIP.map((group) => (
+              <StudentLeadershipCard
+                key={group.role}
+                role={group.role}
+                people={group.people}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* NOTES */}
       <section className="mx-auto max-w-7xl px-5 py-16 lg:px-8 lg:py-20">
         <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-[0_18px_50px_-32px_rgba(15,23,42,0.3)] sm:p-9">
           <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                03 · Menu notes
+                06 · Menu notes
               </p>
 
               <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
