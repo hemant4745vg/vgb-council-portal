@@ -10,7 +10,7 @@ const navItems = [
   { name: "Cafeteria", href: "/cafeteria" },
   { name: "Calendar", href: "/calendar" },
   { name: "Activities", href: "/activities" },
-  { name: "Resources", href: "/resources" },
+  { name: "Study Material", href: "/study-material" },
 ];
 
 export default function Navbar() {
