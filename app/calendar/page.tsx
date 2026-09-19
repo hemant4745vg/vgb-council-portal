@@ -1,22 +1,18 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-
-/* =========================================================
-   TYPES
-========================================================= */
+import { useEffect, useMemo, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
 type Category =
-  | "Academic"
-  | "Exams"
-  | "Cultural"
-  | "Sports"
-  | "Excursion"
-  | "Flagship"
-  | "Holiday"
-  | "School";
+  | 'Flagship'
+  | 'Academic'
+  | 'Cultural'
+  | 'Exams'
+  | 'Sports'
+  | 'Excursion'
+  | 'Holiday';
 
-type CalendarPeriod = {
+type Period = {
   start: string;
   end: string;
 };
@@ -24,1582 +20,651 @@ type CalendarPeriod = {
 type CalendarEvent = {
   id: string;
   title: string;
-  periods: CalendarPeriod[];
+  periods: Period[];
   category: Category;
-  description?: string;
   target?: string;
+  venue?: string;
   time?: string;
+  description?: string;
   tentative?: boolean;
+  source?: 'annual' | 'live';
+  createdBy?: string;
 };
 
-/* =========================================================
-   SCHOOL YEAR
-========================================================= */
+const supabase = createClient(
+  'https://lllmgmfofwczpqbmigey.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJsbGxtZ21mb2Z3Y3pwYm1pZ2V5IiwiYW5vbiI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss'
+);
 
-const SCHOOL_YEAR_START = "2026-04-01";
-const SCHOOL_YEAR_END = "2027-03-31";
-
-/* =========================================================
-   HELPERS
-========================================================= */
-
-const pad = (value: number) => String(value).padStart(2, "0");
-
-const dateKey = (date: Date) =>
-  `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-    date.getDate()
-  )}`;
-
-const parseDate = (value: string) => {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
-};
-
-const startOfMonth = (date: Date) =>
-  new Date(date.getFullYear(), date.getMonth(), 1);
-
-const endOfMonth = (date: Date) =>
-  new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-const addDays = (date: Date, days: number) => {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-};
-
-const addMonths = (date: Date, months: number) =>
-  new Date(date.getFullYear(), date.getMonth() + months, 1);
-
-const isBetween = (
-  value: string,
-  start: string,
-  end: string
-): boolean => {
-  return value >= start && value <= end;
-};
-
-const monthKey = (date: Date) =>
-  `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
-
-const formatLongDate = (value: string) =>
-  parseDate(value).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
-const formatShortDate = (value: string) =>
-  parseDate(value).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-  });
-
-const formatMonth = (date: Date) =>
-  date.toLocaleDateString("en-IN", {
-    month: "long",
-    year: "numeric",
-  });
-
-const getDateRangeLabel = (period: CalendarPeriod) => {
-  if (period.start === period.end) {
-    return formatLongDate(period.start);
-  }
-
-  const start = parseDate(period.start);
-  const end = parseDate(period.end);
-
-  if (
-    start.getFullYear() === end.getFullYear() &&
-    start.getMonth() === end.getMonth()
-  ) {
-    return `${start.toLocaleDateString("en-IN", {
-      day: "numeric",
-    })}–${end.toLocaleDateString("en-IN", {
-      day: "numeric",
-    })} ${end.toLocaleDateString("en-IN", {
-      month: "long",
-      year: "numeric",
-    })}`;
-  }
-
-  return `${formatLongDate(period.start)} – ${formatLongDate(period.end)}`;
-};
-
-const getCategoryClasses = (category: Category) => {
-  switch (category) {
-    case "Academic":
-      return {
-        dot: "bg-blue-500",
-        chip: "border-blue-200 bg-blue-50 text-blue-700",
-        badge: "bg-blue-100 text-blue-700",
-      };
-
-    case "Exams":
-      return {
-        dot: "bg-violet-500",
-        chip: "border-violet-200 bg-violet-50 text-violet-700",
-        badge: "bg-violet-100 text-violet-700",
-      };
-
-    case "Cultural":
-      return {
-        dot: "bg-rose-500",
-        chip: "border-rose-200 bg-rose-50 text-rose-700",
-        badge: "bg-rose-100 text-rose-700",
-      };
-
-    case "Sports":
-      return {
-        dot: "bg-emerald-500",
-        chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
-        badge: "bg-emerald-100 text-emerald-700",
-      };
-
-    case "Excursion":
-      return {
-        dot: "bg-cyan-500",
-        chip: "border-cyan-200 bg-cyan-50 text-cyan-700",
-        badge: "bg-cyan-100 text-cyan-700",
-      };
-
-    case "Flagship":
-      return {
-        dot: "bg-amber-500",
-        chip: "border-amber-200 bg-amber-50 text-amber-700",
-        badge: "bg-amber-100 text-amber-700",
-      };
-
-    case "Holiday":
-      return {
-        dot: "bg-orange-500",
-        chip: "border-orange-200 bg-orange-50 text-orange-700",
-        badge: "bg-orange-100 text-orange-700",
-      };
-
-    case "School":
-      return {
-        dot: "bg-slate-500",
-        chip: "border-slate-200 bg-slate-50 text-slate-700",
-        badge: "bg-slate-100 text-slate-700",
-      };
-  }
-};
-
-const categoryLabel = (category: Category) => category;
-
-/* =========================================================
-   EVENT DATA
-   Source: VidyaGyan Bulandshahr Annual Calendar 2026–27
-========================================================= */
-
-const CALENDAR_EVENTS: CalendarEvent[] = [
-  /* ---------------- APRIL 2026 ---------------- */
-
-  {
-    id: "apr-new-session",
-    title: "New Session Begins",
-    periods: [{ start: "2026-04-01", end: "2026-04-01" }],
-    category: "School",
-    target: "School",
-  },
-  {
-    id: "apr-good-friday",
-    title: "Good Friday",
-    periods: [{ start: "2026-04-03", end: "2026-04-03" }],
-    category: "Holiday",
-  },
-  {
-    id: "apr-asset",
-    title: "ASSET Test",
-    periods: [{ start: "2026-04-09", end: "2026-04-11" }],
-    category: "Academic",
-    target: "Relevant students",
-  },
-  {
-    id: "apr-sciencequisition",
-    title: "SCIENCEIQUISITION",
-    periods: [{ start: "2026-04-16", end: "2026-04-16" }],
-    category: "Academic",
-  },
-  {
-    id: "apr-investiture",
-    title: "Investiture Ceremony",
-    periods: [{ start: "2026-04-18", end: "2026-04-18" }],
-    category: "Flagship",
-  },
-  {
-    id: "apr-biodiversity",
-    title: "Trip to Biodiversity Park at SNU",
-    periods: [{ start: "2026-04-22", end: "2026-04-22" }],
-    category: "Excursion",
-    target: "Grade IX",
-  },
-  {
-    id: "apr-bards-day",
-    title: "Bard's Day",
-    periods: [{ start: "2026-04-23", end: "2026-04-23" }],
-    category: "Cultural",
-    time: "Evening event",
-  },
-  {
-    id: "apr-football",
-    title: "IH Football",
-    periods: [{ start: "2026-04-24", end: "2026-04-30" }],
-    category: "Sports",
-  },
-
-  /* ---------------- MAY 2026 ---------------- */
-
-  {
-    id: "may-football",
-    title: "IH Football",
-    periods: [{ start: "2026-05-01", end: "2026-05-01" }],
-    category: "Sports",
-  },
-  {
-    id: "may-pt1-9-12",
-    title: "PT 1",
-    periods: [{ start: "2026-05-04", end: "2026-05-09" }],
-    category: "Exams",
-    target: "Grades 9–12",
-  },
-  {
-    id: "may-pt1-7-8",
-    title: "PT 1",
-    periods: [{ start: "2026-05-04", end: "2026-05-11" }],
-    category: "Exams",
-    target: "Grades 7–8",
-  },
-  {
-    id: "may-basketball",
-    title: "IH Basketball",
-    periods: [{ start: "2026-05-07", end: "2026-05-15" }],
-    category: "Sports",
-  },
-  {
-    id: "may-pt1-end-9-12",
-    title: "PT 1 Ends",
-    periods: [{ start: "2026-05-09", end: "2026-05-09" }],
-    category: "Exams",
-    target: "Grades 9–12",
-  },
-  {
-    id: "may-pt1-end-7-8",
-    title: "PT 1 Ends",
-    periods: [{ start: "2026-05-11", end: "2026-05-11" }],
-    category: "Exams",
-    target: "Grades 7–8",
-  },
-  {
-    id: "may-freshers",
-    title: "Freshers' Party",
-    periods: [{ start: "2026-05-12", end: "2026-05-12" }],
-    category: "Cultural",
-    target: "Grade 6",
-  },
-  {
-    id: "may-ptm",
-    title: "PTM",
-    periods: [{ start: "2026-05-16", end: "2026-05-16" }],
-    category: "School",
-  },
-  {
-    id: "may-summer-break",
-    title: "Summer Break Starts",
-    periods: [{ start: "2026-05-17", end: "2026-06-27" }],
-    category: "Holiday",
-    target: "Students",
-  },
-  {
-    id: "may-summer-camp",
-    title: "Summer Camp",
-    periods: [{ start: "2026-05-18", end: "2026-05-23" }],
-    category: "Academic",
-    target: "Grade 12",
-  },
-  {
-    id: "may-spic-macay",
-    title: "SPIC MACAY Annual Convention",
-    periods: [{ start: "2026-05-25", end: "2026-05-31" }],
-    category: "Cultural",
-    description: "Annual Convention at IIT Kharagpur.",
-  },
-  {
-    id: "may-eid",
-    title: "Bakri Id / Eid ul-Adha",
-    periods: [{ start: "2026-05-27", end: "2026-05-27" }],
-    category: "Holiday",
-  },
-
-  /* ---------------- JUNE 2026 ---------------- */
-
-  {
-    id: "jun-teacher-reporting",
-    title: "Reporting for Teachers",
-    periods: [{ start: "2026-06-25", end: "2026-06-25" }],
-    category: "School",
-    target: "Teachers",
-  },
-  {
-    id: "jun-in-service",
-    title: "In-Service Training",
-    periods: [{ start: "2026-06-26", end: "2026-06-27" }],
-    category: "School",
-    target: "Staff",
-  },
-  {
-    id: "jun-student-reporting",
-    title: "Reporting for Students",
-    periods: [{ start: "2026-06-28", end: "2026-06-28" }],
-    category: "School",
-    target: "Students",
-  },
-  {
-    id: "jun-classes",
-    title: "Classes Begin",
-    periods: [{ start: "2026-06-29", end: "2026-06-29" }],
-    category: "School",
-  },
-
-  /* ---------------- JULY 2026 ---------------- */
-
-  {
-    id: "jul-monthly-off",
-    title: "Monthly Off",
-    periods: [{ start: "2026-07-04", end: "2026-07-04" }],
-    category: "Holiday",
-  },
-  {
-    id: "jul-industrial-visit",
-    title: "Industrial Visit",
-    periods: [{ start: "2026-07-06", end: "2026-07-06" }],
-    category: "Excursion",
-    target: "Commerce",
-  },
-  {
-    id: "jul-volleyball",
-    title: "IH Volleyball",
-    periods: [{ start: "2026-07-07", end: "2026-07-11" }],
-    category: "Sports",
-  },
-  {
-    id: "jul-nadar-birthday",
-    title: "Mr. Nadar's Birthday",
-    periods: [{ start: "2026-07-14", end: "2026-07-14" }],
-    category: "Flagship",
-  },
-  {
-    id: "jul-project",
-    title: "Project Submission",
-    periods: [{ start: "2026-07-15", end: "2026-07-15" }],
-    category: "Academic",
-    target: "Grade 12",
-  },
-  {
-    id: "jul-storytelling",
-    title: "IH Story Telling",
-    periods: [{ start: "2026-07-17", end: "2026-07-17" }],
-    category: "Cultural",
-    target: "Grade 7",
-  },
-  {
-    id: "jul-delhi-trip",
-    title: "Delhi Trip",
-    periods: [{ start: "2026-07-18", end: "2026-07-18" }],
-    category: "Excursion",
-    target: "Grade 6",
-  },
-  {
-    id: "jul-handball",
-    title: "IH Handball",
-    periods: [{ start: "2026-07-20", end: "2026-07-25" }],
-    category: "Sports",
-  },
-  {
-    id: "jul-sudoku",
-    title: "SUDOKU Activity",
-    periods: [{ start: "2026-07-25", end: "2026-07-25" }],
-    category: "Academic",
-    target: "Grade 7",
-    description: "Activity during Converging Capacities.",
-  },
-  {
-    id: "jul-speaker",
-    title: "Speaker Session",
-    periods: [{ start: "2026-07-28", end: "2026-07-28" }],
-    category: "Flagship",
-    time: "Evening · 1–2 hrs",
-  },
-  {
-    id: "jul-cross-country",
-    title: "Cross Country",
-    periods: [{ start: "2026-07-29", end: "2026-07-29" }],
-    category: "Sports",
-  },
-  {
-    id: "jul-turncoat",
-    title: "IH Turncoat",
-    periods: [{ start: "2026-07-31", end: "2026-07-31" }],
-    category: "Cultural",
-    target: "Grade 8",
-  },
-
-  /* ---------------- AUGUST 2026 ---------------- */
-
-  {
-    id: "aug-monthly-off",
-    title: "Monthly Off",
-    periods: [{ start: "2026-08-01", end: "2026-08-01" }],
-    category: "Holiday",
-  },
-  {
-    id: "aug-table-tennis",
-    title: "IH Table Tennis",
-    periods: [{ start: "2026-08-03", end: "2026-08-06" }],
-    category: "Sports",
-  },
-  {
-    id: "aug-mun",
-    title: "VGB MUN",
-    periods: [{ start: "2026-08-07", end: "2026-08-08" }],
-    category: "Flagship",
-  },
-  {
-    id: "aug-vg-day",
-    title: "VG Day",
-    periods: [{ start: "2026-08-08", end: "2026-08-08" }],
-    category: "Flagship",
-  },
-  {
-    id: "aug-steam",
-    title: "STEAM Conclave",
-    periods: [{ start: "2026-08-12", end: "2026-08-12" }],
-    category: "Academic",
-    target: "Grades 9–12 Science Students",
-    tentative: true,
-  },
-  {
-    id: "aug-dance",
-    title: "Inter House Dance Competition",
-    periods: [{ start: "2026-08-14", end: "2026-08-14" }],
-    category: "Cultural",
-  },
-  {
-    id: "aug-independence",
-    title: "Independence Day",
-    periods: [{ start: "2026-08-15", end: "2026-08-15" }],
-    category: "Flagship",
-  },
-  {
-    id: "aug-declamation",
-    title: "IH Declamation",
-    periods: [{ start: "2026-08-18", end: "2026-08-18" }],
-    category: "Cultural",
-    target: "Grades 9–10",
-  },
-  {
-    id: "aug-kaafila",
-    title: "Kaafila",
-    periods: [{ start: "2026-08-20", end: "2026-08-22" }],
-    category: "Flagship",
-    tentative: true,
-  },
-  {
-    id: "aug-bvp",
-    title: "Bharat Vikas Parishad",
-    periods: [{ start: "2026-08-21", end: "2026-08-21" }],
-    category: "Flagship",
-    tentative: true,
-  },
-  {
-    id: "aug-ted",
-    title: "TED Event",
-    periods: [{ start: "2026-08-22", end: "2026-08-22" }],
-    category: "Flagship",
-    tentative: true,
-  },
-  {
-    id: "aug-national-dance",
-    title: "National Dance Championship",
-    periods: [{ start: "2026-08-24", end: "2026-08-24" }],
-    category: "Cultural",
-    tentative: true,
-  },
-  {
-    id: "aug-debate",
-    title: "IH Debate",
-    periods: [{ start: "2026-08-26", end: "2026-08-26" }],
-    category: "Cultural",
-    target: "Grades 11–12",
-  },
-  {
-    id: "aug-jantar-mantar",
-    title: "Visit to Jantar Mantar",
-    periods: [{ start: "2026-08-27", end: "2026-08-27" }],
-    category: "Excursion",
-    target: "Grade 7",
-  },
-  {
-    id: "aug-raksha-bandhan",
-    title: "Raksha Bandhan",
-    periods: [{ start: "2026-08-28", end: "2026-08-28" }],
-    category: "Holiday",
-  },
-  {
-    id: "aug-math-games",
-    title: "Math Game Challenges",
-    periods: [{ start: "2026-08-29", end: "2026-08-29" }],
-    category: "Academic",
-    target: "Grade 8",
-  },
-  {
-    id: "aug-kala-utsav",
-    title: "CBSE Kala Utsav",
-    periods: [{ start: "2026-08-29", end: "2026-08-29" }],
-    category: "Cultural",
-  },
-
-  /* ---------------- SEPTEMBER 2026 ---------------- */
-
-  {
-    id: "sep-teachers-day",
-    title: "Teachers' Day Celebration",
-    periods: [{ start: "2026-09-03", end: "2026-09-03" }],
-    category: "Cultural",
-  },
-  {
-    id: "sep-janmashtami",
-    title: "Janmashtami",
-    periods: [{ start: "2026-09-04", end: "2026-09-04" }],
-    category: "Holiday",
-  },
-  {
-    id: "sep-monthly-off",
-    title: "Monthly Off",
-    periods: [{ start: "2026-09-05", end: "2026-09-05" }],
-    category: "Holiday",
-  },
-  {
-    id: "sep-midterm-7-12",
-    title: "Mid-Term Examinations",
-    periods: [{ start: "2026-09-12", end: "2026-09-21" }],
-    category: "Exams",
-    target: "Grades 11–12",
-  },
-  {
-    id: "sep-midterm-9-10",
-    title: "Mid-Term Examinations",
-    periods: [{ start: "2026-09-12", end: "2026-09-23" }],
-    category: "Exams",
-    target: "Grades 9–10",
-  },
-  {
-    id: "sep-midterm-7-8",
-    title: "Mid-Term Examinations",
-    periods: [{ start: "2026-09-12", end: "2026-09-25" }],
-    category: "Exams",
-    target: "Grades 7–8",
-  },
-  {
-    id: "sep-hindi-diwas",
-    title: "Hindi Diwas",
-    periods: [{ start: "2026-09-14", end: "2026-09-14" }],
-    category: "Cultural",
-    time: "Evening programme",
-  },
-  {
-    id: "sep-roshni-birthday",
-    title: "Roshni Nadar's Birthday",
-    periods: [{ start: "2026-09-16", end: "2026-09-16" }],
-    category: "Flagship",
-    description: "Duties to be assigned.",
-  },
-  {
-    id: "sep-math-rangoli",
-    title: "Math Rangoli",
-    periods: [{ start: "2026-09-18", end: "2026-09-18" }],
-    category: "Academic",
-    target: "Grade 6",
-    time: "Evening prep",
-  },
-  {
-    id: "sep-midterm-11-12-end",
-    title: "Mid-Term Examinations End",
-    periods: [{ start: "2026-09-21", end: "2026-09-21" }],
-    category: "Exams",
-    target: "Grades 11–12",
-  },
-  {
-    id: "sep-midterm-9-10-end",
-    title: "Mid-Term Examinations End",
-    periods: [{ start: "2026-09-23", end: "2026-09-23" }],
-    category: "Exams",
-    target: "Grades 9–10",
-  },
-  {
-    id: "sep-midterm-7-8-end",
-    title: "Mid-Term Examinations End",
-    periods: [{ start: "2026-09-25", end: "2026-09-25" }],
-    category: "Exams",
-    target: "Grades 7–8",
-  },
-  {
-    id: "sep-spandan",
-    title: "SPANDAN Lit Fest",
-    periods: [{ start: "2026-09-25", end: "2026-09-25" }],
-    category: "Flagship",
-    target: "Teachers",
-  },
-  {
-    id: "sep-english-recitation",
-    title: "Inter-Section English Recitation",
-    periods: [{ start: "2026-09-25", end: "2026-09-25" }],
-    category: "Cultural",
-    target: "Grade 6",
-  },
-  {
-    id: "sep-cultural-week",
-    title: "Cultural Week",
-    periods: [{ start: "2026-09-28", end: "2026-10-01" }],
-    category: "Cultural",
-  },
-
-  /* ---------------- OCTOBER 2026 ---------------- */
-
-  {
-    id: "oct-cultural-week-end",
-    title: "Cultural Week Ends",
-    periods: [{ start: "2026-10-01", end: "2026-10-01" }],
-    category: "Cultural",
-  },
-  {
-    id: "oct-gandhi",
-    title: "Gandhi Jayanti",
-    periods: [{ start: "2026-10-02", end: "2026-10-02" }],
-    category: "Holiday",
-  },
-  {
-    id: "oct-theatre",
-    title: "Theatre Visit",
-    periods: [{ start: "2026-10-02", end: "2026-10-02" }],
-    category: "Excursion",
-  },
-  {
-    id: "oct-physics-dham",
-    title: "Trip to Physics Dham",
-    periods: [{ start: "2026-10-02", end: "2026-10-02" }],
-    category: "Excursion",
-    target: "Jaipur",
-  },
-  {
-    id: "oct-monthly-off",
-    title: "Monthly Off",
-    periods: [{ start: "2026-10-03", end: "2026-10-03" }],
-    category: "Holiday",
-  },
-  {
-    id: "oct-kabaddi",
-    title: "IH Kabaddi",
-    periods: [{ start: "2026-10-05", end: "2026-10-09" }],
-    category: "Sports",
-  },
-  {
-    id: "oct-review-11-12",
-    title: "Mid-Term Review",
-    periods: [{ start: "2026-10-08", end: "2026-10-08" }],
-    category: "Academic",
-    target: "Grades 11–12",
-  },
-  {
-    id: "oct-review-9-10",
-    title: "Mid-Term Review",
-    periods: [{ start: "2026-10-09", end: "2026-10-09" }],
-    category: "Academic",
-    target: "Grades 9–10",
-  },
-  {
-    id: "oct-review-7-8",
-    title: "Mid-Term Review",
-    periods: [{ start: "2026-10-10", end: "2026-10-10" }],
-    category: "Academic",
-    target: "Grades 7–8",
-  },
-  {
-    id: "oct-delhi-zoo",
-    title: "Delhi Zoo Visit",
-    periods: [{ start: "2026-10-12", end: "2026-10-12" }],
-    category: "Excursion",
-    target: "Grade 6",
-  },
-  {
-    id: "oct-workshop",
-    title: "Workshop",
-    periods: [{ start: "2026-10-14", end: "2026-10-14" }],
-    category: "Academic",
-    target: "Grades 6–8",
-  },
-  {
-    id: "oct-painting-6-7",
-    title: "IH Painting Competition",
-    periods: [{ start: "2026-10-15", end: "2026-10-15" }],
-    category: "Cultural",
-    target: "Grades 6–7",
-  },
-  {
-    id: "oct-painting-8-9",
-    title: "IH Painting Competition",
-    periods: [{ start: "2026-10-16", end: "2026-10-16" }],
-    category: "Cultural",
-    target: "Grades 8–9",
-  },
-  {
-    id: "oct-agra",
-    title: "Inter-Disciplinary Trip to Agra",
-    periods: [{ start: "2026-10-17", end: "2026-10-17" }],
-    category: "Excursion",
-    target: "Grades 7–8 & Grades 11–12 Eco",
-  },
-  {
-    id: "oct-maha-navami",
-    title: "Maha Navami",
-    periods: [{ start: "2026-10-19", end: "2026-10-19" }],
-    category: "Holiday",
-  },
-  {
-    id: "oct-dussehra",
-    title: "Dussehra",
-    periods: [{ start: "2026-10-20", end: "2026-10-20" }],
-    category: "Holiday",
-  },
-  {
-    id: "oct-badminton",
-    title: "IH Badminton",
-    periods: [{ start: "2026-10-21", end: "2026-10-24" }],
-    category: "Sports",
-  },
-  {
-    id: "oct-delhi-haat",
-    title: "Visit to Delhi Haat",
-    periods: [{ start: "2026-10-26", end: "2026-10-26" }],
-    category: "Excursion",
-    target: "Commerce & Economics",
-  },
-  {
-    id: "oct-sports-practice",
-    title: "Annual Sports Practice",
-    periods: [{ start: "2026-10-26", end: "2026-10-31" }],
-    category: "Sports",
-    time: "Evening",
-  },
-  {
-    id: "oct-lit-fest",
-    title: "Lit Fest 2026",
-    periods: [{ start: "2026-10-30", end: "2026-10-31" }],
-    category: "Flagship",
-    description: "Inter-school event.",
-  },
-  {
-    id: "oct-syllabus",
-    title: "Syllabus Completion",
-    periods: [{ start: "2026-10-31", end: "2026-10-31" }],
-    category: "Academic",
-    target: "Grades 10 & 12",
-  },
-
-  /* ---------------- NOVEMBER 2026 ---------------- */
-
-  {
-    id: "nov-hfp",
-    title: "History for Peace 2026",
-    periods: [{ start: "2026-11-02", end: "2026-11-03" }],
-    category: "Academic",
-  },
-  {
-    id: "nov-ptm",
-    title: "PTM",
-    periods: [{ start: "2026-11-04", end: "2026-11-04" }],
-    category: "School",
-  },
-  {
-    id: "nov-diwali-student",
-    title: "Deepawali Break",
-    periods: [{ start: "2026-11-05", end: "2026-11-21" }],
-    category: "Holiday",
-    target: "Students",
-  },
-  {
-    id: "nov-diwali-teacher",
-    title: "Deepawali Break",
-    periods: [{ start: "2026-11-05", end: "2026-11-16" }],
-    category: "Holiday",
-    target: "Teachers",
-  },
-  {
-    id: "nov-sports-practice-early",
-    title: "Annual Sports Practice",
-    periods: [{ start: "2026-11-01", end: "2026-11-03" }],
-    category: "Sports",
-    time: "Evening",
-  },
-  {
-    id: "nov-staff-reporting",
-    title: "Reporting for Staff",
-    periods: [{ start: "2026-11-17", end: "2026-11-17" }],
-    category: "School",
-  },
-  {
-    id: "nov-ole",
-    title: "OLE",
-    periods: [{ start: "2026-11-18", end: "2026-11-21" }],
-    category: "Academic",
-    target: "Teachers",
-  },
-  {
-    id: "nov-student-reporting",
-    title: "Reporting for Students",
-    periods: [{ start: "2026-11-22", end: "2026-11-22" }],
-    category: "School",
-  },
-  {
-    id: "nov-classes",
-    title: "Classes Begin",
-    periods: [{ start: "2026-11-23", end: "2026-11-23" }],
-    category: "School",
-  },
-  {
-    id: "nov-sports-practice",
-    title: "Annual Sports Practice",
-    periods: [{ start: "2026-11-23", end: "2026-11-24" }],
-    category: "Sports",
-    time: "Evening",
-  },
-  {
-    id: "nov-annual-sports",
-    title: "Annual Sports",
-    periods: [{ start: "2026-11-25", end: "2026-11-27" }],
-    category: "Sports",
-  },
-  {
-    id: "nov-sports-day",
-    title: "Annual Sports Day",
-    periods: [{ start: "2026-11-28", end: "2026-11-28" }],
-    category: "Sports",
-  },
-  {
-    id: "nov-solanki",
-    title: "Interaction with Mr. Solanki",
-    periods: [{ start: "2026-11-30", end: "2026-11-30" }],
-    category: "Flagship",
-    description: "Environmentalist interaction.",
-  },
-
-  /* ---------------- DECEMBER 2026 ---------------- */
-
-  {
-    id: "dec-itihas",
-    title: "Itihaas Anveshan",
-    periods: [{ start: "2026-12-05", end: "2026-12-05" }],
-    category: "Academic",
-  },
-  {
-    id: "dec-vgee",
-    title: "VGEE",
-    periods: [{ start: "2026-12-06", end: "2026-12-06" }],
-    category: "Academic",
-  },
-  {
-    id: "dec-pt",
-    title: "Periodic Tests",
-    periods: [{ start: "2026-12-08", end: "2026-12-14" }],
-    category: "Exams",
-  },
-  {
-    id: "dec-pb",
-    title: "Pre-Board Examinations",
-    periods: [{ start: "2026-12-08", end: "2026-12-16" }],
-    category: "Exams",
-    target: "Grades 10 & 12",
-  },
-  {
-    id: "dec-choir",
-    title: "Inter-Section Choir",
-    periods: [{ start: "2026-12-17", end: "2026-12-17" }],
-    category: "Cultural",
-    target: "Grade 6",
-    time: "Morning Assembly",
-  },
-  {
-    id: "dec-ptm",
-    title: "PTM",
-    periods: [{ start: "2026-12-19", end: "2026-12-19" }],
-    category: "School",
-    target: "Grades 6–9 & 11",
-  },
-  {
-    id: "dec-winter-break",
-    title: "Winter Break",
-    periods: [{ start: "2026-12-20", end: "2027-01-09" }],
-    category: "Holiday",
-    target: "Grades 6–9 & 11",
-  },
-  {
-    id: "dec-winter-camp",
-    title: "Winter Camp",
-    periods: [{ start: "2026-12-21", end: "2026-12-21" }],
-    category: "Academic",
-    target: "Grades 10 & 12",
-  },
-  {
-    id: "dec-christmas",
-    title: "Christmas",
-    periods: [{ start: "2026-12-25", end: "2026-12-25" }],
-    category: "Holiday",
-  },
-  {
-    id: "dec-new-year",
-    title: "New Year Eve Celebration",
-    periods: [{ start: "2026-12-31", end: "2026-12-31" }],
-    category: "Cultural",
-  },
-
-  /* ---------------- JANUARY 2027 ---------------- */
-
-  {
-    id: "jan-new-year",
-    title: "New Year's Day",
-    periods: [{ start: "2027-01-01", end: "2027-01-01" }],
-    category: "Holiday",
-  },
-  {
-    id: "jan-teacher-reporting",
-    title: "Reporting Day for Teachers",
-    periods: [{ start: "2027-01-09", end: "2027-01-09" }],
-    category: "School",
-  },
-  {
-    id: "jan-student-reporting",
-    title: "Reporting Day for Students",
-    periods: [{ start: "2027-01-10", end: "2027-01-10" }],
-    category: "School",
-  },
-  {
-    id: "jan-classes",
-    title: "Classes Begin",
-    periods: [{ start: "2027-01-11", end: "2027-01-11" }],
-    category: "School",
-  },
-  {
-    id: "jan-iccr",
-    title: "ICCR International Festival",
-    periods: [{ start: "2027-01-21", end: "2027-01-23" }],
-    category: "Flagship",
-    target: "Grade 8",
-  },
-  {
-    id: "jan-music",
-    title: "IH Music Competition",
-    periods: [{ start: "2027-01-25", end: "2027-01-25" }],
-    category: "Cultural",
-    target: "Grades 7–9",
-    description: "Singing / Orchestra.",
-  },
-  {
-    id: "jan-republic",
-    title: "Republic Day",
-    periods: [{ start: "2027-01-26", end: "2027-01-26" }],
-    category: "Holiday",
-  },
-  {
-    id: "jan-book-fair",
-    title: "Visit to Book Fair",
-    periods: [{ start: "2027-01-30", end: "2027-01-30" }],
-    category: "Excursion",
-  },
-
-  /* ---------------- FEBRUARY 2027 ---------------- */
-
-  {
-    id: "feb-monthly-off",
-    title: "Monthly Off",
-    periods: [{ start: "2027-02-06", end: "2027-02-06" }],
-    category: "Holiday",
-  },
-  {
-    id: "feb-annual-9-11",
-    title: "Annual Examinations",
-    periods: [{ start: "2027-02-09", end: "2027-02-19" }],
-    category: "Exams",
-    target: "Grades 9 & 11",
-  },
-  {
-    id: "feb-annual-11-end",
-    title: "Annual Examinations End",
-    periods: [{ start: "2027-02-17", end: "2027-02-17" }],
-    category: "Exams",
-    target: "Grade 11",
-  },
-  {
-    id: "feb-annual-9-end",
-    title: "Annual Examinations End",
-    periods: [{ start: "2027-02-19", end: "2027-02-19" }],
-    category: "Exams",
-    target: "Grade 9",
-  },
-  {
-    id: "feb-ole",
-    title: "OLE",
-    periods: [{ start: "2027-02-22", end: "2027-02-27" }],
-    category: "Academic",
-    target: "Grades 9 & 11",
-    tentative: true,
-  },
-
-  /* ---------------- MARCH 2027 ---------------- */
-
-  {
-    id: "mar-new-session",
-    title: "New Session Begins",
-    periods: [{ start: "2027-03-01", end: "2027-03-01" }],
-    category: "School",
-    target: "Grades 10 & 12",
-  },
-  {
-    id: "mar-maha-shivaratri",
-    title: "Maha Shivaratri",
-    periods: [{ start: "2027-03-06", end: "2027-03-06" }],
-    category: "Holiday",
-  },
-  {
-    id: "mar-annual-6-8",
-    title: "Annual Examinations",
-    periods: [{ start: "2027-03-09", end: "2027-03-23" }],
-    category: "Exams",
-    target: "Grades 6–8",
-  },
-  {
-    id: "mar-eid",
-    title: "Eid ul-Fitr",
-    periods: [{ start: "2027-03-10", end: "2027-03-10" }],
-    category: "Holiday",
-  },
-  {
-    id: "mar-holi",
-    title: "Holi",
-    periods: [{ start: "2027-03-22", end: "2027-03-22" }],
-    category: "Holiday",
-  },
-  {
-    id: "mar-annual-6-8-end",
-    title: "Annual Examinations End",
-    periods: [{ start: "2027-03-23", end: "2027-03-23" }],
-    category: "Exams",
-    target: "Grades 6–8",
-  },
-  {
-    id: "mar-good-friday",
-    title: "Good Friday",
-    periods: [{ start: "2027-03-26", end: "2027-03-26" }],
-    category: "Holiday",
-  },
-  {
-    id: "mar-session-break",
-    title: "Session Break",
-    periods: [{ start: "2027-03-27", end: "2027-03-31" }],
-    category: "Holiday",
-    target: "Students",
-  },
-  {
-    id: "mar-inservice",
-    title: "In-Service Training",
-    periods: [{ start: "2027-03-29", end: "2027-03-30" }],
-    category: "School",
-    target: "Staff",
-  },
+const CATEGORIES: Array<{ key: Category | 'All'; label: string; dot: string }> = [
+  { key: 'All', label: 'All', dot: 'bg-slate-500' },
+  { key: 'Academic', label: 'Academic', dot: 'bg-blue-500' },
+  { key: 'Exams', label: 'Exams', dot: 'bg-violet-500' },
+  { key: 'Cultural', label: 'Cultural', dot: 'bg-rose-500' },
+  { key: 'Sports', label: 'Sports', dot: 'bg-emerald-500' },
+  { key: 'Excursion', label: 'Excursion', dot: 'bg-cyan-500' },
+  { key: 'Flagship', label: 'Flagship', dot: 'bg-amber-500' },
+  { key: 'Holiday', label: 'Holiday', dot: 'bg-orange-500' },
 ];
 
-/* =========================================================
-   CALENDAR COMPONENT
-========================================================= */
+const CATEGORY_STYLES: Record<Category, { dot: string; soft: string; text: string; bar: string; badge: string }> = {
+  Academic: {
+    dot: 'bg-blue-500',
+    soft: 'bg-blue-50',
+    text: 'text-blue-700',
+    bar: 'bg-blue-100 text-blue-800',
+    badge: 'bg-blue-50 text-blue-700 border-blue-100',
+  },
+  Exams: {
+    dot: 'bg-violet-500',
+    soft: 'bg-violet-50',
+    text: 'text-violet-700',
+    bar: 'bg-violet-100 text-violet-800',
+    badge: 'bg-violet-50 text-violet-700 border-violet-100',
+  },
+  Cultural: {
+    dot: 'bg-rose-500',
+    soft: 'bg-rose-50',
+    text: 'text-rose-700',
+    bar: 'bg-rose-100 text-rose-800',
+    badge: 'bg-rose-50 text-rose-700 border-rose-100',
+  },
+  Sports: {
+    dot: 'bg-emerald-500',
+    soft: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    bar: 'bg-emerald-100 text-emerald-800',
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  },
+  Excursion: {
+    dot: 'bg-cyan-500',
+    soft: 'bg-cyan-50',
+    text: 'text-cyan-700',
+    bar: 'bg-cyan-100 text-cyan-800',
+    badge: 'bg-cyan-50 text-cyan-700 border-cyan-100',
+  },
+  Flagship: {
+    dot: 'bg-amber-500',
+    soft: 'bg-amber-50',
+    text: 'text-amber-700',
+    bar: 'bg-amber-100 text-amber-800',
+    badge: 'bg-amber-50 text-amber-700 border-amber-100',
+  },
+  Holiday: {
+    dot: 'bg-orange-500',
+    soft: 'bg-orange-50',
+    text: 'text-orange-700',
+    bar: 'bg-orange-100 text-orange-800',
+    badge: 'bg-orange-50 text-orange-700 border-orange-100',
+  },
+};
+
+const annual = (
+  id: string,
+  title: string,
+  category: Category,
+  periods: Period | Period[],
+  extra: Omit<CalendarEvent, 'id' | 'title' | 'category' | 'periods' | 'source'> = {}
+): CalendarEvent => ({
+  id,
+  title,
+  category,
+  periods: Array.isArray(periods) ? periods : [periods],
+  source: 'annual',
+  ...extra,
+});
+
+const day = (date: string): Period => ({ start: date, end: date });
+const range = (start: string, end: string): Period => ({ start, end });
+
+/*
+ * Source: VidyaGyan Bulandshahr Annual Calendar 2026–27.
+ * The source PDF is represented here as normalized periods so that the UI
+ * can correctly render ranges, cross-month events and non-contiguous events.
+ */
+const ANNUAL_EVENTS: CalendarEvent[] = [
+  // APRIL 2026
+  annual('apr-new-session', 'New Session Begins', 'Academic', day('2026-04-01'), { target: 'Grades VI–IX & XI (Provisional)', venue: 'Campus' }),
+  annual('apr-good-friday', 'Good Friday', 'Holiday', day('2026-04-03'), { target: 'School Community' }),
+  annual('apr-monthly-off', 'Monthly Off', 'Holiday', day('2026-04-04'), { target: 'School Community' }),
+  annual('apr-taekwondo', 'IH Taekwondo', 'Sports', range('2026-04-07', '2026-04-10'), { target: 'Inter-House', venue: 'Sports Ground' }),
+  annual('apr-asset', 'ASSET Test', 'Exams', range('2026-04-09', '2026-04-11'), { target: 'Relevant Grades', venue: 'Classrooms' }),
+  annual('apr-scienceiquisition', 'SCIENCEIQUISITION', 'Academic', day('2026-04-16'), { target: 'Students', venue: 'Campus' }),
+  annual('apr-investiture', 'Investiture Ceremony', 'Flagship', day('2026-04-18'), { target: 'School Community', venue: 'Campus' }),
+  annual('apr-biodiversity', 'Trip to Biodiversity Park', 'Excursion', day('2026-04-22'), { target: 'Grade 9', venue: 'SNU Noida' }),
+  annual('apr-bards-day', "Bard's Day", 'Cultural', day('2026-04-23'), { target: 'School Community', time: 'Evening event', venue: 'Amphitheatre' }),
+  annual('apr-football', 'IH Football', 'Sports', range('2026-04-24', '2026-05-02'), { target: 'Inter-House', venue: 'Sports Ground' }),
+
+  // MAY 2026
+  annual('may-pt1-9-12', 'Periodic Test 1', 'Exams', range('2026-05-04', '2026-05-09'), { target: 'Grades 9–12', venue: 'Classrooms' }),
+  annual('may-pt1-7-8', 'Periodic Test 1', 'Exams', range('2026-05-04', '2026-05-11'), { target: 'Grades 7–8', venue: 'Classrooms' }),
+  annual('may-basketball', 'IH Basketball', 'Sports', range('2026-05-07', '2026-05-15'), { target: 'Inter-House', venue: 'Sports Ground' }),
+  annual('may-freshers', "Freshers’ Party", 'Cultural', day('2026-05-12'), { target: 'Grade 6', venue: 'Campus' }),
+  annual('may-ptm', 'PTM', 'Academic', day('2026-05-16'), { target: 'School Community', venue: 'Campus' }),
+  annual('may-summer-break', 'Summer Break', 'Flagship', range('2026-05-17', '2026-06-27'), { target: 'Students', venue: 'Campus' }),
+  annual('may-summer-camp', 'Summer Camp', 'Cultural', range('2026-05-18', '2026-05-23'), { target: 'Grade 12', venue: 'Campus' }),
+  annual('may-spic-macay', 'SPIC MACAY Annual Convention', 'Cultural', range('2026-05-25', '2026-05-31'), { target: 'School Community', venue: 'IIT Kharagpur' }),
+  annual('may-eid', 'Bakri Id / Eid ul-Adha', 'Holiday', day('2026-05-27'), { target: 'School Community' }),
+
+  // JUNE 2026
+  annual('jun-teacher-reporting', 'Reporting for Teachers', 'Academic', day('2026-06-25'), { target: 'Teachers', venue: 'Campus' }),
+  annual('jun-inservice', 'In-Service Training', 'Academic', range('2026-06-26', '2026-06-27'), { target: 'Staff', venue: 'Campus' }),
+  annual('jun-student-reporting', 'Reporting for Students', 'Academic', day('2026-06-28'), { target: 'Students', venue: 'Campus' }),
+  annual('jun-classes', 'Classes Begin', 'Academic', day('2026-06-29'), { target: 'Students', venue: 'Campus' }),
+
+  // JULY 2026
+  annual('jul-monthly-off', 'Monthly Off', 'Holiday', day('2026-07-04'), { target: 'School Community' }),
+  annual('jul-industrial', 'Industrial Visit', 'Excursion', day('2026-07-06'), { target: 'Commerce', venue: 'Off Campus' }),
+  annual('jul-volleyball', 'IH Volleyball', 'Sports', range('2026-07-07', '2026-07-11'), { target: 'Inter-House', venue: 'Sports Ground' }),
+  annual('jul-nadar', "Mr. Nadar’s Birthday", 'Flagship', day('2026-07-14'), { target: 'School Community' }),
+  annual('jul-project', 'Grade 12 Project Submission', 'Academic', day('2026-07-15'), { target: 'Grade 12', venue: 'Academic Block' }),
+  annual('jul-story', 'IH Story Telling', 'Cultural', day('2026-07-17'), { target: 'Grade 7', venue: 'Campus' }),
+  annual('jul-delhi-trip', 'Inter-Disciplinary Trip', 'Excursion', day('2026-07-18'), { target: 'Grade 6', venue: 'Delhi' }),
+  annual('jul-handball', 'IH Handball', 'Sports', range('2026-07-20', '2026-07-25'), { target: 'Inter-House', venue: 'Sports Ground' }),
+  annual('jul-sudoku', 'SUDOKU Activity', 'Academic', day('2026-07-25'), { target: 'Grade 7', venue: 'Campus' }),
+  annual('jul-speaker', 'Speaker Session', 'Academic', day('2026-07-28'), { target: 'Students', time: 'Evening · 1–2 hrs' }),
+  annual('jul-cross-country', 'Cross Country', 'Sports', day('2026-07-29'), { target: 'Students', venue: 'Campus' }),
+  annual('jul-turncoat', 'IH Turncoat', 'Cultural', day('2026-07-31'), { target: 'Grade 8', venue: 'Campus' }),
+
+  // AUGUST 2026
+  annual('aug-monthly-off', 'Monthly Off', 'Holiday', day('2026-08-01'), { target: 'School Community' }),
+  annual('aug-table-tennis', 'IH Table Tennis', 'Sports', range('2026-08-03', '2026-08-06'), { target: 'Inter-House', venue: 'Sports Ground' }),
+  annual('aug-vgb-mun', 'VGB MUN', 'Flagship', range('2026-08-07', '2026-08-08'), { target: 'Students', venue: 'Conference Block' }),
+  annual('aug-vg-day', 'VG Day', 'Flagship', day('2026-08-08'), { target: 'School Community', venue: 'Main Ground' }),
+  annual('aug-steam', 'STEAM Conclave', 'Academic', day('2026-08-12'), { target: 'Grades 9–12 Science Students', venue: 'Labs', tentative: true }),
+  annual('aug-dance', 'Inter-House Dance Competition', 'Cultural', day('2026-08-14'), { target: 'Inter-House', venue: 'Campus' }),
+  annual('aug-independence', 'Independence Day', 'Flagship', day('2026-08-15'), { target: 'School Community' }),
+  annual('aug-declamation', 'IH Declamation', 'Cultural', day('2026-08-18'), { target: 'Grades 9–10', venue: 'Campus' }),
+  annual('aug-kaafila', 'Kaafila', 'Cultural', range('2026-08-20', '2026-08-22'), { target: 'School Community', venue: 'Campus', tentative: true }),
+  annual('aug-bvp', 'Bharat Vikas Parishad', 'Flagship', day('2026-08-21'), { target: 'School Community', tentative: true }),
+  annual('aug-ted', 'TED Event', 'Cultural', day('2026-08-22'), { target: 'School Community', venue: 'Amphitheatre', tentative: true }),
+  annual('aug-national-dance', 'National Dance Championship', 'Sports', day('2026-08-24'), { target: 'Selected Students', tentative: true }),
+  annual('aug-debate', 'IH Debate', 'Cultural', day('2026-08-26'), { target: 'Grades 11–12', venue: 'Campus' }),
+  annual('aug-jantar', 'Trip to Jantar Mantar', 'Excursion', day('2026-08-27'), { target: 'Grade 7', venue: 'Delhi' }),
+  annual('aug-raksha', 'Raksha Bandhan', 'Holiday', day('2026-08-28'), { target: 'School Community' }),
+  annual('aug-math-games', 'Math Game Challenges / CBSE Kala Utsav', 'Academic', day('2026-08-29'), { target: 'Grade 8', venue: 'Campus' }),
+
+  // SEPTEMBER 2026
+  annual('sep-teachers-day', 'Teachers’ Day Celebration', 'Cultural', day('2026-09-03'), { target: 'School Community', venue: 'Campus' }),
+  annual('sep-janmashtami', 'Janmashtami', 'Holiday', day('2026-09-04'), { target: 'School Community' }),
+  annual('sep-monthly-off', 'Monthly Off', 'Holiday', day('2026-09-05'), { target: 'School Community' }),
+  annual('sep-midterm-11-12', 'Mid-Term Examinations', 'Exams', range('2026-09-12', '2026-09-21'), { target: 'Grades 11–12', venue: 'Classrooms' }),
+  annual('sep-midterm-9-10', 'Mid-Term Examinations', 'Exams', range('2026-09-12', '2026-09-23'), { target: 'Grades 9–10', venue: 'Classrooms' }),
+  annual('sep-midterm-7-8', 'Mid-Term Examinations', 'Exams', range('2026-09-12', '2026-09-25'), { target: 'Grades 7–8', venue: 'Classrooms' }),
+  annual('sep-hindi-diwas', 'Hindi Diwas', 'Cultural', day('2026-09-14'), { target: 'School Community', time: 'Evening programme', venue: 'Campus' }),
+  annual('sep-nadar', "Roshni Nadar’s Birthday", 'Flagship', day('2026-09-16'), { target: 'School Community', description: 'Duties to be assigned.' }),
+  annual('sep-math-rangoli', 'Math Rangoli', 'Academic', day('2026-09-18'), { target: 'Grade 6', time: 'Evening prep', venue: 'Campus' }),
+  annual('sep-spandan', 'SPANDAN Lit Fest', 'Cultural', day('2026-09-25'), { target: 'Teachers', venue: 'Campus' }),
+  annual('sep-recitation', 'Inter-Section English Recitation', 'Cultural', day('2026-09-25'), { target: 'Grade 6', venue: 'Campus' }),
+  annual('sep-cultural-week', 'Cultural Week', 'Cultural', range('2026-09-28', '2026-10-01'), { target: 'School Community', venue: 'Campus' }),
+
+  // OCTOBER 2026
+  annual('oct-gandhi-theatre', 'Gandhi Jayanti & Theatre Visit', 'Cultural', day('2026-10-02'), { target: 'School Community', venue: 'Theatre / Campus' }),
+  annual('oct-physics-jaipur', 'Trip to Physics Dham – Jaipur', 'Excursion', day('2026-10-02'), { target: 'Selected Delegations', venue: 'Jaipur' }),
+  annual('oct-monthly-off', 'Monthly Off', 'Holiday', day('2026-10-03'), { target: 'School Community' }),
+  annual('oct-kabaddi', 'IH Kabaddi', 'Sports', [range('2026-10-05', '2026-10-07'), range('2026-10-11', '2026-10-12')], { target: 'Inter-House', venue: 'Sports Ground' }),
+  annual('oct-review-11-12', 'Mid-Term Review', 'Academic', day('2026-10-08'), { target: 'Grades 11–12', venue: 'Campus' }),
+  annual('oct-review-9-10', 'Mid-Term Review', 'Academic', day('2026-10-09'), { target: 'Grades 9–10', venue: 'Campus' }),
+  annual('oct-review-7-8', 'Mid-Term Review', 'Academic', day('2026-10-10'), { target: 'Grades 7–8', venue: 'Campus' }),
+  annual('oct-zoo', 'Delhi Zoo Visit', 'Excursion', day('2026-10-12'), { target: 'Grade 6', venue: 'Delhi Zoo' }),
+  annual('oct-workshop', 'Workshop', 'Academic', day('2026-10-14'), { target: 'Grades 6–8', venue: 'Campus' }),
+  annual('oct-paint-6-7', 'IH Painting Competition', 'Cultural', day('2026-10-15'), { target: 'Grades 6–7', venue: 'Campus' }),
+  annual('oct-paint-8-9', 'IH Painting Competition', 'Cultural', day('2026-10-16'), { target: 'Grades 8–9', venue: 'Campus' }),
+  annual('oct-agra', 'Inter-Disciplinary Trip to Agra', 'Excursion', day('2026-10-17'), { target: 'Grades 7–8 & 11–12 Eco', venue: 'Agra' }),
+  annual('oct-maha-navami', 'Maha Navami', 'Holiday', day('2026-10-19'), { target: 'School Community' }),
+  annual('oct-dussehra', 'Dussehra', 'Holiday', day('2026-10-20'), { target: 'School Community' }),
+  annual('oct-badminton', 'IH Badminton', 'Sports', range('2026-10-21', '2026-10-24'), { target: 'Inter-House', venue: 'Sports Ground' }),
+  annual('oct-delhi-haat', 'Visit to Delhi Haat', 'Excursion', day('2026-10-26'), { target: 'Commerce & Economics', venue: 'Delhi Haat' }),
+  annual('oct-sports-practice', 'Annual Sports Practice', 'Sports', range('2026-10-26', '2026-10-31'), { target: 'School Community', time: 'Evening', venue: 'Sports Ground' }),
+  annual('oct-litfest', 'Lit Fest 2026', 'Cultural', range('2026-10-30', '2026-10-31'), { target: 'Inter-School Delegations', venue: 'Auditorium' }),
+  annual('oct-syllabus', 'Syllabus Completion', 'Academic', day('2026-10-31'), { target: 'Grades 10 & 12', venue: 'Academic Block' }),
+
+  // NOVEMBER 2026
+  annual('nov-sports-practice-1', 'Annual Sports Practice', 'Sports', range('2026-11-01', '2026-11-03'), { target: 'School Community', time: 'Evening', venue: 'Sports Ground' }),
+  annual('nov-history-peace', 'History for Peace 2026', 'Academic', range('2026-11-02', '2026-11-03'), { target: 'School Community', venue: 'Campus' }),
+  annual('nov-ptm', 'PTM', 'Academic', day('2026-11-04'), { target: 'School Community', venue: 'Campus' }),
+  annual('nov-diwali-break', 'Deepawali Break', 'Holiday', range('2026-11-05', '2026-11-21'), { target: 'Students' }),
+  annual('nov-staff-reporting', 'Reporting Day for Staff', 'Academic', day('2026-11-17'), { target: 'Staff', venue: 'Campus' }),
+  annual('nov-ole', 'OLE', 'Academic', range('2026-11-18', '2026-11-21'), { target: 'Teachers', venue: 'Campus' }),
+  annual('nov-student-reporting', 'Reporting Day for Students', 'Academic', day('2026-11-22'), { target: 'Students', venue: 'Campus' }),
+  annual('nov-classes', 'Classes Begin', 'Academic', day('2026-11-23'), { target: 'Students', venue: 'Campus' }),
+  annual('nov-sports-practice-2', 'Annual Sports Practice', 'Sports', range('2026-11-23', '2026-11-24'), { target: 'School Community', time: 'Evening', venue: 'Sports Ground' }),
+  annual('nov-sports', 'Annual Sports Day', 'Sports', day('2026-11-28'), { target: 'All Houses', venue: 'Sports Complex' }),
+  annual('nov-solanki', 'Interaction with Mr. Solanki', 'Academic', day('2026-11-30'), { target: 'School Community', time: 'Environmentalist interaction', venue: 'Campus' }),
+
+  // DECEMBER 2026
+  annual('dec-history', 'Itihaas Anveshan', 'Academic', day('2026-12-05'), { target: 'School Community', venue: 'Campus' }),
+  annual('dec-vgee', 'VGEE', 'Academic', day('2026-12-06'), { target: 'Eligible Students', venue: 'Campus' }),
+  annual('dec-pt', 'Periodic Tests', 'Exams', range('2026-12-08', '2026-12-14'), { target: 'Relevant Grades', venue: 'Exam Halls' }),
+  annual('dec-pb', 'Pre-Board Examinations', 'Exams', range('2026-12-08', '2026-12-16'), { target: 'Grades 10 & 12', venue: 'Exam Halls' }),
+  annual('dec-choir', 'Inter-Section Choir', 'Cultural', day('2026-12-17'), { target: 'Grade 6', time: 'Morning assembly', venue: 'Campus' }),
+  annual('dec-ptm', 'PTM', 'Academic', day('2026-12-19'), { target: 'Grades 6–9 & 11', venue: 'Campus' }),
+  annual('dec-winter-break', 'Winter Break', 'Holiday', range('2026-12-20', '2027-01-09'), { target: 'Grades 6–9 & 11' }),
+  annual('dec-winter-camp', 'Winter Camp', 'Cultural', day('2026-12-21'), { target: 'Grades 10 & 12', venue: 'Campus' }),
+  annual('dec-christmas', 'Christmas', 'Holiday', day('2026-12-25'), { target: 'School Community' }),
+  annual('dec-new-year', 'New Year Eve Celebration', 'Cultural', day('2026-12-31'), { target: 'School Community', venue: 'Campus' }),
+
+  // JANUARY 2027
+  annual('jan-new-year', "New Year's Day", 'Holiday', day('2027-01-01'), { target: 'School Community' }),
+  annual('jan-teacher-reporting', 'Reporting Day for Teachers', 'Academic', day('2027-01-09'), { target: 'Teachers', venue: 'Campus' }),
+  annual('jan-student-reporting', 'Reporting Day for Students', 'Academic', day('2027-01-10'), { target: 'Students', venue: 'Campus' }),
+  annual('jan-classes', 'Classes Begin', 'Academic', day('2027-01-11'), { target: 'Students', venue: 'Campus' }),
+  annual('jan-iccr', 'ICCR International Festival', 'Cultural', range('2027-01-21', '2027-01-23'), { target: 'Grade 8', venue: 'Campus' }),
+  annual('jan-music', 'IH Music Competition', 'Cultural', day('2027-01-25'), { target: 'Grades 7–9', time: 'Singing / Orchestra', venue: 'Campus' }),
+  annual('jan-republic', 'Republic Day', 'Flagship', day('2027-01-26'), { target: 'School Community' }),
+  annual('jan-book-fair', 'Visit to Book Fair', 'Excursion', day('2027-01-30'), { target: 'Students', venue: 'Delhi' }),
+
+  // FEBRUARY 2027
+  annual('feb-monthly-off', 'Monthly Off', 'Holiday', day('2027-02-06'), { target: 'School Community' }),
+  annual('feb-exam-11', 'Annual Examinations', 'Exams', range('2027-02-09', '2027-02-17'), { target: 'Grade 11', venue: 'Exam Halls' }),
+  annual('feb-exam-9', 'Annual Examinations', 'Exams', range('2027-02-09', '2027-02-19'), { target: 'Grade 9', venue: 'Exam Halls' }),
+  annual('feb-ole', 'OLE', 'Academic', range('2027-02-22', '2027-02-27'), { target: 'Grades 9 & 11', venue: 'Campus', tentative: true }),
+
+  // MARCH 2027
+  annual('mar-new-session', 'New Session Begins', 'Academic', day('2027-03-01'), { target: 'Grades 10 & 12', venue: 'Campus' }),
+  annual('mar-maha-shivaratri', 'Maha Shivaratri', 'Holiday', day('2027-03-06'), { target: 'School Community' }),
+  annual('mar-exam-6-8', 'Annual Examinations', 'Exams', range('2027-03-09', '2027-03-23'), { target: 'Grades 6–8', venue: 'Exam Halls' }),
+  annual('mar-eid', 'Eid-ul-Fitr', 'Holiday', day('2027-03-10'), { target: 'School Community' }),
+  annual('mar-holika', 'Holika Dahan', 'Holiday', day('2027-03-21'), { target: 'School Community' }),
+  annual('mar-holi', 'Holi', 'Holiday', day('2027-03-22'), { target: 'School Community' }),
+  annual('mar-good-friday', 'Good Friday', 'Holiday', day('2027-03-26'), { target: 'School Community' }),
+  annual('mar-session-break', 'Session Break', 'Holiday', range('2027-03-27', '2027-03-31'), { target: 'Students' }),
+  annual('mar-inservice', 'In-Service Training', 'Academic', range('2027-03-29', '2027-03-30'), { target: 'Staff', venue: 'Campus' }),
+  annual('mar-staff-working', 'Working Day for Staff', 'Academic', day('2027-03-31'), { target: 'Staff', venue: 'Campus' }),
+];
+
+const MONTHS = Array.from({ length: 12 }, (_, month) => month);
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function toDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function fromDateKey(key: string) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function formatDateLong(key: string) {
+  return fromDateKey(key).toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function formatDateShort(key: string) {
+  return fromDateKey(key).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatRange(periods: Period[]) {
+  return periods
+    .map((period) => {
+      if (period.start === period.end) return formatDateShort(period.start);
+      const start = fromDateKey(period.start);
+      const end = fromDateKey(period.end);
+      if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+        return `${start.getDate()}–${end.getDate()} ${start.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`;
+      }
+      return `${formatDateShort(period.start)} – ${formatDateShort(period.end)}`;
+    })
+    .join(' · ');
+}
+
+function eventOccursOn(event: CalendarEvent, dateKey: string) {
+  return event.periods.some((period) => period.start <= dateKey && dateKey <= period.end);
+}
+
+function eventTouchesMonth(event: CalendarEvent, year: number, month: number) {
+  const first = toDateKey(new Date(year, month, 1));
+  const last = toDateKey(new Date(year, month + 1, 0));
+  return event.periods.some((period) => period.start <= last && period.end >= first);
+}
+
+function getFirstEventDate(event: CalendarEvent) {
+  return [...event.periods].sort((a, b) => a.start.localeCompare(b.start))[0]?.start ?? '9999-12-31';
+}
+
+function normalizeLiveEvent(event: any): CalendarEvent {
+  const category = CATEGORIES.some((item) => item.key === event.category && item.key !== 'All')
+    ? event.category
+    : 'Academic';
+  return {
+    id: `live-${event.id}`,
+    title: event.title,
+    periods: [{ start: event.event_date, end: event.event_date }],
+    category,
+    target: event.target || 'All Students',
+    venue: event.description || 'Campus',
+    time: event.event_time || '',
+    description: event.description || '',
+    source: 'live',
+    createdBy: event.created_by || '',
+  };
+}
 
 export default function CalendarPage() {
-  const today = new Date();
-  const todayKey = dateKey(today);
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const today = fromDateKey(todayKey);
 
-  /*
-   * September 2026 is the current month at the time this page
-   * was designed. On later visits the calendar naturally opens
-   * to the actual current month if it falls within the school year.
-   */
-  const initialMonth =
-    today >= parseDate(SCHOOL_YEAR_START) &&
-    today <= parseDate(SCHOOL_YEAR_END)
-      ? startOfMonth(today)
-      : new Date(2026, 8, 1);
+  const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [category, setCategory] = useState<Category | 'All'>('All');
+  const [search, setSearch] = useState('');
+  const [liveEvents, setLiveEvents] = useState<CalendarEvent[]>([]);
+  const [calendarError, setCalendarError] = useState(false);
 
-  const [currentMonth, setCurrentMonth] = useState(initialMonth);
-  const [selectedDate, setSelectedDate] = useState<string | null>(
-    today >= parseDate(SCHOOL_YEAR_START) &&
-      today <= parseDate(SCHOOL_YEAR_END)
-      ? todayKey
-      : null
-  );
+  useEffect(() => {
+    const fetchEvents = async () => {
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .order('event_date', { ascending: true });
 
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(
-    null
-  );
+      if (error) {
+        console.error('Unable to fetch live calendar events:', error);
+        setCalendarError(true);
+        return;
+      }
 
-  const [activeCategories, setActiveCategories] = useState<
-    Set<Category>
-  >(new Set());
+      setCalendarError(false);
+      setLiveEvents((data || []).map(normalizeLiveEvent));
+    };
 
-  const [search, setSearch] = useState("");
+    fetchEvents();
+  }, []);
 
-  /* =========================================================
-     FILTERED EVENTS
-  ========================================================= */
+  const allEvents = useMemo(() => [...ANNUAL_EVENTS, ...liveEvents], [liveEvents]);
 
   const filteredEvents = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return CALENDAR_EVENTS.filter((event) => {
-      const categoryMatch =
-        activeCategories.size === 0 ||
-        activeCategories.has(event.category);
+    return allEvents
+      .filter((event) => category === 'All' || event.category === category)
+      .filter((event) => {
+        if (!query) return true;
+        return [event.title, event.target, event.venue, event.description, event.time]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(query));
+      });
+  }, [allEvents, category, search]);
 
-      if (!categoryMatch) return false;
+  const monthEvents = useMemo(() => {
+    return filteredEvents
+      .filter((event) => eventTouchesMonth(event, currentMonth.getFullYear(), currentMonth.getMonth()))
+      .sort((a, b) => getFirstEventDate(a).localeCompare(getFirstEventDate(b)) || a.title.localeCompare(b.title));
+  }, [filteredEvents, currentMonth]);
 
-      if (!query) return true;
-
-      const searchable = [
-        event.title,
-        event.description,
-        event.target,
-        event.time,
-        event.category,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return searchable.includes(query);
-    });
-  }, [activeCategories, search]);
-
-  /* =========================================================
-     MONTH GRID
-  ========================================================= */
-
-  const calendarDays = useMemo(() => {
-    const first = startOfMonth(currentMonth);
-
-    /*
-     * Sunday = 0.
-     * We show the preceding days from the previous month so
-     * every month begins on the correct weekday.
-     */
-    const firstDayOffset = first.getDay();
-
-    const gridStart = addDays(first, -firstDayOffset);
-
-    /*
-     * Always render 6 weeks = 42 cells.
-     * This keeps the calendar stable instead of jumping in height.
-     */
-    return Array.from({ length: 42 }, (_, index) =>
-      addDays(gridStart, index)
-    );
-  }, [currentMonth]);
-
-  /* =========================================================
-     EVENT MATCHING
-  ========================================================= */
-
-  const eventOccursOnDate = (
-    event: CalendarEvent,
-    value: string
-  ) => {
-    return event.periods.some((period) =>
-      isBetween(value, period.start, period.end)
-    );
-  };
-
-  const eventsForDate = (value: string) =>
-    filteredEvents.filter((event) =>
-      eventOccursOnDate(event, value)
-    );
-
-  const eventsForMonth = useMemo(() => {
-    const first = startOfMonth(currentMonth);
-    const last = endOfMonth(currentMonth);
-
-    const firstKey = dateKey(first);
-    const lastKey = dateKey(last);
-
-    return filteredEvents.filter((event) =>
-      event.periods.some(
-        (period) =>
-          period.start <= lastKey && period.end >= firstKey
-      )
-    );
-  }, [currentMonth, filteredEvents]);
-
-  /* =========================================================
-     MONTH SUMMARY
-  ========================================================= */
-
-  const monthEventCount = eventsForMonth.length;
-
-  const selectedDateEvents = selectedDate
-    ? eventsForDate(selectedDate)
-    : [];
-
-  /* =========================================================
-     CONTROLS
-  ========================================================= */
-
-  const goToPreviousMonth = () => {
-    const previous = addMonths(currentMonth, -1);
-
-    if (previous >= startOfMonth(parseDate(SCHOOL_YEAR_START))) {
-      setCurrentMonth(previous);
-      setSelectedEventId(null);
-    }
-  };
-
-  const goToNextMonth = () => {
-    const next = addMonths(currentMonth, 1);
-
-    if (next <= startOfMonth(parseDate(SCHOOL_YEAR_END))) {
-      setCurrentMonth(next);
-      setSelectedEventId(null);
-    }
-  };
-
-  const goToToday = () => {
-    const current = new Date();
-
-    if (
-      current >= parseDate(SCHOOL_YEAR_START) &&
-      current <= parseDate(SCHOOL_YEAR_END)
-    ) {
-      setCurrentMonth(startOfMonth(current));
-      setSelectedDate(dateKey(current));
-    }
-  };
-
-  const toggleCategory = (category: Category) => {
-    setActiveCategories((previous) => {
-      const next = new Set(previous);
-
-      if (next.has(category)) {
-        next.delete(category);
-      } else {
-        next.add(category);
-      }
-
-      return next;
-    });
-  };
-
-  const clearFilters = () => {
-    setActiveCategories(new Set());
-    setSearch("");
-  };
-
-  /* =========================================================
-     EVENT DETAIL
-  ========================================================= */
-
-  const selectedEvent = CALENDAR_EVENTS.find(
-    (event) => event.id === selectedEventId
+  const selectedDateEvents = useMemo(
+    () => filteredEvents.filter((event) => eventOccursOn(event, selectedDate)),
+    [filteredEvents, selectedDate]
   );
 
-  /* =========================================================
-     RENDER
-  ========================================================= */
+  const selectedEvent = useMemo(
+    () => allEvents.find((event) => event.id === selectedEventId) || null,
+    [allEvents, selectedEventId]
+  );
+
+  const calendarDays = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const first = new Date(year, month, 1);
+    const firstGridDay = addDays(first, -first.getDay());
+    const last = new Date(year, month + 1, 0);
+    const lastGridDay = addDays(last, 6 - last.getDay());
+    const days: Date[] = [];
+    let cursor = firstGridDay;
+    while (cursor <= lastGridDay) {
+      days.push(new Date(cursor));
+      cursor = addDays(cursor, 1);
+    }
+    return days;
+  }, [currentMonth]);
+
+  const weeks = Math.ceil(calendarDays.length / 7);
+
+  const monthLabel = currentMonth.toLocaleDateString('en-IN', {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const visibleYear = currentMonth.getFullYear();
+
+  const goMonth = (amount: number) => {
+    setCurrentMonth((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1));
+    setSelectedEventId(null);
+  };
+
+  const goToday = () => {
+    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+    setSelectedDate(todayKey);
+    setSelectedEventId(null);
+  };
+
+  const selectDate = (dateKey: string) => {
+    setSelectedDate(dateKey);
+    setSelectedEventId(null);
+  };
+
+  const selectEvent = (event: CalendarEvent, focusDate?: string) => {
+    setSelectedEventId(event.id);
+    const targetDate = focusDate || getFirstEventDate(event);
+    setSelectedDate(targetDate);
+    const target = fromDateKey(targetDate);
+    setCurrentMonth(new Date(target.getFullYear(), target.getMonth(), 1));
+  };
+
+  const renderEventChip = (event: CalendarEvent, dateKey: string) => {
+    const style = CATEGORY_STYLES[event.category];
+    const active = selectedEventId === event.id;
+    const isStart = event.periods.some((period) => period.start === dateKey);
+    const isEnd = event.periods.some((period) => period.end === dateKey);
+    const isMulti = event.periods.some((period) => period.start !== period.end && eventOccursOn(event, dateKey));
+
+    return (
+      <button
+        key={`${event.id}-${dateKey}`}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          selectEvent(event, dateKey);
+        }}
+        title={`${event.title} · ${formatRange(event.periods)}`}
+        className={`group block w-full overflow-hidden text-left text-[10px] font-semibold leading-4 transition ${
+          isMulti
+            ? `${style.bar} ${isStart ? 'rounded-l-md' : ''} ${isEnd ? 'rounded-r-md' : ''} px-2 py-1`
+            : `${style.soft} ${style.text} rounded-md px-2 py-1`
+        } ${active ? 'ring-2 ring-slate-900/20' : 'hover:brightness-95'}`}
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${style.dot}`} />
+          <span className="truncate">{event.title}</span>
+          {event.tentative && <span className="shrink-0 text-[8px] font-bold uppercase opacity-70">T</span>}
+        </span>
+      </button>
+    );
+  };
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      {/* =====================================================
-          PAGE HEADER
-      ===================================================== */}
-
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        {/* Header */}
+        <section className="mb-6 rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm md:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="mb-2 flex items-center gap-2">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">
                 <span className="h-2 w-2 rounded-full bg-blue-600" />
-                <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                  2026–27 Academic Year
-                </span>
+                VidyaGyan Bulandshahr
               </div>
-
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-blue-950 md:text-4xl">
                 Campus Calendar
               </h1>
-
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Academic, cultural, sporting, excursion and school
-                events across the VidyaGyan Bulandshahr session.
+                Academic, cultural, sporting, excursion and school-wide events for the 2026–27 academic year.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Month overview
-              </p>
-
-              <p className="mt-1 text-lg font-bold text-slate-900">
-                {monthEventCount}{" "}
-                {monthEventCount === 1 ? "event" : "events"}
-              </p>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold">
+                {allEvents.length} events
+              </span>
+              {liveEvents.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                  LIVE
+                </span>
+              )}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* =====================================================
-          MAIN CONTENT
-      ===================================================== */}
-
-      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* ===================================================
-            TOOLBAR
-        =================================================== */}
-
-        <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        {/* Controls */}
+        <section className="mb-5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm md:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            {/* Month controls */}
-
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2 sm:justify-start">
               <button
                 type="button"
-                onClick={goToPreviousMonth}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
+                onClick={() => goMonth(-1)}
                 aria-label="Previous month"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg text-slate-700 transition hover:bg-slate-50"
               >
                 ‹
               </button>
-
-              <div className="min-w-[190px] text-center">
-                <h2 className="text-lg font-bold text-slate-900">
-                  {formatMonth(currentMonth)}
-                </h2>
-
-                <p className="text-xs text-slate-400">
-                  VidyaGyan Annual Calendar
-                </p>
+              <div className="min-w-[180px] text-center">
+                <div className="text-lg font-bold text-blue-950">{monthLabel}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Academic year 2026–27
+                </div>
               </div>
-
               <button
                 type="button"
-                onClick={goToNextMonth}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
+                onClick={() => goMonth(1)}
                 aria-label="Next month"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg text-slate-700 transition hover:bg-slate-50"
               >
                 ›
               </button>
-
               <button
                 type="button"
-                onClick={goToToday}
-                className="ml-1 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                onClick={goToday}
+                className="ml-1 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-slate-800"
               >
                 Today
               </button>
             </div>
 
-            {/* Search */}
-
             <div className="relative w-full xl:max-w-sm">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                ⌕
-              </span>
-
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
               <input
-                type="text"
                 value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
-                placeholder="Search events..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search events, grades, venues..."
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
               />
             </div>
           </div>
 
-          {/* Category filters */}
-
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Filter
-            </span>
-
-            {(
-              [
-                "Academic",
-                "Exams",
-                "Cultural",
-                "Sports",
-                "Excursion",
-                "Flagship",
-                "Holiday",
-                "School",
-              ] as Category[]
-            ).map((category) => {
-              const active = activeCategories.has(category);
-              const styles = getCategoryClasses(category);
-
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+            {CATEGORIES.map((item) => {
+              const active = category === item.key;
               return (
                 <button
-                  key={category}
+                  key={item.key}
                   type="button"
-                  onClick={() => toggleCategory(category)}
-                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  onClick={() => setCategory(item.key)}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
                     active
-                      ? `${styles.chip} ring-2 ring-slate-200`
-                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                      ? 'border-slate-900 bg-slate-900 text-white'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  <span
-                    className={`h-2 w-2 rounded-full ${styles.dot}`}
-                  />
-                  {category}
+                  <span className={`h-2 w-2 rounded-full ${active ? 'bg-white' : item.dot}`} />
+                  {item.label}
                 </button>
               );
             })}
-
-            {(activeCategories.size > 0 || search) && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="ml-auto text-xs font-semibold text-slate-500 hover:text-slate-900"
-              >
-                Clear filters
-              </button>
-            )}
           </div>
-        </div>
+        </section>
 
-        {/* ===================================================
-            CALENDAR + SIDE PANEL
-        =================================================== */}
+        {calendarError && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
+            Live portal events could not be loaded. The official annual calendar is still available.
+          </div>
+        )}
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-          {/* =================================================
-              CALENDAR GRID
-          ================================================= */}
-
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            {/* Weekday header */}
-
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
-              {[
-                "Sun",
-                "Mon",
-                "Tue",
-                "Wed",
-                "Thu",
-                "Fri",
-                "Sat",
-              ].map((day) => (
+        {/* Main calendar + agenda */}
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+          {/* Calendar */}
+          <div className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/80">
+              {WEEKDAYS.map((dayName, index) => (
                 <div
-                  key={day}
-                  className="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-wide text-slate-400 sm:px-3"
+                  key={dayName}
+                  className={`px-2 py-3 text-center text-[10px] font-bold uppercase tracking-[0.14em] ${
+                    index === 0 || index === 6 ? 'text-slate-400' : 'text-slate-500'
+                  }`}
                 >
-                  {day}
+                  <span className="hidden sm:inline">{dayName}</span>
+                  <span className="sm:hidden">{dayName.slice(0, 1)}</span>
                 </div>
               ))}
             </div>
 
-            {/* Calendar cells */}
-
             <div className="grid grid-cols-7">
-              {calendarDays.map((day) => {
-                const key = dateKey(day);
-                const inCurrentMonth =
-                  day.getMonth() === currentMonth.getMonth() &&
-                  day.getFullYear() === currentMonth.getFullYear();
-
-                const isToday = key === todayKey;
-                const isSelected = key === selectedDate;
-
-                const dayEvents = eventsForDate(key);
+              {calendarDays.map((date) => {
+                const dateKey = toDateKey(date);
+                const inMonth = date.getMonth() === currentMonth.getMonth();
+                const isToday = dateKey === todayKey;
+                const isSelected = dateKey === selectedDate;
+                const dayEvents = filteredEvents.filter((event) => eventOccursOn(event, dateKey));
+                const shown = dayEvents.slice(0, 3);
+                const more = dayEvents.length - shown.length;
 
                 return (
                   <button
-                    key={key}
+                    key={dateKey}
                     type="button"
-                    onClick={() => {
-                      setSelectedDate(key);
-                      setSelectedEventId(null);
-                    }}
-                    className={`group relative min-h-[118px] border-b border-r border-slate-100 p-2 text-left align-top transition sm:min-h-[135px] sm:p-3 ${
-                      inCurrentMonth
-                        ? "bg-white"
-                        : "bg-slate-50/70"
-                    } ${
-                      isSelected
-                        ? "z-10 bg-blue-50/40 ring-2 ring-inset ring-blue-500"
-                        : "hover:bg-slate-50"
-                    }`}
+                    onClick={() => selectDate(dateKey)}
+                    className={`group min-h-[108px] border-b border-r border-slate-100 p-1.5 text-left align-top transition sm:min-h-[126px] sm:p-2 ${
+                      !inMonth ? 'bg-slate-50/70' : 'bg-white hover:bg-slate-50/60'
+                    } ${isSelected ? 'bg-blue-50/50' : ''}`}
                   >
-                    {/* Date number */}
-
-                    <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center justify-between">
                       <span
-                        className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                        className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-xs font-bold ${
                           isToday
-                            ? "bg-blue-600 text-white"
+                            ? 'bg-blue-600 text-white shadow-sm'
                             : isSelected
-                            ? "bg-blue-100 text-blue-700"
-                            : inCurrentMonth
-                            ? "text-slate-800"
-                            : "text-slate-300"
+                              ? 'bg-blue-100 text-blue-800'
+                              : inMonth
+                                ? 'text-slate-700'
+                                : 'text-slate-300'
                         }`}
                       >
-                        {day.getDate()}
+                        {date.getDate()}
                       </span>
-
                       {dayEvents.length > 0 && (
-                        <span className="text-[10px] font-semibold text-slate-300">
-                          {dayEvents.length}
-                        </span>
+                        <span className="pr-0.5 text-[9px] font-semibold text-slate-400">{dayEvents.length}</span>
                       )}
                     </div>
 
-                    {/* Events */}
-
-                    <div className="space-y-1">
-                      {dayEvents.slice(0, 3).map((event) => {
-                        const styles = getCategoryClasses(
-                          event.category
-                        );
-
-                        return (
-                          <span
-                            key={event.id}
-                            onClick={(eventClick) => {
-                              eventClick.stopPropagation();
-                              setSelectedDate(key);
-                              setSelectedEventId(event.id);
-                            }}
-                            className={`block truncate rounded-md border px-1.5 py-1 text-[10px] font-semibold leading-tight transition hover:brightness-95 sm:text-[11px] ${styles.chip}`}
-                            title={event.title}
-                          >
-                            <span
-                              className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${styles.dot}`}
-                            />
-
-                            {event.title}
-                          </span>
-                        );
-                      })}
-
-                      {dayEvents.length > 3 && (
-                        <span className="block px-1 text-[10px] font-semibold text-slate-400">
-                          +{dayEvents.length - 3} more
+                    <div className="mt-1.5 space-y-1">
+                      {shown.map((event) => renderEventChip(event, dateKey))}
+                      {more > 0 && (
+                        <span className="block px-1 text-[9px] font-bold text-slate-400">
+                          + {more} more
                         </span>
                       )}
                     </div>
@@ -1607,243 +672,146 @@ export default function CalendarPage() {
                 );
               })}
             </div>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 px-4 py-3">
+              {CATEGORIES.slice(1).map((item) => (
+                <div key={item.key} className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
+                  <span className={`h-2 w-2 rounded-full ${item.dot}`} />
+                  {item.label}
+                </div>
+              ))}
+              <div className="ml-auto text-[10px] text-slate-400">T = tentative</div>
+            </div>
           </div>
 
-          {/* =================================================
-              SIDE PANEL
-          ================================================= */}
-
-          <aside className="flex min-h-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            {/* Panel header */}
-
-            <div className="border-b border-slate-200 p-5">
-              <div className="flex items-start justify-between gap-4">
+          {/* Agenda */}
+          <aside className="flex max-h-[720px] min-h-[520px] flex-col overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
+            <div className="border-b border-slate-100 p-5">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-400">
-                    Event panel
-                  </p>
-
-                  <h2 className="mt-1 text-xl font-bold text-slate-950">
-                    {formatMonth(currentMonth)}
-                  </h2>
-                </div>
-
-                <div className="rounded-xl bg-slate-100 px-3 py-2 text-center">
-                  <p className="text-lg font-bold text-slate-900">
-                    {monthEventCount}
-                  </p>
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                    Events
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">Monthly Agenda</p>
+                  <h2 className="mt-1 text-xl font-bold text-blue-950">{monthLabel}</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {monthEvents.length} event{monthEvents.length === 1 ? '' : 's'} shown
                   </p>
                 </div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">
+                  {visibleYear}
+                </span>
               </div>
             </div>
 
-            {/* Selected date */}
-
-            {selectedDate && (
-              <div className="border-b border-slate-100 bg-blue-50/60 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-blue-500">
-                      Selected date
-                    </p>
-
-                    <p className="mt-1 text-sm font-bold text-slate-900">
-                      {formatLongDate(selectedDate)}
-                    </p>
+            <div className="overflow-y-auto p-4">
+              {selectedDateEvents.length > 0 && (
+                <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-blue-600">Selected date</p>
+                      <p className="mt-1 text-sm font-bold text-blue-950">{formatDateLong(selectedDate)}</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-blue-700 shadow-sm">
+                      {selectedDateEvents.length}
+                    </span>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate(null)}
-                    className="text-xs font-semibold text-slate-400 hover:text-slate-700"
-                  >
-                    Clear
-                  </button>
-                </div>
-
-                {selectedDateEvents.length === 0 ? (
-                  <p className="mt-3 text-xs text-slate-500">
-                    No events on this date.
-                  </p>
-                ) : (
                   <div className="mt-3 space-y-2">
                     {selectedDateEvents.map((event) => {
-                      const styles = getCategoryClasses(
-                        event.category
-                      );
-
+                      const style = CATEGORY_STYLES[event.category];
                       return (
                         <button
-                          key={event.id}
+                          key={`selected-${event.id}`}
                           type="button"
-                          onClick={() =>
-                            setSelectedEventId(event.id)
-                          }
-                          className={`w-full rounded-xl border p-3 text-left transition hover:shadow-sm ${styles.chip}`}
+                          onClick={() => selectEvent(event, selectedDate)}
+                          className={`flex w-full items-start gap-2 rounded-xl border bg-white p-2.5 text-left transition hover:border-slate-300 ${
+                            selectedEventId === event.id ? 'ring-2 ring-blue-100' : 'border-slate-100'
+                          }`}
                         >
-                          <div className="flex items-start gap-2">
-                            <span
-                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${styles.dot}`}
-                            />
-
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold">
-                                {event.title}
-                              </p>
-
-                              {event.target && (
-                                <p className="mt-1 text-[10px] opacity-70">
-                                  {event.target}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                          <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${style.dot}`} />
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-bold text-slate-800">{event.title}</span>
+                            <span className="mt-0.5 block text-[10px] text-slate-500">{event.target || 'School Community'}</span>
+                          </span>
                         </button>
                       );
                     })}
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* Event list */}
-
-            <div className="flex-1 overflow-y-auto">
-              {eventsForMonth.length === 0 ? (
-                <div className="p-6 text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xl">
-                    ◌
-                  </div>
-
-                  <p className="mt-4 text-sm font-semibold text-slate-700">
-                    No matching events
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Try removing a filter or changing your search.
-                  </p>
                 </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {eventsForMonth.map((event) => {
-                    const styles = getCategoryClasses(
-                      event.category
-                    );
+              )}
 
-                    const relevantPeriod =
-                      event.periods.find((period) => {
-                        const monthStart = dateKey(
-                          startOfMonth(currentMonth)
-                        );
-                        const monthEnd = dateKey(
-                          endOfMonth(currentMonth)
-                        );
-
-                        return (
-                          period.start <= monthEnd &&
-                          period.end >= monthStart
-                        );
-                      }) || event.periods[0];
-
-                    const isSelected =
-                      selectedEventId === event.id;
-
+              <div className="space-y-1">
+                {monthEvents.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 px-5 py-10 text-center">
+                    <p className="text-sm font-semibold text-slate-700">No matching events</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">Try clearing the search or category filter.</p>
+                  </div>
+                ) : (
+                  monthEvents.map((event) => {
+                    const style = CATEGORY_STYLES[event.category];
+                    const active = selectedEventId === event.id;
                     return (
                       <button
                         key={event.id}
                         type="button"
-                        onClick={() => {
-                          setSelectedEventId(event.id);
-                          setSelectedDate(relevantPeriod.start);
-                        }}
-                        className={`w-full p-4 text-left transition ${
-                          isSelected
-                            ? "bg-slate-50"
-                            : "hover:bg-slate-50"
+                        onClick={() => selectEvent(event)}
+                        className={`w-full rounded-2xl border p-3 text-left transition ${
+                          active
+                            ? 'border-blue-200 bg-blue-50/60 shadow-sm'
+                            : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
                         }`}
                       >
                         <div className="flex gap-3">
-                          <div className="flex flex-col items-center pt-1">
-                            <span
-                              className={`h-2.5 w-2.5 rounded-full ${styles.dot}`}
-                            />
-
-                            <span className="mt-1 h-full w-px bg-slate-100" />
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${styles.badge}`}
-                              >
-                                {categoryLabel(event.category)}
-                              </span>
-
-                              {event.tentative && (
-                                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-600">
-                                  Tentative
-                                </span>
-                              )}
+                          <div className="w-12 shrink-0 pt-0.5 text-center">
+                            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                              {fromDateKey(getFirstEventDate(event)).toLocaleDateString('en-IN', { month: 'short' })}
                             </div>
-
-                            <h3 className="mt-2 text-sm font-bold leading-5 text-slate-900">
-                              {event.title}
-                            </h3>
-
-                            <p className="mt-1 text-xs font-medium text-slate-500">
-                              {getDateRangeLabel(relevantPeriod)}
-                            </p>
-
-                            {event.target && (
-                              <p className="mt-1 text-xs text-slate-400">
-                                {event.target}
-                              </p>
-                            )}
+                            <div className="text-xl font-bold leading-none text-slate-800">
+                              {fromDateKey(getFirstEventDate(event)).getDate()}
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="block truncate text-xs font-bold text-slate-800">{event.title}</span>
+                              <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase ${style.badge}`}>
+                                {event.category}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[10px] leading-4 text-slate-500">{formatRange(event.periods)}</p>
+                            {event.target && <p className="mt-0.5 truncate text-[10px] text-slate-400">{event.target}</p>}
+                            {event.tentative && <span className="mt-1.5 inline-block text-[9px] font-bold uppercase tracking-wide text-amber-600">Tentative</span>}
                           </div>
                         </div>
                       </button>
                     );
-                  })}
-                </div>
-              )}
+                  })
+                )}
+              </div>
             </div>
           </aside>
-        </div>
+        </section>
 
-        {/* ===================================================
-            EVENT DETAILS
-        =================================================== */}
-
-        {selectedEvent && (
-          <section className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-5 sm:p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
+        {/* Selected event */}
+        <section className="mt-5 rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
+          {selectedEvent ? (
+            <div className="p-5 md:p-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                        getCategoryClasses(
-                          selectedEvent.category
-                        ).badge
-                      }`}
-                    >
+                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] ${CATEGORY_STYLES[selectedEvent.category].badge}`}>
                       {selectedEvent.category}
                     </span>
-
+                    {selectedEvent.source === 'live' && (
+                      <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                        Live portal event
+                      </span>
+                    )}
                     {selectedEvent.tentative && (
-                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                      <span className="rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-700">
                         Tentative
                       </span>
                     )}
                   </div>
-
-                  <h2 className="mt-3 text-xl font-bold text-slate-950">
-                    {selectedEvent.title}
-                  </h2>
+                  <h2 className="mt-3 text-2xl font-bold tracking-tight text-blue-950">{selectedEvent.title}</h2>
+                  <p className="mt-1 text-sm font-medium text-slate-500">{formatRange(selectedEvent.periods)}</p>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setSelectedEventId(null)}
@@ -1852,111 +820,45 @@ export default function CalendarPage() {
                   Close
                 </button>
               </div>
-            </div>
 
-            <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4 sm:p-6">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  Date
-                </p>
-
-                <p className="mt-1 text-sm font-semibold text-slate-800">
-                  {selectedEvent.periods
-                    .map(getDateRangeLabel)
-                    .join(" · ")}
-                </p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Detail label="Audience" value={selectedEvent.target || 'School Community'} />
+                <Detail label="Venue" value={selectedEvent.venue || 'Campus'} />
+                <Detail label="Time" value={selectedEvent.time || 'Not specified'} />
+                <Detail label="Schedule" value={formatRange(selectedEvent.periods)} />
               </div>
 
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  Category
-                </p>
-
-                <p className="mt-1 text-sm font-semibold text-slate-800">
-                  {selectedEvent.category}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  Target
-                </p>
-
-                <p className="mt-1 text-sm font-semibold text-slate-800">
-                  {selectedEvent.target || "School-wide"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  Time
-                </p>
-
-                <p className="mt-1 text-sm font-semibold text-slate-800">
-                  {selectedEvent.time || "As scheduled"}
-                </p>
-              </div>
-            </div>
-
-            {selectedEvent.description && (
-              <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
-                <p className="text-sm leading-6 text-slate-600">
+              {selectedEvent.description && (
+                <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
                   {selectedEvent.description}
-                </p>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ===================================================
-            LEGEND
-        =================================================== */}
-
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
-              Legend
-            </span>
-
-            {(
-              [
-                "Academic",
-                "Exams",
-                "Cultural",
-                "Sports",
-                "Excursion",
-                "Flagship",
-                "Holiday",
-                "School",
-              ] as Category[]
-            ).map((category) => {
-              const styles = getCategoryClasses(category);
-
-              return (
-                <div
-                  key={category}
-                  className="flex items-center gap-2 text-xs font-medium text-slate-500"
-                >
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${styles.dot}`}
-                  />
-                  {category}
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-start justify-between gap-3 p-5 sm:flex-row sm:items-center md:p-6">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Selected event</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">Select an event to view its full details.</p>
+              </div>
+              <p className="text-xs text-slate-400">Click an event in the calendar or agenda.</p>
+            </div>
+          )}
+        </section>
 
-        {/* ===================================================
-            FOOTNOTE
-        =================================================== */}
-
-        <p className="mt-5 text-center text-[11px] leading-5 text-slate-400">
-          Calendar based on the VidyaGyan Bulandshahr Annual
-          Calendar 2026–27. Events marked tentative retain that
-          status from the source calendar.
-        </p>
-      </section>
+        {/* Footer note */}
+        <footer className="px-1 pb-4 pt-5 text-center text-[10px] leading-5 text-slate-400">
+          Official annual-calendar information is based on the VidyaGyan Bulandshahr Annual Calendar 2026–27. Live portal events are marked separately.
+        </footer>
+      </div>
     </main>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
+      <div className="mt-1 text-xs font-semibold leading-5 text-slate-700">{value}</div>
+    </div>
   );
 }
