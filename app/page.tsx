@@ -757,7 +757,7 @@ export default function Home() {
           b.event_date
         )
       )
-      .slice(0, 3);
+      .slice(0, 7);
   }, [allEvents, today]);
 
   /* =======================================================
