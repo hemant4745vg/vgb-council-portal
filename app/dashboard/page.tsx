@@ -112,8 +112,16 @@ export default function Dashboard() {
     setProfileError(false);
 
     const { data, error } = await supabase
-      .rpc("get_my_portal_profile")
-      .maybeSingle();
+  .rpc("get_my_portal_profile")
+  .maybeSingle();
+
+const profileData = data as {
+  id: number;
+  name: string | null;
+  email: string;
+  role: string | null;
+  admin_status: string | null;
+} | null;
 
     if (error) {
       console.error("Portal profile RPC failed:", error);
@@ -123,21 +131,21 @@ export default function Dashboard() {
       return;
     }
 
-    if (!data) {
-      console.error("No portal profile found for:", userEmail);
-      setProfile(null);
-      setProfileError(true);
-      setProfileLoading(false);
-      return;
-    }
+    if (!profileData) {
+  console.error("No portal profile found for:", userEmail);
+  setProfile(null);
+  setProfileError(true);
+  setProfileLoading(false);
+  return;
+}
 
-    setProfile({
-      id: Number(data.id),
-      name: data.name ?? null,
-      email: data.email ?? userEmail,
-      role: data.role ?? null,
-      admin_status: data.admin_status === "yes" ? "yes" : "no",
-    });
+setProfile({
+  id: Number(profileData.id),
+  name: profileData.name ?? null,
+  email: profileData.email ?? userEmail,
+  role: profileData.role ?? null,
+  admin_status: profileData.admin_status === "yes" ? "yes" : "no",
+});
 
     setProfileError(false);
     setProfileLoading(false);
