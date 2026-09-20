@@ -47,11 +47,9 @@ function Stat({
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
         {label}
       </p>
-
       <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
         {value}
       </p>
-
       <p className="mt-1 text-xs text-slate-500">{detail}</p>
     </div>
   );
@@ -77,12 +75,10 @@ function Quick({
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-bold text-white">
           {icon}
         </div>
-
         <div>
           <h3 className="font-semibold text-slate-900 group-hover:text-blue-700">
             {title}
           </h3>
-
           <p className="mt-1 text-xs leading-5 text-slate-500">{text}</p>
         </div>
       </div>
@@ -92,28 +88,20 @@ function Quick({
 
 export default function Dashboard() {
   const [session, setSession] = useState<Session | null>(null);
-
   const [profile, setProfile] = useState<UserProfile | null>(null);
-
   const [profileLoading, setProfileLoading] = useState(true);
-
   const [profileError, setProfileError] = useState(false);
-
   const [loading, setLoading] = useState(true);
 
   /**
    * Load the authenticated user's portal profile.
    *
-   * The authenticated Supabase user and the portal profile are
-   * deliberately treated as two separate things:
-   *
-   * Supabase Auth → identity
-   * allowed_users → name, role, admin permissions
+   * Identity comes from Supabase Auth.
+   * Name, role and administrative access come from allowed_users
+   * through the secure get_my_portal_profile() RPC.
    */
   async function loadProfile(userEmail: string) {
-    const email = userEmail.toLowerCase().trim();
-
-    if (!email) {
+    if (!userEmail.trim()) {
       setProfile(null);
       setProfileError(true);
       setProfileLoading(false);
@@ -124,32 +112,33 @@ export default function Dashboard() {
     setProfileError(false);
 
     const { data, error } = await supabase
-      .from("allowed_users")
-      .select("id, name, email, role, admin_status")
-      .ilike("email", email)
+      .rpc("get_my_portal_profile")
       .maybeSingle();
 
     if (error) {
-      console.error("Profile lookup failed:", error);
-
+      console.error("Portal profile RPC failed:", error);
       setProfile(null);
       setProfileError(true);
       setProfileLoading(false);
-
       return;
     }
 
     if (!data) {
-      console.error("No portal profile found for:", email);
-
+      console.error("No portal profile found for:", userEmail);
       setProfile(null);
       setProfileError(true);
       setProfileLoading(false);
-
       return;
     }
 
-    setProfile(data as UserProfile);
+    setProfile({
+      id: Number(data.id),
+      name: data.name ?? null,
+      email: data.email ?? userEmail,
+      role: data.role ?? null,
+      admin_status: data.admin_status === "yes" ? "yes" : "no",
+    });
+
     setProfileError(false);
     setProfileLoading(false);
   }
@@ -170,6 +159,7 @@ export default function Dashboard() {
         await loadProfile(currentSession.user.email);
       } else {
         setProfile(null);
+        setProfileError(false);
         setProfileLoading(false);
       }
 
@@ -208,13 +198,6 @@ export default function Dashboard() {
 
   const isAdmin = profile?.admin_status === "yes";
 
-  /*
-   * Do not use the email prefix as the person's displayed name.
-   *
-   * If the profile has not loaded yet, show a neutral loading state.
-   * This prevents "hr4745" from appearing as though it were the user's
-   * actual name.
-   */
   const displayName = profileLoading
     ? "Loading…"
     : profile?.name?.trim() || "Verified Student";
@@ -226,18 +209,12 @@ export default function Dashboard() {
       <main className="min-h-[calc(100vh-4rem)] bg-slate-50 p-8">
         <div className="mx-auto max-w-7xl animate-pulse space-y-6">
           <div className="h-36 rounded-3xl bg-white" />
-
           <div className="grid gap-4 md:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-28 rounded-2xl bg-white"
-              />
+              <div key={i} className="h-28 rounded-2xl bg-white" />
             ))}
           </div>
-
           <div className="h-56 rounded-2xl bg-white" />
-
           <div className="h-48 rounded-2xl bg-white" />
         </div>
       </main>
@@ -281,8 +258,6 @@ export default function Dashboard() {
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-
-        {/* Hero */}
         <section className="overflow-hidden rounded-3xl bg-slate-950 text-white shadow-sm">
           <div className="relative px-6 py-8 sm:px-8 lg:px-10 lg:py-10">
             <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-600/20 blur-3xl" />
@@ -328,7 +303,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Profile warning */}
         {profileError && (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Your account is authenticated, but your portal profile could not
@@ -337,7 +311,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Stats */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Stat
             label="Access"
@@ -358,7 +331,6 @@ export default function Dashboard() {
           />
         </section>
 
-        {/* Account information */}
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-6 py-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">
@@ -420,7 +392,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Quick Access */}
         <section className="mt-6">
           <div className="mb-4">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">
@@ -456,7 +427,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Administrator section */}
         {isAdmin && (
           <section className="mt-6 rounded-2xl border border-blue-100 bg-white shadow-sm">
             <div className="border-b border-blue-50 px-6 py-5">
@@ -521,7 +491,6 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* Workspace roadmap */}
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-6 py-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
@@ -578,7 +547,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Footer */}
         <div className="mt-8 flex flex-col gap-2 border-t border-slate-200 pt-5 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between">
           <p>VidyaGyan Council Portal · Authenticated Workspace</p>
 
