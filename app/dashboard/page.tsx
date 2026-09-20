@@ -126,44 +126,46 @@ export default function Dashboard() {
     console.log("Loading portal profile for:", userEmail);
 
     const { data, error } = await supabase.rpc(
-      "get_my_portal_profile"
-    );
+  "get_my_portal_profile"
+);
 
-    console.log("Portal profile RPC response:", {
-      data,
-      error,
-    });
+console.log("Portal profile RPC response:", {
+  data,
+  error,
+});
 
-    if (error) {
-      console.error("Portal profile RPC failed:", error);
+if (error) {
+  console.error("Portal profile RPC failed:", error);
+  setProfile(null);
+  setProfileError(true);
+  setProfileLoading(false);
+  return;
+}
 
-      setProfile(null);
-      setProfileError(true);
-      setProfileLoading(false);
+const profileData = Array.isArray(data) ? data[0] : data;
 
-      return;
-    }
+if (!profileData) {
+  console.error(
+    "Portal profile RPC returned no profile for:",
+    userEmail
+  );
+  setProfile(null);
+  setProfileError(true);
+  setProfileLoading(false);
+  return;
+}
 
-    /*
-     * PostgreSQL functions returning TABLE commonly arrive
-     * through Supabase as an array of rows.
-     *
-     * We also handle a single object defensively so the
-     * client does not depend on one specific response shape.
-     */
-    const profileData: RpcProfile | null = Array.isArray(data)
-      ? (data[0] as RpcProfile | undefined) ?? null
-      : (data as RpcProfile | null);
+setProfile({
+  id: Number(profileData.id),
+  name: profileData.name ?? null,
+  email: profileData.email ?? userEmail,
+  role: profileData.role ?? null,
+  admin_status:
+    profileData.admin_status === "yes" ? "yes" : "no",
+});
 
-    if (!profileData) {
-      console.error(
-        "Portal profile RPC returned no profile for:",
-        userEmail
-      );
-
-      setProfile(null);
-      setProfileError(true);
-      setProfileLoading(false);
+setProfileError(false);
+setProfileLoading(false);
 
       return;
     }
