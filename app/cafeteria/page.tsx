@@ -6,8 +6,6 @@ type Meal = {
   title: string;
   icon: string;
   items: string[];
-  alternatives?: string[];
-  notes?: string[];
 };
 
 type DayMenu = {
@@ -24,8 +22,8 @@ const WEEK_MENU: DayMenu[] = [
         icon: "☀️",
         items: [
           "Boiled egg",
-          "Aloo Sandwich × 2",
-          "Sweet Daliya",
+          "Aloo sandwich × 2",
+          "Sweet daliya",
           "Banana",
           "Chutney",
         ],
@@ -33,16 +31,16 @@ const WEEK_MENU: DayMenu[] = [
       {
         title: "Morning Snack",
         icon: "🥤",
-        items: ["Squash", "Vegetable Patties"],
+        items: ["Squash", "Vegetable patties"],
       },
       {
         title: "Lunch",
         icon: "🍛",
         items: [
-          "Rajma Dal",
-          "Jeera Aloo",
+          "Rajma dal",
+          "Jeera aloo",
           "Chapati",
-          "Jeera Rice",
+          "Jeera rice",
           "Raita",
           "Chilli & onion salad",
         ],
@@ -50,13 +48,13 @@ const WEEK_MENU: DayMenu[] = [
       {
         title: "Evening Snack",
         icon: "☕",
-        items: ["Roasted peanut chaat", "Squash / Pasta"],
+        items: ["Roasted peanut chaat with squash / Pasta"],
       },
       {
         title: "Dinner",
         icon: "🌙",
         items: [
-          "Dal Makhni / Arhar Dal",
+          "Dal Makhni / Arhar dal",
           "Seasonal vegetable",
           "Wheat roti",
           "Rice",
@@ -65,6 +63,7 @@ const WEEK_MENU: DayMenu[] = [
       },
     ],
   },
+
   {
     day: "TUE",
     meals: [
@@ -76,24 +75,23 @@ const WEEK_MENU: DayMenu[] = [
           "Idli × 2",
           "Sambar",
           "Coconut chutney",
+          "Rawa idli",
         ],
-        notes: ["Rawa idli"],
       },
       {
         title: "Morning Snack",
         icon: "🥤",
-        items: ["Samosa", "Jaljeera"],
-        notes: ["Made in-house"],
+        items: ["Samosa", "Jaljeera (made in-house)"],
       },
       {
         title: "Lunch",
         icon: "🍛",
         items: [
-          "Mix Dal Fry",
-          "Green leafy vegetable",
+          "Mix dal fry",
+          "Any green leafy vegetable",
           "Wheat roti",
           "Rice",
-          "Jeera Raita",
+          "Jeera raita",
         ],
       },
       {
@@ -105,16 +103,17 @@ const WEEK_MENU: DayMenu[] = [
         title: "Dinner",
         icon: "🌙",
         items: [
-          "Seasonal vegetable / Ramas Aloo Sabzi / Jeera Aloo",
-          "Chana Dal",
+          "Seasonal vegetable / Ramas aloo sabzi / Jeera aloo",
+          "Chana dal",
           "Wheat chapati",
           "Rice",
           "Seasonal salad",
+          "Besan ladoo",
         ],
-        notes: ["Besan Ladoo"],
       },
     ],
   },
+
   {
     day: "WED",
     meals: [
@@ -123,39 +122,35 @@ const WEEK_MENU: DayMenu[] = [
         icon: "☀️",
         items: [
           "Puri",
-          "Aloo tomato / Black Channa ki sabji",
+          "Aloo tomato ki sabji / Black channa ki sabji",
           "Dahi",
         ],
       },
       {
         title: "Morning Snack",
         icon: "🥤",
-        items: ["Boiled Chana Chaat", "Squash"],
-        notes: ["PS: 1 cup"],
+        items: ["Boiled chana chaat", "Squash × 1 cup"],
       },
       {
         title: "Lunch",
         icon: "🍛",
         items: [
-          "Seasonal vegetable",
+          "Any seasonal vegetable",
           "Dal",
           "Rice",
           "Roti",
-          "Cut cucumber",
-          "Cut onion",
+          "Cut cucumber and onion, served separately",
           "Raita",
         ],
-        notes: ["Cucumber and onion served separately"],
       },
       {
         title: "Evening Snack",
         icon: "☕",
-        items: ["Cut fruit · 1 bowl"],
-        alternatives: [
+        items: [
           "Papaya",
           "Watermelon",
-          "Guava",
-          "Seasonal fruits",
+          "Guava × 1",
+          "Other seasonal fruits",
         ],
       },
       {
@@ -163,14 +158,15 @@ const WEEK_MENU: DayMenu[] = [
         icon: "🌙",
         items: [
           "Veg. Manchurian",
-          "Fried Rice",
+          "Fried rice",
           "Noodles",
-          "Chilli Paneer",
+          "Chilli paneer",
+          "Fruit custard / Ice-cream",
         ],
-        alternatives: ["Fruit Custard", "Ice-cream"],
       },
     ],
   },
+
   {
     day: "THU",
     meals: [
@@ -178,17 +174,10 @@ const WEEK_MENU: DayMenu[] = [
         title: "Breakfast",
         icon: "☀️",
         items: [
-          "Poha",
-          "Peanut butter sandwich",
-          "Cold coffee",
-        ],
-        alternatives: [
-          "Poha",
-          "Cornflakes",
-          "Hot milk",
-        ],
-        notes: [
-          "Boiled egg / banana provided according to vegetarian or non-vegetarian option.",
+          "Rotation 1: Poha + peanut butter sandwich + cold coffee",
+          "Rotation 2: Poha + cornflakes + hot milk",
+          "Boiled egg",
+          "Banana",
         ],
       },
       {
@@ -202,7 +191,7 @@ const WEEK_MENU: DayMenu[] = [
         items: [
           "Chole",
           "Seasonal vegetable",
-          "Jeera Rice",
+          "Jeera rice",
           "Chapati",
           "Papad",
           "Onion salad",
@@ -217,16 +206,17 @@ const WEEK_MENU: DayMenu[] = [
         title: "Dinner",
         icon: "🌙",
         items: [
-          "Soya bean Sabzi / Soya Chap",
-          "Mix Dal",
+          "Soya bean sabzi / Soya chap",
+          "Mix dal",
           "Wheat roti",
           "Rice",
           "Seasonal salad",
+          "Kheer",
         ],
-        notes: ["Kheer"],
       },
     ],
   },
+
   {
     day: "FRI",
     meals: [
@@ -234,17 +224,18 @@ const WEEK_MENU: DayMenu[] = [
         title: "Breakfast",
         icon: "☀️",
         items: [
-          "Pav Bhaji",
+          "Pav bhaji (pav must be heated in butter)",
           "Milk porridge",
           "Chutney",
         ],
-        notes: ["Pav must be heated in butter."],
       },
       {
         title: "Morning Snack",
         icon: "🥤",
-        items: ["Chocolate / Vanilla muffin", "Squash"],
-        notes: ["Vanilla muffin once a month."],
+        items: [
+          "Chocolate muffin / Vanilla muffin with squash",
+          "Vanilla muffin once a month",
+        ],
       },
       {
         title: "Lunch",
@@ -254,45 +245,35 @@ const WEEK_MENU: DayMenu[] = [
           "Seasonal vegetable gravy",
           "Wheat roti",
           "Onion",
-          "Cucumber / Jeera Raita",
+          "Cucumber / Jeera raita",
         ],
       },
       {
         title: "Evening Snack",
         icon: "☕",
         items: [
-          "Vegetable sandwich",
-          "Cucumber & tomato",
-          "Cheese",
-          "Squash",
+          "Vegetable sandwich (cucumber, tomato & cheese) with squash",
+          "Golgappa with channa & potato",
         ],
-        alternatives: ["Golgappa", "Channa & potato"],
       },
       {
         title: "Dinner",
         icon: "🌙",
         items: [
+          "Paneer curry",
+          "Chicken curry",
           "Dal",
           "Wheat chapati",
           "Rice",
           "Seasonal salad",
-        ],
-        alternatives: [
-          "Paneer Curry",
-          "Chicken Curry",
-          "Veg / non-veg Biryani",
-          "Tomato chutney",
-          "Dal",
-          "Chapati",
-        ],
-        notes: [
-          "Gulab Jamun.",
-          "White Rasgulla once a month.",
-          "Biryani option is listed as a monthly rotation.",
+          "Gulab jamun",
+          "Once a month: Veg/non-veg biryani with tomato chutney, dal & chapati",
+          "White rasgulla once a month",
         ],
       },
     ],
   },
+
   {
     day: "SAT",
     meals: [
@@ -300,16 +281,15 @@ const WEEK_MENU: DayMenu[] = [
         title: "Breakfast",
         icon: "☀️",
         items: [
-          "Chole Kulcha × 3",
+          "Chole kulcha × 3",
+          "3–5 kulchas for senior students",
           "Coffee",
         ],
-        notes: ["Senior students: 3–5 pieces."],
       },
       {
         title: "Morning Snack",
         icon: "🥤",
         items: ["Flavoured chocolate milk", "Rusk × 3"],
-        notes: ["PS: 3 pieces"],
       },
       {
         title: "Lunch",
@@ -333,7 +313,7 @@ const WEEK_MENU: DayMenu[] = [
         icon: "🌙",
         items: [
           "Seasonal vegetable",
-          "Arhar Dal",
+          "Arhar dal",
           "Wheat roti",
           "Rice",
           "Seasonal salad",
@@ -341,6 +321,7 @@ const WEEK_MENU: DayMenu[] = [
       },
     ],
   },
+
   {
     day: "SUN",
     meals: [
@@ -355,16 +336,17 @@ const WEEK_MENU: DayMenu[] = [
       {
         title: "Morning Snack",
         icon: "🥤",
-        items: ["Cream Roll × 1"],
-        alternatives: ["Seasonal fruits"],
-        notes: ["No banana with the seasonal fruit option."],
+        items: [
+          "Cream roll × 1 / Seasonal fruits",
+          "No banana",
+        ],
       },
       {
         title: "Lunch",
         icon: "🍛",
         items: [
-          "Lauki Chana Dal",
-          "Seasonal dry vegetable",
+          "Lauki chana dal",
+          "Seasonal veg sukha",
           "Wheat chapati",
           "Rice",
           "Raita",
@@ -374,14 +356,13 @@ const WEEK_MENU: DayMenu[] = [
       {
         title: "Evening Snack",
         icon: "☕",
-        items: ["Dhokla", "Squash"],
-        alternatives: ["Papri Chaat"],
+        items: ["Dhokla with squash / Papri chaat"],
       },
       {
         title: "Dinner",
         icon: "🌙",
         items: [
-          "Paneer Curry / Egg Curry",
+          "Paneer curry / Egg curry",
           "Dal",
           "Wheat chapati",
           "Rice",
@@ -579,55 +560,6 @@ function MealCard({
             </div>
           ))}
         </div>
-
-        {meal.alternatives &&
-          meal.alternatives.length > 0 && (
-            <div
-              className={`mt-6 rounded-2xl border border-white/80 p-4 ${style.soft}`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm">↔</span>
-
-                <p className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
-                  Alternatives
-                </p>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {meal.alternatives.map((item, index) => (
-                  <span
-                    key={`${item}-${index}`}
-                    className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-        {meal.notes && meal.notes.length > 0 && (
-          <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">ℹ️</span>
-
-              <p className="text-[9px] font-black uppercase tracking-[0.15em] text-amber-700">
-                Notes
-              </p>
-            </div>
-
-            <div className="mt-2 space-y-1.5">
-              {meal.notes.map((note, index) => (
-                <p
-                  key={`${note}-${index}`}
-                  className="text-xs leading-5 text-amber-900/70"
-                >
-                  {note}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </article>
   );
@@ -996,7 +928,7 @@ export default function CafeteriaPage() {
         </div>
       </section>
 
-      {/* TODAY */}
+      {/* DAILY MENU */}
       <section
         id="daily-menu"
         className="mx-auto max-w-7xl px-5 pb-20 lg:px-8 lg:pb-28"
@@ -1008,9 +940,7 @@ export default function CafeteriaPage() {
                 <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.55)]" />
 
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
-                  {isToday
-                    ? "Today's menu"
-                    : "Selected day"}
+                  {isToday ? "Today's menu" : "Selected day"}
                 </p>
               </div>
 
@@ -1054,190 +984,6 @@ export default function CafeteriaPage() {
         </div>
       </section>
 
-      {/* WEEK AT A GLANCE */}
-      <section className="relative overflow-hidden bg-white py-20 lg:py-28">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_10%,rgba(245,158,11,0.08),transparent_22%),radial-gradient(circle_at_92%_15%,rgba(16,185,129,0.08),transparent_23%)]" />
-
-        <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
-          <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
-                02 · Week at a glance
-              </p>
-
-              <h2 className="mt-2 text-4xl font-black tracking-[-0.035em] text-slate-950">
-                Seven days.
-              </h2>
-
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                A quick look at what's coming. Click any day to jump back
-                to its complete menu.
-              </p>
-            </div>
-
-            <div className="hidden rounded-full bg-slate-100 px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500 sm:block">
-              5 meals · 7 days
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {WEEK_MENU.map((day, index) => {
-              const lunch = day.meals.find(
-                (meal) => meal.title === "Lunch",
-              );
-
-              const dinner = day.meals.find(
-                (meal) => meal.title === "Dinner",
-              );
-
-              const selected = selectedDay === day.day;
-              const isCurrentDay = today === day.day;
-
-              return (
-                <button
-                  key={day.day}
-                  onClick={() => {
-                    setSelectedDay(day.day);
-
-                    document
-                      .getElementById("daily-menu")
-                      ?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      });
-                  }}
-                  className={`group relative overflow-hidden rounded-[1.75rem] border p-5 text-left transition-all duration-300 hover:-translate-y-1.5 ${
-                    selected
-                      ? "border-slate-900 bg-slate-950 text-white shadow-xl shadow-slate-900/15"
-                      : "border-slate-200 bg-[#fafbf8] hover:border-slate-300 hover:bg-white hover:shadow-[0_20px_50px_-30px_rgba(15,23,42,0.4)]"
-                  }`}
-                >
-                  {selected && (
-                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-emerald-400 to-cyan-400" />
-                  )}
-
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p
-                        className={`text-[9px] font-black uppercase tracking-[0.17em] ${
-                          selected
-                            ? "text-white/40"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        Day {String(index + 1).padStart(2, "0")}
-                      </p>
-
-                      <h3
-                        className={`mt-1 text-xl font-black ${
-                          selected
-                            ? "text-white"
-                            : "text-slate-950"
-                        }`}
-                      >
-                        {DAY_NAMES[day.day]}
-                      </h3>
-                    </div>
-
-                    {isCurrentDay && (
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] ${
-                          selected
-                            ? "bg-emerald-400/15 text-emerald-300"
-                            : "bg-emerald-100 text-emerald-700"
-                        }`}
-                      >
-                        Today
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-6 space-y-3">
-                    {lunch && (
-                      <div className="flex items-start gap-2.5">
-                        <span className="mt-0.5 text-sm">
-                          🍛
-                        </span>
-
-                        <div className="min-w-0">
-                          <p
-                            className={`text-[9px] font-black uppercase tracking-[0.12em] ${
-                              selected
-                                ? "text-white/40"
-                                : "text-slate-400"
-                            }`}
-                          >
-                            Lunch
-                          </p>
-
-                          <p
-                            className={`mt-0.5 line-clamp-2 text-xs font-semibold ${
-                              selected
-                                ? "text-white/80"
-                                : "text-slate-600"
-                            }`}
-                          >
-                            {lunch.items.slice(0, 2).join(" · ")}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {dinner && (
-                      <div className="flex items-start gap-2.5">
-                        <span className="mt-0.5 text-sm">
-                          🌙
-                        </span>
-
-                        <div className="min-w-0">
-                          <p
-                            className={`text-[9px] font-black uppercase tracking-[0.12em] ${
-                              selected
-                                ? "text-white/40"
-                                : "text-slate-400"
-                            }`}
-                          >
-                            Dinner
-                          </p>
-
-                          <p
-                            className={`mt-0.5 line-clamp-2 text-xs font-semibold ${
-                              selected
-                                ? "text-white/80"
-                                : "text-slate-600"
-                            }`}
-                          >
-                            {dinner.items.slice(0, 2).join(" · ")}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className={`mt-6 border-t pt-4 ${
-                      selected
-                        ? "border-white/10"
-                        : "border-slate-200"
-                    }`}
-                  >
-                    <span
-                      className={`text-[9px] font-black uppercase tracking-[0.14em] transition-colors ${
-                        selected
-                          ? "text-white/60"
-                          : "text-slate-400 group-hover:text-slate-800"
-                      }`}
-                    >
-                      View full menu →
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
       {/* CAFETERIA COMMITTEE */}
       <section className="relative overflow-hidden bg-[#f5f7f2] py-20 lg:py-28">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(16,185,129,0.09),transparent_25%),radial-gradient(circle_at_85%_85%,rgba(59,130,246,0.07),transparent_25%)]" />
@@ -1245,7 +991,7 @@ export default function CafeteriaPage() {
         <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
           <div className="mb-10">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
-              03 · Cafeteria Committee
+              02 · Cafeteria Committee
             </p>
 
             <h2 className="mt-2 text-4xl font-black tracking-[-0.035em] text-slate-950">
@@ -1275,7 +1021,7 @@ export default function CafeteriaPage() {
         <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
           <div className="mb-10">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-              04 · House coordination
+              03 · House coordination
             </p>
 
             <h2 className="mt-2 text-4xl font-black tracking-[-0.035em] text-slate-950">
@@ -1309,7 +1055,7 @@ export default function CafeteriaPage() {
         <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
           <div className="mb-10">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-600">
-              05 · Student representatives
+              04 · Student representatives
             </p>
 
             <h2 className="mt-2 text-4xl font-black tracking-[-0.035em] text-slate-950">
@@ -1330,69 +1076,6 @@ export default function CafeteriaPage() {
                 people={group.people}
               />
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* NOTES */}
-      <section className="mx-auto max-w-7xl px-5 py-16 lg:px-8 lg:py-20">
-        <div className="overflow-hidden rounded-[2.25rem] bg-slate-950 p-7 shadow-[0_25px_70px_-35px_rgba(15,23,42,0.5)] sm:p-9">
-          <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">
-                06 · Menu notes
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-white">
-                A few things to know.
-              </h2>
-
-              <p className="mt-3 max-w-sm text-sm leading-6 text-white/45">
-                Details retained from the supplied menu so quantities,
-                alternatives and rotations don't mysteriously vanish into
-                the design department.
-              </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                {
-                  title: "Rotating items",
-                  text: "Some items in the supplied menu rotate monthly or seasonally.",
-                },
-                {
-                  title: "Alternatives",
-                  text: "Alternatives are shown separately wherever the menu provides them.",
-                },
-                {
-                  title: "Quantities",
-                  text: "Quantities are retained where specified in the original menu.",
-                },
-                {
-                  title: "Source menu",
-                  text: "VidyaGyan Dulhera · menu dated 17 August 2026.",
-                },
-              ].map((note, index) => (
-                <div
-                  key={note.title}
-                  className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-[10px] font-black text-white/60">
-                      0{index + 1}
-                    </span>
-
-                    <p className="text-xs font-black text-white">
-                      {note.title}
-                    </p>
-                  </div>
-
-                  <p className="mt-3 text-xs leading-5 text-white/45">
-                    {note.text}
-                  </p>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </section>
