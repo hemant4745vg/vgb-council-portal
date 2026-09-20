@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -13,142 +13,9 @@ type UserProfile = {
   id: number;
   name: string | null;
   email: string;
-  role: string;
+  role: string | null;
   admin_status: "yes" | "no";
 };
-
-type CalendarEvent = {
-  id?: number | string;
-  title: string;
-  event_date: string;
-  category?: string | null;
-  venue?: string | null;
-  description?: string | null;
-  event_time?: string | null;
-  target?: string | null;
-};
-
-const OFFICIAL_UPCOMING: CalendarEvent[] = [
-  {
-    title: "Mid-Term Examinations End",
-    event_date: "2026-09-21",
-    category: "Exams",
-    target: "Grades 11–12",
-    venue: "Exam Halls",
-  },
-  {
-    title: "Mid-Term Examinations End",
-    event_date: "2026-09-23",
-    category: "Exams",
-    target: "Grades 9–10",
-    venue: "Exam Halls",
-  },
-  {
-    title: "Mid-Term Examinations End",
-    event_date: "2026-09-25",
-    category: "Exams",
-    target: "Grades 7–8",
-    venue: "Exam Halls",
-  },
-  {
-    title: "SPANDAN Lit Fest",
-    event_date: "2026-09-25",
-    category: "Cultural",
-    target: "Teachers",
-    venue: "Campus",
-  },
-  {
-    title: "Cultural Week",
-    event_date: "2026-09-28",
-    category: "Cultural",
-    target: "School Community",
-    venue: "Campus",
-    event_time: "28 Sep – 1 Oct",
-  },
-  {
-    title: "Gandhi Jayanti & Theatre Visit",
-    event_date: "2026-10-02",
-    category: "Cultural",
-    target: "School Community",
-    venue: "Campus / Theatre",
-  },
-  {
-    title: "Trip to Physics Dham – Jaipur",
-    event_date: "2026-10-02",
-    category: "Excursion",
-    target: "Selected Students",
-    venue: "Physics Dham / Jaipur",
-  },
-  {
-    title: "IH Kabaddi",
-    event_date: "2026-10-05",
-    category: "Sports",
-    target: "Inter-House",
-    venue: "Sports Ground",
-    event_time: "5–7 Oct & 11–12 Oct",
-  },
-];
-
-const styles: Record<
-  string,
-  { dot: string; bg: string; text: string }
-> = {
-  Academic: {
-    dot: "bg-blue-600",
-    bg: "bg-blue-50",
-    text: "text-blue-700",
-  },
-  Exams: {
-    dot: "bg-purple-600",
-    bg: "bg-purple-50",
-    text: "text-purple-700",
-  },
-  Cultural: {
-    dot: "bg-rose-500",
-    bg: "bg-rose-50",
-    text: "text-rose-700",
-  },
-  Sports: {
-    dot: "bg-emerald-600",
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-  },
-  Excursion: {
-    dot: "bg-cyan-600",
-    bg: "bg-cyan-50",
-    text: "text-cyan-700",
-  },
-  Flagship: {
-    dot: "bg-amber-500",
-    bg: "bg-amber-50",
-    text: "text-amber-700",
-  },
-};
-
-function styleFor(category?: string | null) {
-  return (
-    styles[category || ""] || {
-      dot: "bg-slate-500",
-      bg: "bg-slate-100",
-      text: "text-slate-700",
-    }
-  );
-}
-
-function todayIndia() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-  }).format(new Date());
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  }).format(new Date(`${value}T00:00:00+05:30`));
-}
 
 function greeting() {
   const hour = Number(
@@ -164,16 +31,6 @@ function greeting() {
     : hour < 17
       ? "Good afternoon"
       : "Good evening";
-}
-
-function initials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
 }
 
 function Stat({
@@ -238,88 +95,108 @@ export default function Dashboard() {
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  const [roleError, setRoleError] = useState(false);
-
-  const [liveEvents, setLiveEvents] = useState<CalendarEvent[]>([]);
+  const [profileError, setProfileError] = useState(false);
 
   const [loading, setLoading] = useState(true);
 
-  const [eventsLoading, setEventsLoading] = useState(true);
+  /**
+   * Load the authenticated user's portal profile.
+   *
+   * The authenticated Supabase user and the portal profile are
+   * deliberately treated as two separate things:
+   *
+   * Supabase Auth → identity
+   * allowed_users → name, role, admin permissions
+   */
+  async function loadProfile(userEmail: string) {
+    const email = userEmail.toLowerCase().trim();
+
+    if (!email) {
+      setProfile(null);
+      setProfileError(true);
+      setProfileLoading(false);
+      return;
+    }
+
+    setProfileLoading(true);
+    setProfileError(false);
+
+    const { data, error } = await supabase
+      .from("allowed_users")
+      .select("id, name, email, role, admin_status")
+      .ilike("email", email)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Profile lookup failed:", error);
+
+      setProfile(null);
+      setProfileError(true);
+      setProfileLoading(false);
+
+      return;
+    }
+
+    if (!data) {
+      console.error("No portal profile found for:", email);
+
+      setProfile(null);
+      setProfileError(true);
+      setProfileLoading(false);
+
+      return;
+    }
+
+    setProfile(data as UserProfile);
+    setProfileError(false);
+    setProfileLoading(false);
+  }
 
   useEffect(() => {
     let mounted = true;
 
-    async function init() {
+    async function initialize() {
       const {
-        data: { session: current },
+        data: { session: currentSession },
       } = await supabase.auth.getSession();
 
       if (!mounted) return;
 
-      setSession(current);
+      setSession(currentSession);
 
-      if (current?.user) {
-        await loadProfile(mounted);
-      }
-
-      setLoading(false);
-    }
-
-    async function loadProfile(isMounted: boolean) {
-      setProfileLoading(true);
-      setRoleError(false);
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (!isMounted) return;
-
-      if (userError || !user?.email) {
-        setRoleError(true);
-        setProfileLoading(false);
-        return;
-      }
-
-      const email = user.email.toLowerCase().trim();
-
-      const { data, error } = await supabase
-        .from("allowed_users")
-        .select("id, name, email, role, admin_status")
-        .ilike("email", email)
-        .maybeSingle();
-
-      if (!isMounted) return;
-
-      if (error) {
-        console.error("Profile lookup failed:", error);
-        setRoleError(true);
-        setProfile(null);
-      } else if (data) {
-        setProfile(data as UserProfile);
+      if (currentSession?.user?.email) {
+        await loadProfile(currentSession.user.email);
       } else {
-        setRoleError(true);
         setProfile(null);
+        setProfileLoading(false);
       }
 
-      setProfileLoading(false);
+      if (mounted) {
+        setLoading(false);
+      }
     }
 
-    init();
+    initialize();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, next) => {
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       if (!mounted) return;
 
-      setSession(next);
+      setSession(nextSession);
 
-      if (!next) {
+      if (nextSession?.user?.email) {
+        await loadProfile(nextSession.user.email);
+      } else {
         setProfile(null);
-        setRoleError(false);
+        setProfileError(false);
+        setProfileLoading(false);
+      }
+
+      if (mounted) {
+        setLoading(false);
       }
     });
 
@@ -329,58 +206,20 @@ export default function Dashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!session) {
-      setEventsLoading(false);
-      return;
-    }
-
-    async function load() {
-      setEventsLoading(true);
-
-      const { data, error } = await supabase
-        .from("calendar_events")
-        .select(
-          "id,title,event_date,category,venue,description,event_time,target"
-        )
-        .gte("event_date", todayIndia())
-        .order("event_date", { ascending: true })
-        .limit(8);
-
-      if (error) {
-        console.error("Calendar event lookup failed:", error);
-        setLiveEvents([]);
-      } else {
-        setLiveEvents(data || []);
-      }
-
-      setEventsLoading(false);
-    }
-
-    load();
-  }, [session]);
-
-  const upcoming = useMemo(() => {
-    const seen = new Set<string>();
-
-    return [...liveEvents, ...OFFICIAL_UPCOMING]
-      .filter((event) => event.event_date >= todayIndia())
-      .sort((a, b) =>
-        a.event_date.localeCompare(b.event_date)
-      )
-      .filter((event) => {
-        const key = `${event.title}|${event.event_date}|${
-          event.target || ""
-        }`;
-
-        if (seen.has(key)) return false;
-
-        seen.add(key);
-        return true;
-      });
-  }, [liveEvents]);
-
   const isAdmin = profile?.admin_status === "yes";
+
+  /*
+   * Do not use the email prefix as the person's displayed name.
+   *
+   * If the profile has not loaded yet, show a neutral loading state.
+   * This prevents "hr4745" from appearing as though it were the user's
+   * actual name.
+   */
+  const displayName = profileLoading
+    ? "Loading…"
+    : profile?.name?.trim() || "Verified Student";
+
+  const role = profile?.role?.trim() || null;
 
   if (loading) {
     return (
@@ -388,8 +227,8 @@ export default function Dashboard() {
         <div className="mx-auto max-w-7xl animate-pulse space-y-6">
           <div className="h-36 rounded-3xl bg-white" />
 
-          <div className="grid gap-4 md:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="grid gap-4 md:grid-cols-3">
+            {[1, 2, 3].map((i) => (
               <div
                 key={i}
                 className="h-28 rounded-2xl bg-white"
@@ -397,7 +236,9 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <div className="h-72 rounded-2xl bg-white" />
+          <div className="h-56 rounded-2xl bg-white" />
+
+          <div className="h-48 rounded-2xl bg-white" />
         </div>
       </main>
     );
@@ -437,18 +278,6 @@ export default function Dashboard() {
 
   const email = session.user.email || "";
 
-  const fallbackName =
-    session.user.user_metadata?.full_name ||
-    session.user.user_metadata?.name ||
-    email.split("@")[0] ||
-    "Student";
-
-  const displayName = profile?.name?.trim() || fallbackName;
-
-  const role = profile?.role || null;
-
-  const next = upcoming[0];
-
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
@@ -470,7 +299,7 @@ export default function Dashboard() {
 
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
                   Your authenticated campus dashboard for the information,
-                  events and responsibilities that matter to you.
+                  resources and responsibilities that matter to you.
                 </p>
               </div>
 
@@ -481,7 +310,7 @@ export default function Dashboard() {
 
                 <p className="mt-1 text-sm font-semibold text-white">
                   {profileLoading
-                    ? "Loading role…"
+                    ? "Loading profile…"
                     : role || "Verified School Account"}
                 </p>
 
@@ -499,21 +328,21 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Role warning */}
-        {roleError && (
+        {/* Profile warning */}
+        {profileError && (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Your account is authenticated, but the portal profile could not
-            be loaded. No additional administrative permissions are granted
-            by this dashboard.
+            Your account is authenticated, but your portal profile could not
+            be loaded. The dashboard is therefore using restricted default
+            permissions.
           </div>
         )}
 
         {/* Stats */}
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Stat
             label="Access"
             value="Active"
-            detail="Authenticated session"
+            detail="Authenticated school account"
           />
 
           <Stat
@@ -523,205 +352,71 @@ export default function Dashboard() {
           />
 
           <Stat
-            label="Upcoming"
-            value={String(upcoming.length)}
-            detail="Visible events"
-          />
-
-          <Stat
-            label="Today"
-            value={new Intl.DateTimeFormat("en-IN", {
-              day: "numeric",
-              month: "short",
-              timeZone: "Asia/Kolkata",
-            }).format(new Date())}
-            detail="India Standard Time"
+            label="Account"
+            value={isAdmin ? "Admin" : "Verified"}
+            detail={isAdmin ? "Administrative access" : "Portal account"}
           />
         </section>
 
-        {/* Calendar + Next Event */}
-        <section className="mt-6 grid gap-6 lg:grid-cols-[1.55fr_1fr]">
+        {/* Account information */}
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-6 py-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">
+              Account
+            </p>
 
-          {/* Upcoming events */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">
-                  Campus Calendar
-                </p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
+              Your portal identity
+            </h2>
 
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
-                  Next up
-                </h2>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Your nearest institutional events.
-                </p>
-              </div>
-
-              <Link
-                href="/calendar"
-                className="text-xs font-semibold text-blue-700 hover:text-blue-900"
-              >
-                Full calendar →
-              </Link>
-            </div>
-
-            <div className="divide-y divide-slate-100">
-              {eventsLoading ? (
-                <div className="px-6 py-10 text-center text-sm text-slate-400">
-                  Loading upcoming events…
-                </div>
-              ) : upcoming.length === 0 ? (
-                <div className="px-6 py-10 text-center text-sm text-slate-400">
-                  No upcoming events available.
-                </div>
-              ) : (
-                upcoming.slice(0, 5).map((event, i) => {
-                  const s = styleFor(event.category);
-
-                  return (
-                    <div
-                      key={`${event.title}-${event.event_date}-${i}`}
-                      className="flex gap-4 px-6 py-4 hover:bg-slate-50"
-                    >
-                      <div className="w-12 shrink-0 text-center">
-                        <p className="text-[10px] font-bold uppercase text-slate-400">
-                          {new Intl.DateTimeFormat("en-IN", {
-                            month: "short",
-                            timeZone: "Asia/Kolkata",
-                          }).format(
-                            new Date(
-                              `${event.event_date}T00:00:00+05:30`
-                            )
-                          )}
-                        </p>
-
-                        <p className="text-xl font-bold text-slate-900">
-                          {event.event_date.slice(8, 10)}
-                        </p>
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`h-2 w-2 rounded-full ${s.dot}`}
-                          />
-
-                          <h3 className="font-semibold text-slate-900">
-                            {event.title}
-                          </h3>
-
-                          {event.category && (
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.bg} ${s.text}`}
-                            >
-                              {event.category}
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="mt-1 text-xs text-slate-500">
-                          {event.target || "School Community"}
-                          {event.venue ? ` · ${event.venue}` : ""}
-                          {event.event_time
-                            ? ` · ${event.event_time}`
-                            : ""}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Your identity and permissions are linked to your official
+              VidyaGyan school account.
+            </p>
           </div>
 
-          {/* Next event */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-6 py-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
-                Immediate context
+          <div className="grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                Name
               </p>
 
-              <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
-                Next event
-              </h2>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {profileLoading
+                  ? "Loading…"
+                  : profile?.name?.trim() || "Not available"}
+              </p>
             </div>
 
-            {next ? (
-              <div className="p-6">
-                <span
-                  className={`inline-flex rounded-full px-3 py-1 text-[10px] font-bold ${
-                    styleFor(next.category).bg
-                  } ${styleFor(next.category).text}`}
-                >
-                  {next.category || "Campus"}
-                </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                Email
+              </p>
 
-                <h3 className="mt-4 text-2xl font-bold tracking-tight text-slate-950">
-                  {next.title}
-                </h3>
+              <p className="mt-2 truncate text-sm font-semibold text-slate-900">
+                {email}
+              </p>
+            </div>
 
-                <div className="mt-5 space-y-3 text-sm">
-                  <div className="flex gap-3">
-                    <span className="w-20 shrink-0 text-xs font-semibold text-slate-400">
-                      Date
-                    </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                Role
+              </p>
 
-                    <span className="font-medium text-slate-700">
-                      {formatDate(next.event_date)}
-                    </span>
-                  </div>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {profileLoading ? "Loading…" : role || "Student"}
+              </p>
+            </div>
 
-                  {next.event_time && (
-                    <div className="flex gap-3">
-                      <span className="w-20 shrink-0 text-xs font-semibold text-slate-400">
-                        Time
-                      </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                Access
+              </p>
 
-                      <span className="font-medium text-slate-700">
-                        {next.event_time}
-                      </span>
-                    </div>
-                  )}
-
-                  {next.venue && (
-                    <div className="flex gap-3">
-                      <span className="w-20 shrink-0 text-xs font-semibold text-slate-400">
-                        Venue
-                      </span>
-
-                      <span className="font-medium text-slate-700">
-                        {next.venue}
-                      </span>
-                    </div>
-                  )}
-
-                  {next.target && (
-                    <div className="flex gap-3">
-                      <span className="w-20 shrink-0 text-xs font-semibold text-slate-400">
-                        For
-                      </span>
-
-                      <span className="font-medium text-slate-700">
-                        {next.target}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <Link
-                  href="/calendar"
-                  className="mt-7 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-                >
-                  Open Calendar
-                </Link>
-              </div>
-            ) : (
-              <div className="p-6 text-sm text-slate-500">
-                No upcoming event available.
-              </div>
-            )}
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {isAdmin ? "Administrator" : "Standard"}
+              </p>
+            </div>
           </div>
         </section>
 
@@ -737,14 +432,7 @@ export default function Dashboard() {
             </h2>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Quick
-              href="/calendar"
-              icon="C"
-              title="My Calendar"
-              text="View the institutional calendar and upcoming campus events."
-            />
-
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Quick
               href="/council"
               icon="L"
@@ -786,29 +474,7 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-3">
-
-              <Link
-                href="/dashboard/calendar"
-                className="group bg-white p-6 transition hover:bg-slate-50"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">
-                  C
-                </div>
-
-                <h3 className="mt-4 font-semibold text-slate-900 group-hover:text-blue-700">
-                  Manage Calendar
-                </h3>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Create, edit and manage institutional calendar events.
-                </p>
-
-                <span className="mt-4 inline-block text-xs font-semibold text-blue-700">
-                  Open management →
-                </span>
-              </Link>
-
+            <div className="grid gap-px bg-slate-100 sm:grid-cols-2">
               <Link
                 href="/dashboard/study-material"
                 className="group bg-white p-6 transition hover:bg-slate-50"
@@ -851,7 +517,6 @@ export default function Dashboard() {
                   Open management →
                 </span>
               </Link>
-
             </div>
           </section>
         )}
@@ -898,9 +563,7 @@ export default function Dashboard() {
             ].map((x) => (
               <div key={x.t} className="bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-semibold text-slate-900">
-                    {x.t}
-                  </h3>
+                  <h3 className="font-semibold text-slate-900">{x.t}</h3>
 
                   <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
                     {x.s}
@@ -917,9 +580,7 @@ export default function Dashboard() {
 
         {/* Footer */}
         <div className="mt-8 flex flex-col gap-2 border-t border-slate-200 pt-5 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            VidyaGyan Council Portal · Authenticated Workspace
-          </p>
+          <p>VidyaGyan Council Portal · Authenticated Workspace</p>
 
           <p>
             Access is controlled by your school account and portal role.
