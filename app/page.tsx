@@ -1,13 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
-import { createClient, type Session } from "@supabase/supabase-js";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 /* =========================================================
    SUPABASE
@@ -41,14 +36,6 @@ interface CalendarEvent {
   target?: string | null;
 }
 
-type UserProfile = {
-  id: number;
-  name: string | null;
-  email: string;
-  role: string | null;
-  admin_status: string;
-};
-
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -78,12 +65,21 @@ function getShortDate(dateString: string) {
   });
 }
 
-function daysUntil(dateString: string, today: string) {
-  const start = new Date(`${today}T00:00:00`).getTime();
-  const end = new Date(`${dateString}T00:00:00`).getTime();
+function daysUntil(
+  dateString: string,
+  today: string
+) {
+  const start = new Date(
+    `${today}T00:00:00`
+  ).getTime();
+
+  const end = new Date(
+    `${dateString}T00:00:00`
+  ).getTime();
 
   return Math.round(
-    (end - start) / (1000 * 60 * 60 * 24)
+    (end - start) /
+      (1000 * 60 * 60 * 24)
   );
 }
 
@@ -153,7 +149,7 @@ function SectionHeading({
   eyebrow: string;
   title: string;
   description?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -183,29 +179,21 @@ function SectionHeading({
 ========================================================= */
 
 export default function Home() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [clockTime, setClockTime] =
+    useState("");
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileError, setProfileError] = useState(false);
+  const [clockDate, setClockDate] =
+    useState("");
 
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const [clockTime, setClockTime] = useState("");
-  const [clockDate, setClockDate] = useState("");
-
-  const [supabaseEvents, setSupabaseEvents] = useState<
-    CalendarEvent[]
-  >([]);
+  const [supabaseEvents, setSupabaseEvents] =
+    useState<CalendarEvent[]>([]);
 
   /* =======================================================
-     CLOCK + AUTH + EVENTS
+     CLOCK
   ======================================================= */
 
   useEffect(() => {
-    const updateClock = () => {
+    function updateClock() {
       const now = new Date();
 
       setClockTime(
@@ -227,379 +215,391 @@ export default function Home() {
           year: "numeric",
         })
       );
-    };
+    }
 
     updateClock();
 
-    const interval = setInterval(updateClock, 1000);
-
-    supabase.auth.getSession().then(
-      ({ data: { session } }) => {
-        setSession(session);
-
-        if (session?.user?.email) {
-          fetchUserProfile(session.user.email);
-        } else {
-          setProfile(null);
-          setProfileError(false);
-        }
-      }
+    const interval = window.setInterval(
+      updateClock,
+      1000
     );
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-
-        if (session?.user?.email) {
-          fetchUserProfile(session.user.email);
-        } else {
-          setProfile(null);
-          setProfileError(false);
-        }
-      }
-    );
-
-    fetchEvents();
 
     return () => {
-      clearInterval(interval);
-      subscription.unsubscribe();
+      window.clearInterval(interval);
     };
   }, []);
 
   /* =======================================================
-     USER PROFILE
+     CALENDAR EVENTS
   ======================================================= */
 
-  const fetchUserProfile = async (userEmail: string) => {
-    setProfileLoading(true);
-    setProfileError(false);
+  useEffect(() => {
+    let mounted = true;
 
-    const { data, error } = await supabase
-      .from("allowed_users")
-      .select("id, name, email, role, admin_status")
-      .ilike("email", userEmail)
-      .maybeSingle();
+    async function fetchEvents() {
+      const currentDate =
+        getIndiaDateString();
 
-    if (error) {
-      console.error("Unable to fetch user profile:", error);
-      setProfile(null);
-      setProfileError(true);
-      setProfileLoading(false);
-      return;
+      const { data, error } =
+        await supabase
+          .from("calendar_events")
+          .select(
+            "id, title, event_date, description, event_time, category, created_by, target"
+          )
+          .gte(
+            "event_date",
+            currentDate
+          )
+          .order("event_date", {
+            ascending: true,
+          })
+          .order("event_time", {
+            ascending: true,
+          });
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error(
+          "Unable to fetch calendar events:",
+          error
+        );
+
+        setSupabaseEvents([]);
+        return;
+      }
+
+      setSupabaseEvents(
+        (data as CalendarEvent[]) || []
+      );
     }
 
-    if (data) {
-      setProfile(data as UserProfile);
-      setProfileError(false);
-    } else {
-      console.error("No portal profile found for:", userEmail);
-      setProfile(null);
-      setProfileError(true);
-    }
+    fetchEvents();
 
-    setProfileLoading(false);
-  };
-
-  /* =======================================================
-     DATABASE EVENTS
-  ======================================================= */
-
-  const fetchEvents = async () => {
-    const currentDate = getIndiaDateString();
-
-    const { data, error } = await supabase
-      .from("calendar_events")
-      .select(
-        "id, title, event_date, description, event_time, category, created_by, target"
-      )
-      .gte("event_date", currentDate)
-      .order("event_date", { ascending: true })
-      .order("event_time", { ascending: true });
-
-    if (error) {
-      console.error("Unable to fetch calendar events:", error);
-      return;
-    }
-
-    if (!data) {
-      setSupabaseEvents([]);
-      return;
-    }
-
-    setSupabaseEvents(data as CalendarEvent[]);
-  };
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   /* =======================================================
      DERIVED DATA
   ======================================================= */
 
-  const today = getIndiaDateString();
+  const today =
+    getIndiaDateString();
 
   const sortedEvents = useMemo(() => {
-    return [...supabaseEvents].sort((a, b) => {
-      const dateComparison = a.event_date.localeCompare(b.event_date);
+    return [...supabaseEvents].sort(
+      (a, b) => {
+        const dateComparison =
+          a.event_date.localeCompare(
+            b.event_date
+          );
 
-      if (dateComparison !== 0) {
-        return dateComparison;
+        if (dateComparison !== 0) {
+          return dateComparison;
+        }
+
+        return (
+          (a.event_time || "").localeCompare(
+            b.event_time || ""
+          )
+        );
       }
-
-      return (a.event_time || "").localeCompare(b.event_time || "");
-    });
+    );
   }, [supabaseEvents]);
 
   const todayEvents = useMemo(() => {
     return sortedEvents.filter(
-      (event) => event.event_date === today
+      (event) =>
+        event.event_date === today
     );
   }, [sortedEvents, today]);
 
   const upcomingEvents = useMemo(() => {
     return sortedEvents
-      .filter((event) => event.event_date >= today)
+      .filter(
+        (event) =>
+          event.event_date >= today
+      )
       .slice(0, 5);
   }, [sortedEvents, today]);
 
-  const nextEvent = upcomingEvents[0];
+  const nextEvent =
+    upcomingEvents[0];
 
   const nextEventDays = nextEvent
-    ? daysUntil(nextEvent.event_date, today)
+    ? daysUntil(
+        nextEvent.event_date,
+        today
+      )
     : null;
 
-  const futureEventCount = sortedEvents.length;
-
-  /* =======================================================
-     LOGIN
-  ======================================================= */
-
-  const handleLogin = async (e: FormEvent) => {
-    e.preventDefault();
-
-    setLoading(true);
-    setMessage("");
-
-    const formattedEmail =
-      email.trim().toLowerCase();
-
-    if (
-      !formattedEmail.endsWith(
-        "@vidyagyan.in"
-      )
-    ) {
-      setMessage(
-        "Access denied. Use an official @vidyagyan.in school email."
-      );
-
-      setLoading(false);
-      return;
-    }
-
-    const { error } =
-      await supabase.auth.signInWithOtp({
-        email: formattedEmail,
-        options: {
-          emailRedirectTo:
-            "https://vgb-student-council-portal.vercel.app",
-        },
-      });
-
-    if (error) {
-  console.error("Magic-link sign-in failed:", error);
-
-  setMessage(
-    `Sign-in failed: ${error.message}`
-  );
-    } else {
-      setMessage(
-        "Magic link sent. Check your Outlook inbox, then open the link to continue."
-      );
-    }
-
-    setLoading(false);
-  };
-
-  /* =======================================================
-     LOGOUT
-  ======================================================= */
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-
-    setSession(null);
-    setProfile(null);
-    setProfileError(false);
-    setProfileLoading(false);
-  };
+  const futureEventCount =
+    sortedEvents.length;
 
   /* =======================================================
      RENDER
   ======================================================= */
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0,_#f7f8f5_42%,_#eef2ef_100%)] text-slate-900 font-sans">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0,_#f7f8f5_42%,_#eef2ef_100%)] font-sans text-slate-900">
 
       <main className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
 
         {/* =================================================
-    HERO
-================================================= */}
+            HERO
+        ================================================= */}
 
-<section
-  id="home"
-  className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl"
->
-  {/* Background geometry */}
-  <div className="absolute inset-0 pointer-events-none overflow-hidden">
-    <div className="absolute -right-32 -top-32 h-[460px] w-[460px] rounded-full border border-white/[0.08]" />
-
-    <div className="absolute -right-8 -top-8 h-[300px] w-[300px] rounded-full border border-white/[0.07]" />
-
-    <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.025]" />
-
-    <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full border border-emerald-300/[0.08]" />
-
-    <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-  </div>
-
-  <div className="relative px-6 py-10 sm:px-10 md:px-14 md:py-12 lg:px-16 lg:py-14">
-
-    {/* ─────────────────────────────────────────────
-        BRAND / INTRO
-    ───────────────────────────────────────────── */}
-
-    <div className="text-center">
-
-      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-3.5 py-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-
-        <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
-          VidyaGyan Bulandshahr
-        </span>
-      </div>
-
-      <h1 className="mt-6 text-4xl font-bold tracking-[-0.035em] leading-[1.05] sm:text-5xl md:text-6xl">
-        One portal for
-        <br />
-        <span className="text-white/90">
-          campus life.
-        </span>
-      </h1>
-
-      <p className="mx-auto mt-5 max-w-2xl text-sm leading-6 text-blue-100/80 md:text-base">
-        A unified student-facing platform for campus information,
-        events, activities, leadership and essential resources.
-      </p>
-
-    </div>
-
-
-    {/* ─────────────────────────────────────────────
-        CAMPUS TIME
-    ───────────────────────────────────────────── */}
-
-    <div className="mx-auto mt-9 max-w-xl">
-
-      <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] px-5 py-6 shadow-inner backdrop-blur-sm sm:px-8 sm:py-7">
-
-        {/* Label */}
-
-        <div className="flex items-center justify-center gap-2">
-
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-
-          <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">
-            Campus Time
-          </span>
-
-        </div>
-
-
-        {/* Clock */}
-
-        <div
-          className="mt-3 text-center text-4xl font-semibold tracking-[-0.04em] tabular-nums text-white sm:text-5xl md:text-6xl"
-          aria-live="polite"
+        <section
+          id="home"
+          className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl"
         >
-          {clockTime || "--:--:--"}
-        </div>
 
+          {/* Background geometry */}
 
-        {/* Date */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -right-32 -top-32 h-[460px] w-[460px] rounded-full border border-white/[0.08]" />
 
-        <div className="mt-2 text-center text-sm font-medium text-blue-200">
-          {clockDate || "Loading campus time..."}
-        </div>
+            <div className="absolute -right-8 -top-8 h-[300px] w-[300px] rounded-full border border-white/[0.07]" />
 
+            <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.025]" />
 
-        {/* Timezone */}
+            <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full border border-emerald-300/[0.08]" />
 
-        <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] text-blue-300/80">
+            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          </div>
 
-          <span>India Standard Time</span>
+          <div className="relative px-6 py-10 sm:px-10 md:px-14 md:py-12 lg:px-16 lg:py-14">
 
-          <span className="h-1 w-1 rounded-full bg-blue-400/60" />
+            {/* =================================================
+                BRAND / INTRO
+            ================================================= */}
 
-          <span>UTC +05:30</span>
+            <div className="text-center">
 
-        </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-3.5 py-1.5">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
 
-      </div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
+                  VidyaGyan Bulandshahr
+                </span>
+              </div>
 
-    </div>
+              <h1 className="mt-6 text-4xl font-bold leading-[1.05] tracking-[-0.035em] sm:text-5xl md:text-6xl">
+                One portal for
+                <br />
+                <span className="text-white/90">
+                  campus life.
+                </span>
+              </h1>
 
+              <p className="mx-auto mt-5 max-w-2xl text-sm leading-6 text-blue-100/80 md:text-base">
+                A unified student-facing platform for campus information,
+                events, activities, leadership and essential resources.
+              </p>
 
-    {/* ─────────────────────────────────────────────
-        ACTIONS
-    ───────────────────────────────────────────── */}
+            </div>
 
-    <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            {/* =================================================
+                CAMPUS TIME + NEXT EVENT
+            ================================================= */}
 
-      <a
-        href="#today"
-        className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-blue-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-100 hover:shadow-md"
-      >
-        View Today
-      </a>
+            <div className="mx-auto mt-9 max-w-5xl">
 
-      <a
-        href="/cafeteria"
-        className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
-      >
-        Today&apos;s Menu
-      </a>
+              <div className="grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
 
-      <a
-        href="/calendar"
-        className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
-      >
-        Open Calendar
-      </a>
+                {/* =================================================
+                    CLOCK
+                ================================================= */}
 
-    </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] px-5 py-6 shadow-inner backdrop-blur-sm sm:px-8 sm:py-7">
 
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
 
-    {/* ─────────────────────────────────────────────
-        BOTTOM STATUS
-    ───────────────────────────────────────────── */}
+                    <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">
+                      Campus Time
+                    </span>
+                  </div>
 
-    <div className="mt-8 flex items-center justify-center gap-3 text-[10px] text-blue-300/60">
+                  <div
+                    className="mt-3 text-center text-4xl font-semibold tracking-[-0.04em] text-white tabular-nums sm:text-5xl md:text-6xl"
+                    aria-live="polite"
+                  >
+                    {clockTime ||
+                      "--:--:--"}
+                  </div>
 
-      <span className="h-px w-10 bg-white/10" />
+                  <div className="mt-2 text-center text-sm font-medium text-blue-200">
+                    {clockDate ||
+                      "Loading campus time..."}
+                  </div>
 
-      <span>
-        Student Portal · 2026–27
-      </span>
+                  <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] text-blue-300/80">
+                    <span>
+                      India Standard Time
+                    </span>
 
-      <span className="h-px w-10 bg-white/10" />
+                    <span className="h-1 w-1 rounded-full bg-blue-400/60" />
 
-    </div>
+                    <span>
+                      UTC +05:30
+                    </span>
+                  </div>
 
-  </div>
-</section>
+                </div>
 
-        
+                {/* =================================================
+                    NEXT EVENT
+                ================================================= */}
+
+                <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] px-6 py-6 backdrop-blur-sm sm:px-8 sm:py-7">
+
+                  <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full border border-white/10" />
+
+                  <div className="relative">
+
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
+                        Next on Campus
+                      </span>
+
+                      {nextEvent && (
+                        <span className="rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-semibold text-blue-100">
+                          {nextEventDays === 0
+                            ? "Today"
+                            : nextEventDays === 1
+                            ? "Tomorrow"
+                            : `${nextEventDays} days`}
+                        </span>
+                      )}
+                    </div>
+
+                    {nextEvent ? (
+                      <>
+                        <h2 className="mt-5 text-2xl font-bold tracking-tight text-white">
+                          {nextEvent.title}
+                        </h2>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-blue-200">
+                            {formatDate(
+                              nextEvent.event_date
+                            )}
+                          </span>
+
+                          {nextEvent.event_time && (
+                            <>
+                              <span className="h-1 w-1 rounded-full bg-blue-400/50" />
+
+                              <span className="text-sm text-blue-200">
+                                {nextEvent.event_time}
+                              </span>
+                            </>
+                          )}
+
+                          {nextEvent.category && (
+                            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-blue-100">
+                              {nextEvent.category}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="mt-4 text-xs leading-5 text-blue-300">
+                          {nextEvent.target ||
+                            "School Community"}
+
+                          {nextEvent.description &&
+                            ` · ${nextEvent.description}`}
+                        </p>
+
+                        <Link
+                          href={`/calendar?date=${nextEvent.event_date}`}
+                          className="mt-5 inline-flex items-center rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+                        >
+                          View event
+                          <span className="ml-1.5">
+                            →
+                          </span>
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="mt-5 text-2xl font-bold tracking-tight text-white">
+                          No upcoming events
+                        </h2>
+
+                        <p className="mt-3 text-xs leading-5 text-blue-300">
+                          There are currently no future
+                          events recorded in the portal calendar.
+                        </p>
+
+                        <Link
+                          href="/calendar"
+                          className="mt-5 inline-flex items-center rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+                        >
+                          Open Calendar
+                          <span className="ml-1.5">
+                            →
+                          </span>
+                        </Link>
+                      </>
+                    )}
+
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* =================================================
+                ACTIONS
+            ================================================= */}
+
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+
+              <a
+                href="#today"
+                className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-blue-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-100 hover:shadow-md"
+              >
+                View Today
+              </a>
+
+              <Link
+                href="/cafeteria"
+                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
+              >
+                Today&apos;s Menu
+              </Link>
+
+              <Link
+                href="/calendar"
+                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
+              >
+                Open Calendar
+              </Link>
+
+            </div>
+
+            {/* =================================================
+                STATUS
+            ================================================= */}
+
+            <div className="mt-8 flex items-center justify-center gap-3 text-[10px] text-blue-300/60">
+              <span className="h-px w-10 bg-white/10" />
+
+              <span>
+                Student Portal · 2026–27
+              </span>
+
+              <span className="h-px w-10 bg-white/10" />
+            </div>
+
+          </div>
+        </section>
+
         {/* =================================================
             TODAY
         ================================================= */}
@@ -617,12 +617,13 @@ export default function Home() {
 
           <div className="grid gap-4 md:grid-cols-3">
 
-            {/* Campus status */}
+            {/* =================================================
+                CAMPUS STATUS
+            ================================================= */}
 
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
 
               <div className="flex items-center justify-between">
-
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
                   Campus
                 </span>
@@ -630,7 +631,6 @@ export default function Home() {
                 <span className="text-xs text-slate-400">
                   {formatDate(today)}
                 </span>
-
               </div>
 
               <h3 className="mt-4 text-xl font-bold text-blue-950">
@@ -645,60 +645,72 @@ export default function Home() {
 
               {todayEvents.length > 0 ? (
                 <div className="mt-4 space-y-3">
-                  {todayEvents.slice(0, 3).map(
-                    (event, index) => {
-                      const styles =
-                        getCategoryStyles(
-                          event.category
-                        );
 
-                      return (
-                        <div
-                          key={`${event.title}-${index}`}
-                          className="flex items-start gap-3"
-                        >
-                          <span
-                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${styles.dot}`}
-                          />
+                  {todayEvents
+                    .slice(0, 3)
+                    .map(
+                      (event, index) => {
+                        const styles =
+                          getCategoryStyles(
+                            event.category
+                          );
 
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-800">
-                              {event.title}
-                            </p>
+                        return (
+                          <div
+                            key={`${event.title}-${event.event_date}-${index}`}
+                            className="flex items-start gap-3"
+                          >
+                            <span
+                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${styles.dot}`}
+                            />
 
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {event.target ||
-                                "School Community"}
-                            </p>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800">
+                                {event.title}
+                              </p>
+
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {event.target ||
+                                  "School Community"}
+
+                                {event.event_time &&
+                                  ` · ${event.event_time}`}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    }
-                  )}
+                        );
+                      }
+                    )}
 
-                  {todayEvents.length > 3 && (
+                  {todayEvents.length >
+                    3 && (
                     <Link
                       href="/calendar"
                       className="inline-block pt-1 text-xs font-semibold text-blue-900 hover:text-emerald-700"
                     >
-                      + {todayEvents.length - 3} more on Calendar →
+                      +{" "}
+                      {todayEvents.length - 3}{" "}
+                      more on Calendar →
                     </Link>
                   )}
+
                 </div>
               ) : (
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  No event is recorded for today in the
-                  current calendar.
+                  No event is recorded for today
+                  in the current calendar.
                 </p>
               )}
 
             </div>
 
-            {/* Next event */}
+            {/* =================================================
+                NEXT EVENT
+            ================================================= */}
 
             <div className="relative overflow-hidden rounded-2xl bg-blue-950 p-5 text-white shadow-sm">
 
-              <div className="pointer-events-none absolute right-[-40px] top-[-40px] h-32 w-32 rounded-full border border-white/10" />
+              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full border border-white/10" />
 
               <div className="relative">
 
@@ -719,6 +731,16 @@ export default function Home() {
                           nextEvent.event_date
                         )}
                       </span>
+
+                      {nextEvent.event_time && (
+                        <>
+                          <span className="h-1 w-1 rounded-full bg-blue-400/50" />
+
+                          <span className="text-sm text-blue-200">
+                            {nextEvent.event_time}
+                          </span>
+                        </>
+                      )}
 
                       {nextEvent.category && (
                         <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-blue-100">
@@ -745,16 +767,25 @@ export default function Home() {
                     </div>
                   </>
                 ) : (
-                  <h3 className="mt-4 text-xl font-bold">
-                    No upcoming events
-                  </h3>
+                  <>
+                    <h3 className="mt-4 text-xl font-bold">
+                      No upcoming events
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-blue-300">
+                      Nothing is currently scheduled
+                      in the portal calendar.
+                    </p>
+                  </>
                 )}
 
               </div>
 
             </div>
 
-            {/* Portal status */}
+            {/* =================================================
+                CALENDAR STATUS
+            ================================================= */}
 
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
 
@@ -785,7 +816,10 @@ export default function Home() {
                 className="mt-5 inline-flex items-center text-xs font-semibold text-blue-950 transition hover:text-emerald-700"
               >
                 Explore full calendar
-                <span className="ml-1">→</span>
+
+                <span className="ml-1">
+                  →
+                </span>
               </Link>
 
             </div>
@@ -815,18 +849,23 @@ export default function Home() {
 
           <div className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
 
-            {upcomingEvents.length > 0 ? (
+            {upcomingEvents.length >
+            0 ? (
               <div className="divide-y divide-slate-100">
 
                 {upcomingEvents.map(
-                  (event, index) => {
+                  (
+                    event,
+                    index
+                  ) => {
                     const styles =
                       getCategoryStyles(
                         event.category
                       );
 
                     const isToday =
-                      event.event_date === today;
+                      event.event_date ===
+                      today;
 
                     return (
                       <Link
@@ -860,6 +899,7 @@ export default function Home() {
                             </div>
 
                             <p className="mt-1 text-xs text-slate-500">
+
                               {event.target ||
                                 "School Community"}
 
@@ -868,6 +908,7 @@ export default function Home() {
 
                               {event.event_time &&
                                 ` · ${event.event_time}`}
+
                             </p>
 
                           </div>
@@ -883,7 +924,7 @@ export default function Home() {
                               "Campus"}
                           </span>
 
-                          <span className="text-xs font-semibold whitespace-nowrap text-slate-500">
+                          <span className="whitespace-nowrap text-xs font-semibold text-slate-500">
                             {getShortDate(
                               event.event_date
                             )}
@@ -911,7 +952,7 @@ export default function Home() {
         </section>
 
         {/* =================================================
-            QUICK ACCESS
+            EXPLORE
         ================================================= */}
 
         <section className="mt-14">
@@ -939,7 +980,8 @@ export default function Home() {
                 description:
                   "Student Council, functional leadership and house representatives.",
                 href: "/council",
-                eyebrow: "Student Leadership",
+                eyebrow:
+                  "Student Leadership",
                 accent:
                   "from-emerald-50 to-teal-50",
               },
@@ -948,7 +990,8 @@ export default function Home() {
                 description:
                   "Daily and weekly menu information for the campus.",
                 href: "/cafeteria",
-                eyebrow: "Campus Life",
+                eyebrow:
+                  "Campus Life",
                 accent:
                   "from-orange-50 to-amber-50",
               },
@@ -957,7 +1000,8 @@ export default function Home() {
                 description:
                   "Annual events, live additions and the complete campus schedule.",
                 href: "/calendar",
-                eyebrow: "Planning",
+                eyebrow:
+                  "Planning",
                 accent:
                   "from-purple-50 to-violet-50",
               },
@@ -966,7 +1010,8 @@ export default function Home() {
                 description:
                   "Sports, cultural programmes, student initiatives and participation.",
                 href: "/activities",
-                eyebrow: "Student Life",
+                eyebrow:
+                  "Student Life",
                 accent:
                   "from-rose-50 to-pink-50",
               },
@@ -975,7 +1020,8 @@ export default function Home() {
                 description:
                   "Notes, revision sheets, HOTS and VidyaGyan previous papers.",
                 href: "/study-material",
-                eyebrow: "Academics",
+                eyebrow:
+                  "Academics",
                 accent:
                   "from-cyan-50 to-sky-50",
               },
@@ -1016,201 +1062,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* =================================================
-            SIGN IN
-        ================================================= */}
-
-        <section
-          id="signin"
-          className="mt-14 scroll-mt-24"
-        >
-
-          <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-sm">
-
-            <div className="grid lg:grid-cols-[1fr_420px]">
-
-              {/* Information */}
-
-              <div className="relative overflow-hidden bg-blue-950 p-8 text-white md:p-10">
-
-                <div className="pointer-events-none absolute right-[-80px] top-[-80px] h-64 w-64 rounded-full border border-white/10" />
-
-                <div className="relative">
-
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
-                    Authorised Access
-                  </p>
-
-                  <h2 className="mt-3 text-3xl font-bold tracking-tight">
-                    Your portal workspace.
-                  </h2>
-
-                  <p className="mt-4 max-w-xl text-sm leading-6 text-blue-200">
-                    Sign in with your official
-                    VidyaGyan school account to access
-                    authorised portal functions.
-                  </p>
-
-                  {session && (
-                    <div className="mt-7 rounded-xl border border-white/10 bg-white/10 p-4">
-
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-blue-300">
-                        Current account
-                      </div>
-
-                      <div className="mt-1 text-sm font-semibold">
-                        {profile?.name || "Verified School Account"}
-                      </div>
-
-                      <div className="mt-1 break-all text-xs text-blue-300">
-                        {session.user.email}
-                      </div>
-
-                      <div className="mt-1 text-xs text-blue-300">
-                        {profileLoading
-                          ? "Loading portal profile..."
-                          : profile?.role || "Student"}
-                      </div>
-
-                      {profileError && (
-                        <p className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-[11px] leading-5 text-amber-100">
-                          Your school account is authenticated, but no
-                          matching portal profile could be loaded.
-                        </p>
-                      )}
-
-                    </div>
-                  )}
-
-                </div>
-
-              </div>
-
-              {/* Form */}
-
-              <div className="p-8 md:p-10">
-
-                {session ? (
-                  <div>
-
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                      Access Granted
-                    </p>
-
-                    <h3 className="mt-2 text-xl font-bold text-blue-950">
-                      You&apos;re signed in.
-                    </h3>
-
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      Continue to your authorised
-                      dashboard or sign out of this session.
-                    </p>
-
-                    <div className="mt-6 flex flex-wrap gap-3">
-
-                      <Link
-                        href="/dashboard"
-                        className="inline-flex items-center justify-center rounded-xl bg-blue-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-900"
-                      >
-                        Open Dashboard
-                      </Link>
-
-                      <button
-                        onClick={handleLogout}
-                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Sign Out
-                      </button>
-
-                    </div>
-
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                      VidyaGyan Account
-                    </p>
-
-                    <h3 className="mt-2 text-xl font-bold text-blue-950">
-                      Send a magic link
-                    </h3>
-
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      No password required. Use your
-                      official school email.
-                    </p>
-
-                    <form
-                      onSubmit={handleLogin}
-                      className="mt-6 space-y-4"
-                    >
-
-                      <div>
-
-                        <label
-                          htmlFor="school-email"
-                          className="mb-1.5 block text-xs font-semibold text-slate-600"
-                        >
-                          School Email
-                        </label>
-
-                        <input
-                          id="school-email"
-                          type="email"
-                          value={email}
-                          onChange={(e) =>
-                            setEmail(
-                              e.target.value
-                            )
-                          }
-                          placeholder="username@vidyagyan.in"
-                          required
-                          autoComplete="email"
-                          className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                        />
-
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full rounded-xl bg-blue-950 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {loading
-                          ? "Sending..."
-                          : "Send Magic Link"}
-                      </button>
-
-                    </form>
-
-                    {message && (
-                      <div
-                        className={`mt-4 rounded-xl border p-3 text-center text-xs ${
-                          message
-                            .toLowerCase()
-                            .includes("sent")
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-red-200 bg-red-50 text-red-700"
-                        }`}
-                      >
-                        {message}
-                      </div>
-                    )}
-
-                    <p className="mt-5 text-center text-[10px] text-slate-400">
-                      Access is restricted to official
-                      @vidyagyan.in accounts.
-                    </p>
-                  </>
-                )}
-
-              </div>
-
-            </div>
-
-          </div>
-        </section>
-
       </main>
 
       {/* =================================================
@@ -1222,6 +1073,8 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-5 py-10 lg:px-8">
 
           <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
+
+            {/* Portal */}
 
             <div>
 
@@ -1236,6 +1089,8 @@ export default function Home() {
               </p>
 
             </div>
+
+            {/* Portal links */}
 
             <div>
 
@@ -1290,6 +1145,8 @@ export default function Home() {
               </div>
 
             </div>
+
+            {/* Institution */}
 
             <div className="md:text-right">
 
