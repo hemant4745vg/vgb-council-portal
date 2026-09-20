@@ -698,25 +698,27 @@ export default function Home() {
      USER ROLE
   ======================================================= */
 
-  const fetchUserRole = async (userEmail: string) => {
-    const { data, error } = await supabase
-      .from("allowed_users")
-      .select("role")
-      .eq("email", userEmail.toLowerCase())
-      .single();
+  const fetchUserProfile = async (userEmail: string) => {
+  const { data, error } = await supabase
+    .from("allowed_users")
+    .select("id, name, email, role, admin_status")
+    .ilike("email", userEmail)
+    .maybeSingle();
 
-    if (error) {
-      console.error(
-        "Unable to fetch user role:",
-        error
-      );
-      return;
-    }
+  if (error) {
+    console.error("Unable to fetch user profile:", error);
+    setRoleError(true);
+    return;
+  }
 
-    if (data?.role) {
-      setUserRole(data.role);
-    }
-  };
+  if (data) {
+    setProfile(data);
+    setRoleError(false);
+  } else {
+    console.error("No portal profile found for:", userEmail);
+    setRoleError(true);
+  }
+};
 
   /* =======================================================
      DATABASE EVENTS
