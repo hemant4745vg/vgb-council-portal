@@ -17,6 +17,14 @@ type UserProfile = {
   admin_status: "yes" | "no";
 };
 
+type RpcProfile = {
+  id: number;
+  name: string | null;
+  email: string;
+  role: string | null;
+  admin_status: string | null;
+};
+
 function greeting() {
   const hour = Number(
     new Intl.DateTimeFormat("en-IN", {
@@ -47,9 +55,11 @@ function Stat({
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
         {label}
       </p>
+
       <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
         {value}
       </p>
+
       <p className="mt-1 text-xs text-slate-500">{detail}</p>
     </div>
   );
@@ -75,10 +85,12 @@ function Quick({
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-bold text-white">
           {icon}
         </div>
+
         <div>
           <h3 className="font-semibold text-slate-900 group-hover:text-blue-700">
             {title}
           </h3>
+
           <p className="mt-1 text-xs leading-5 text-slate-500">{text}</p>
         </div>
       </div>
@@ -111,42 +123,63 @@ export default function Dashboard() {
     setProfileLoading(true);
     setProfileError(false);
 
-    const { data, error } = await supabase
-  .rpc("get_my_portal_profile")
-  .maybeSingle();
+    console.log("Loading portal profile for:", userEmail);
 
-const profileData = data as {
-  id: number;
-  name: string | null;
-  email: string;
-  role: string | null;
-  admin_status: string | null;
-} | null;
+    const { data, error } = await supabase.rpc(
+      "get_my_portal_profile"
+    );
+
+    console.log("Portal profile RPC response:", {
+      data,
+      error,
+    });
 
     if (error) {
       console.error("Portal profile RPC failed:", error);
+
       setProfile(null);
       setProfileError(true);
       setProfileLoading(false);
+
       return;
     }
 
+    /*
+     * PostgreSQL functions returning TABLE commonly arrive
+     * through Supabase as an array of rows.
+     *
+     * We also handle a single object defensively so the
+     * client does not depend on one specific response shape.
+     */
+    const profileData: RpcProfile | null = Array.isArray(data)
+      ? (data[0] as RpcProfile | undefined) ?? null
+      : (data as RpcProfile | null);
+
     if (!profileData) {
-  console.error("No portal profile found for:", userEmail);
-  setProfile(null);
-  setProfileError(true);
-  setProfileLoading(false);
-  return;
-}
+      console.error(
+        "Portal profile RPC returned no profile for:",
+        userEmail
+      );
 
-setProfile({
-  id: Number(profileData.id),
-  name: profileData.name ?? null,
-  email: profileData.email ?? userEmail,
-  role: profileData.role ?? null,
-  admin_status: profileData.admin_status === "yes" ? "yes" : "no",
-});
+      setProfile(null);
+      setProfileError(true);
+      setProfileLoading(false);
 
+      return;
+    }
+
+    const normalizedProfile: UserProfile = {
+      id: Number(profileData.id),
+      name: profileData.name ?? null,
+      email: profileData.email ?? userEmail,
+      role: profileData.role ?? null,
+      admin_status:
+        profileData.admin_status === "yes" ? "yes" : "no",
+    };
+
+    console.log("Normalized portal profile:", normalizedProfile);
+
+    setProfile(normalizedProfile);
     setProfileError(false);
     setProfileLoading(false);
   }
@@ -180,21 +213,25 @@ setProfile({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
 
       setSession(nextSession);
 
       if (nextSession?.user?.email) {
-        await loadProfile(nextSession.user.email);
+        /*
+         * Defer the profile request slightly so the auth
+         * state has fully settled before the RPC runs.
+         */
+        window.setTimeout(() => {
+          if (!mounted) return;
+
+          loadProfile(nextSession.user.email!);
+        }, 0);
       } else {
         setProfile(null);
         setProfileError(false);
         setProfileLoading(false);
-      }
-
-      if (mounted) {
-        setLoading(false);
       }
     });
 
@@ -217,11 +254,16 @@ setProfile({
       <main className="min-h-[calc(100vh-4rem)] bg-slate-50 p-8">
         <div className="mx-auto max-w-7xl animate-pulse space-y-6">
           <div className="h-36 rounded-3xl bg-white" />
+
           <div className="grid gap-4 md:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-28 rounded-2xl bg-white" />
+              <div
+                key={i}
+                className="h-28 rounded-2xl bg-white"
+              />
             ))}
           </div>
+
           <div className="h-56 rounded-2xl bg-white" />
           <div className="h-48 rounded-2xl bg-white" />
         </div>
