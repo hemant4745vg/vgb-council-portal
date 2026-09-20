@@ -669,7 +669,7 @@ export default function Home() {
         setSession(session);
 
         if (session?.user?.email) {
-          fetchUserRole(session.user.email);
+          fetchUserProfile(session.user.email);
         }
       }
     );
