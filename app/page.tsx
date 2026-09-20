@@ -31,457 +31,23 @@ type Category =
   | "Excursion";
 
 interface CalendarEvent {
-  id?: number;
+  id: number;
   title: string;
   event_date: string;
-  description?: string;
-  event_time?: string;
-  category?: Category;
-  created_by?: string;
-  venue?: string;
-  target?: string;
-  time?: string;
+  description?: string | null;
+  event_time?: string | null;
+  category?: Category | null;
+  created_by?: string | null;
+  target?: string | null;
 }
 
-/* =========================================================
-   ANNUAL CALENDAR
-========================================================= */
-
-const ANNUAL_EVENTS: CalendarEvent[] = [
-  {
-    title: "Mid-Term Examinations End",
-    category: "Exams",
-    target: "Grades 11–12",
-    event_date: "2026-09-21",
-    venue: "Exam Halls",
-  },
-  {
-    title: "Mid-Term Examinations End",
-    category: "Exams",
-    target: "Grades 9–10",
-    event_date: "2026-09-23",
-    venue: "Exam Halls",
-  },
-  {
-    title: "Mid-Term Examinations End",
-    category: "Exams",
-    target: "Grades 7–8",
-    event_date: "2026-09-25",
-    venue: "Exam Halls",
-  },
-  {
-    title: "SPANDAN Lit Fest",
-    category: "Cultural",
-    target: "Teachers",
-    event_date: "2026-09-25",
-    venue: "Campus",
-  },
-  {
-    title: "Inter-Section English Recitation",
-    category: "Cultural",
-    target: "Grade 6",
-    event_date: "2026-09-25",
-    venue: "Campus",
-  },
-  {
-    title: "Cultural Week",
-    category: "Cultural",
-    target: "School Community",
-    event_date: "2026-09-28",
-    venue: "Campus",
-    time: "28 Sep – 1 Oct",
-  },
-  {
-    title: "Cultural Week Ends",
-    category: "Cultural",
-    target: "School Community",
-    event_date: "2026-10-01",
-    venue: "Campus",
-  },
-  {
-    title: "Gandhi Jayanti & Theatre Visit",
-    category: "Cultural",
-    target: "School Community",
-    event_date: "2026-10-02",
-    venue: "Campus / Theatre",
-  },
-  {
-    title: "Trip to Physics Dham – Jaipur",
-    category: "Excursion",
-    target: "Selected Students",
-    event_date: "2026-10-02",
-    venue: "Physics Dham / Jaipur",
-  },
-  {
-    title: "IH Kabaddi",
-    category: "Sports",
-    target: "Inter-House",
-    event_date: "2026-10-05",
-    venue: "Sports Ground",
-    time: "5–7 Oct & 11–12 Oct",
-  },
-  {
-    title: "Mid-Term Review",
-    category: "Academic",
-    target: "Grades 11–12",
-    event_date: "2026-10-08",
-    venue: "Campus",
-  },
-  {
-    title: "Mid-Term Review",
-    category: "Academic",
-    target: "Grades 9–10",
-    event_date: "2026-10-09",
-    venue: "Campus",
-  },
-  {
-    title: "Mid-Term Review",
-    category: "Academic",
-    target: "Grades 7–8",
-    event_date: "2026-10-10",
-    venue: "Campus",
-  },
-  {
-    title: "Delhi Zoo Visit",
-    category: "Excursion",
-    target: "Grade 6",
-    event_date: "2026-10-12",
-    venue: "Delhi Zoo",
-  },
-  {
-    title: "Workshop",
-    category: "Academic",
-    target: "Grades 6–8",
-    event_date: "2026-10-14",
-    venue: "Campus",
-  },
-  {
-    title: "IH Painting Competition",
-    category: "Cultural",
-    target: "Grades 6–7",
-    event_date: "2026-10-15",
-    venue: "Campus",
-  },
-  {
-    title: "IH Painting Competition",
-    category: "Cultural",
-    target: "Grades 8–9",
-    event_date: "2026-10-16",
-    venue: "Campus",
-  },
-  {
-    title: "Inter-Disciplinary Trip to Agra",
-    category: "Excursion",
-    target: "Grades 7–8 & 11–12 Eco",
-    event_date: "2026-10-17",
-    venue: "Agra",
-  },
-  {
-    title: "Maha Navami",
-    category: "Cultural",
-    target: "School Community",
-    event_date: "2026-10-19",
-  },
-  {
-    title: "Dussehra",
-    category: "Cultural",
-    target: "School Community",
-    event_date: "2026-10-20",
-  },
-  {
-    title: "IH Badminton",
-    category: "Sports",
-    target: "Inter-House",
-    event_date: "2026-10-21",
-    venue: "Sports Ground",
-    time: "21–24 Oct",
-  },
-  {
-    title: "Visit to Delhi Haat",
-    category: "Excursion",
-    target: "Commerce & Economics",
-    event_date: "2026-10-26",
-    venue: "Delhi Haat",
-  },
-  {
-    title: "Annual Sports Practice",
-    category: "Sports",
-    target: "School Community",
-    event_date: "2026-10-26",
-    venue: "Sports Ground",
-    time: "26–31 Oct · Evening",
-  },
-  {
-    title: "Lit Fest 2026",
-    category: "Cultural",
-    target: "Inter-School Delegations",
-    event_date: "2026-10-30",
-    venue: "Campus",
-    time: "30–31 Oct",
-  },
-  {
-    title: "Syllabus Completion",
-    category: "Academic",
-    target: "Grades 10 & 12",
-    event_date: "2026-10-31",
-    venue: "Campus",
-  },
-  {
-    title: "History for Peace 2026",
-    category: "Academic",
-    target: "School Community",
-    event_date: "2026-11-02",
-    venue: "Campus",
-    time: "2–3 Nov",
-  },
-  {
-    title: "PTM",
-    category: "Academic",
-    target: "Parents & Students",
-    event_date: "2026-11-04",
-    venue: "Campus",
-  },
-  {
-    title: "Deepawali Break",
-    category: "Flagship",
-    target: "Students",
-    event_date: "2026-11-05",
-    time: "5–21 Nov",
-  },
-  {
-    title: "Reporting Day",
-    category: "Academic",
-    target: "Teachers",
-    event_date: "2026-11-17",
-    venue: "Campus",
-  },
-  {
-    title: "OLE",
-    category: "Academic",
-    target: "Teachers",
-    event_date: "2026-11-18",
-    venue: "Campus",
-    time: "18–21 Nov",
-  },
-  {
-    title: "Reporting Day",
-    category: "Academic",
-    target: "Students",
-    event_date: "2026-11-22",
-    venue: "Campus",
-  },
-  {
-    title: "Classes Begin",
-    category: "Academic",
-    target: "Students",
-    event_date: "2026-11-23",
-    venue: "Campus",
-  },
-  {
-    title: "Annual Sports Practice",
-    category: "Sports",
-    target: "School Community",
-    event_date: "2026-11-23",
-    venue: "Sports Ground",
-    time: "23–24 Nov · Evening",
-  },
-  {
-    title: "Annual Sports Day",
-    category: "Sports",
-    target: "All Houses",
-    event_date: "2026-11-28",
-    venue: "Sports Complex",
-  },
-  {
-    title: "Interaction with Mr. Solanki",
-    category: "Academic",
-    target: "School Community",
-    event_date: "2026-11-30",
-    venue: "Campus",
-    time: "Environmentalist Interaction",
-  },
-  {
-    title: "Itihaas Anveshan",
-    category: "Academic",
-    target: "School Community",
-    event_date: "2026-12-05",
-    venue: "Campus",
-  },
-  {
-    title: "VGEE",
-    category: "Academic",
-    target: "Eligible Students",
-    event_date: "2026-12-06",
-    venue: "Campus",
-  },
-  {
-    title: "Periodic Tests",
-    category: "Exams",
-    target: "Relevant Grades",
-    event_date: "2026-12-08",
-    venue: "Exam Halls",
-    time: "8–14 Dec",
-  },
-  {
-    title: "Pre-Board Examinations",
-    category: "Exams",
-    target: "Grades 10 & 12",
-    event_date: "2026-12-08",
-    venue: "Exam Halls",
-    time: "8–16 Dec",
-  },
-  {
-    title: "Inter-Section Choir",
-    category: "Cultural",
-    target: "Grade 6",
-    event_date: "2026-12-17",
-    venue: "Morning Assembly",
-  },
-  {
-    title: "PTM",
-    category: "Academic",
-    target: "Grades 6–9 & 11",
-    event_date: "2026-12-19",
-    venue: "Campus",
-  },
-  {
-    title: "Winter Break Begins",
-    category: "Flagship",
-    target: "Grades 6–9 & 11",
-    event_date: "2026-12-20",
-    time: "20 Dec – 9 Jan",
-  },
-  {
-    title: "Winter Camp",
-    category: "Academic",
-    target: "Grades 10 & 12",
-    event_date: "2026-12-21",
-    venue: "Campus",
-  },
-  {
-    title: "Christmas",
-    category: "Cultural",
-    target: "School Community",
-    event_date: "2026-12-25",
-  },
-  {
-    title: "New Year Eve Celebration",
-    category: "Cultural",
-    target: "School Community",
-    event_date: "2026-12-31",
-    venue: "Campus",
-  },
-  {
-    title: "Reporting Day",
-    category: "Academic",
-    target: "Teachers",
-    event_date: "2027-01-09",
-    venue: "Campus",
-  },
-  {
-    title: "Reporting Day",
-    category: "Academic",
-    target: "Students",
-    event_date: "2027-01-10",
-    venue: "Campus",
-  },
-  {
-    title: "Classes Begin",
-    category: "Academic",
-    target: "Students",
-    event_date: "2027-01-11",
-    venue: "Campus",
-  },
-  {
-    title: "ICCR International Festival",
-    category: "Cultural",
-    target: "Grade 8",
-    event_date: "2027-01-21",
-    venue: "Campus",
-    time: "21–23 Jan",
-  },
-  {
-    title: "IH Music Competition",
-    category: "Cultural",
-    target: "Grades 7–9",
-    event_date: "2027-01-25",
-    venue: "Campus",
-    time: "Singing / Orchestra",
-  },
-  {
-    title: "Republic Day",
-    category: "Flagship",
-    target: "School Community",
-    event_date: "2027-01-26",
-  },
-  {
-    title: "Visit to Book Fair",
-    category: "Excursion",
-    target: "Students",
-    event_date: "2027-01-30",
-    venue: "Book Fair",
-  },
-  {
-    title: "Annual Examinations",
-    category: "Exams",
-    target: "Grade 11",
-    event_date: "2027-02-09",
-    venue: "Exam Halls",
-    time: "9–17 Feb",
-  },
-  {
-    title: "Annual Examinations",
-    category: "Exams",
-    target: "Grade 9",
-    event_date: "2027-02-09",
-    venue: "Exam Halls",
-    time: "9–19 Feb",
-  },
-  {
-    title: "OLE",
-    category: "Academic",
-    target: "Grades 9 & 11",
-    event_date: "2027-02-22",
-    venue: "Campus",
-    time: "Proposed · 22–27 Feb",
-  },
-  {
-    title: "New Session Begins",
-    category: "Academic",
-    target: "Grades 10 & 12",
-    event_date: "2027-03-01",
-    venue: "Campus",
-  },
-  {
-    title: "Annual Examinations",
-    category: "Exams",
-    target: "Grades 6–8",
-    event_date: "2027-03-09",
-    venue: "Exam Halls",
-    time: "9–23 Mar",
-  },
-  {
-    title: "Holi",
-    category: "Cultural",
-    target: "School Community",
-    event_date: "2027-03-22",
-  },
-  {
-    title: "Session Break",
-    category: "Academic",
-    target: "Students",
-    event_date: "2027-03-27",
-    time: "27–31 Mar",
-  },
-  {
-    title: "In-Service Training",
-    category: "Academic",
-    target: "Staff",
-    event_date: "2027-03-29",
-    venue: "Campus",
-    time: "29–30 Mar",
-  },
-];
+type UserProfile = {
+  id: number;
+  name: string | null;
+  email: string;
+  role: string | null;
+  admin_status: string;
+};
 
 /* =========================================================
    HELPERS
@@ -618,7 +184,10 @@ function SectionHeading({
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
-  const [userRole, setUserRole] = useState("Council Member");
+
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState(false);
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -670,6 +239,9 @@ export default function Home() {
 
         if (session?.user?.email) {
           fetchUserProfile(session.user.email);
+        } else {
+          setProfile(null);
+          setProfileError(false);
         }
       }
     );
@@ -682,6 +254,9 @@ export default function Home() {
 
         if (session?.user?.email) {
           fetchUserProfile(session.user.email);
+        } else {
+          setProfile(null);
+          setProfileError(false);
         }
       }
     );
@@ -695,68 +270,66 @@ export default function Home() {
   }, []);
 
   /* =======================================================
-     USER ROLE
+     USER PROFILE
   ======================================================= */
 
   const fetchUserProfile = async (userEmail: string) => {
-  const { data, error } = await supabase
-    .from("allowed_users")
-    .select("id, name, email, role, admin_status")
-    .ilike("email", userEmail)
-    .maybeSingle();
+    setProfileLoading(true);
+    setProfileError(false);
 
-  if (error) {
-    console.error("Unable to fetch user profile:", error);
-    setRoleError(true);
-    return;
-  }
+    const { data, error } = await supabase
+      .from("allowed_users")
+      .select("id, name, email, role, admin_status")
+      .ilike("email", userEmail)
+      .maybeSingle();
 
-  if (data) {
-    setProfile(data);
-    setRoleError(false);
-  } else {
-    console.error("No portal profile found for:", userEmail);
-    setRoleError(true);
-  }
-};
+    if (error) {
+      console.error("Unable to fetch user profile:", error);
+      setProfile(null);
+      setProfileError(true);
+      setProfileLoading(false);
+      return;
+    }
+
+    if (data) {
+      setProfile(data as UserProfile);
+      setProfileError(false);
+    } else {
+      console.error("No portal profile found for:", userEmail);
+      setProfile(null);
+      setProfileError(true);
+    }
+
+    setProfileLoading(false);
+  };
 
   /* =======================================================
      DATABASE EVENTS
   ======================================================= */
 
   const fetchEvents = async () => {
+    const currentDate = getIndiaDateString();
+
     const { data, error } = await supabase
       .from("calendar_events")
-      .select("*")
-      .order("event_date", {
-        ascending: true,
-      });
+      .select(
+        "id, title, event_date, description, event_time, category, created_by, target"
+      )
+      .gte("event_date", currentDate)
+      .order("event_date", { ascending: true })
+      .order("event_time", { ascending: true });
 
     if (error) {
-      console.error(
-        "Unable to fetch calendar events:",
-        error
-      );
+      console.error("Unable to fetch calendar events:", error);
       return;
     }
 
-    if (!data) return;
+    if (!data) {
+      setSupabaseEvents([]);
+      return;
+    }
 
-    const formattedEvents: CalendarEvent[] =
-      data.map((event: any) => ({
-        id: event.id,
-        title: event.title,
-        event_date: event.event_date,
-        description: event.description,
-        event_time: event.event_time,
-        category: event.category,
-        created_by: event.created_by,
-        venue: event.description || "Campus",
-        target: event.target || "All Students",
-        time: event.event_time || "",
-      }));
-
-    setSupabaseEvents(formattedEvents);
+    setSupabaseEvents(data as CalendarEvent[]);
   };
 
   /* =======================================================
@@ -765,15 +338,17 @@ export default function Home() {
 
   const today = getIndiaDateString();
 
-  const allEvents = useMemo(() => {
-    return [...ANNUAL_EVENTS, ...supabaseEvents];
-  }, [supabaseEvents]);
-
   const sortedEvents = useMemo(() => {
-    return [...allEvents].sort((a, b) =>
-      a.event_date.localeCompare(b.event_date)
-    );
-  }, [allEvents]);
+    return [...supabaseEvents].sort((a, b) => {
+      const dateComparison = a.event_date.localeCompare(b.event_date);
+
+      if (dateComparison !== 0) {
+        return dateComparison;
+      }
+
+      return (a.event_time || "").localeCompare(b.event_time || "");
+    });
+  }, [supabaseEvents]);
 
   const todayEvents = useMemo(() => {
     return sortedEvents.filter(
@@ -783,9 +358,7 @@ export default function Home() {
 
   const upcomingEvents = useMemo(() => {
     return sortedEvents
-      .filter(
-        (event) => event.event_date >= today
-      )
+      .filter((event) => event.event_date >= today)
       .slice(0, 5);
   }, [sortedEvents, today]);
 
@@ -795,11 +368,7 @@ export default function Home() {
     ? daysUntil(nextEvent.event_date, today)
     : null;
 
-  const futureEventCount = useMemo(() => {
-    return allEvents.filter(
-      (event) => event.event_date >= today
-    ).length;
-  }, [allEvents, today]);
+  const futureEventCount = sortedEvents.length;
 
   /* =======================================================
      LOGIN
@@ -859,7 +428,9 @@ export default function Home() {
     await supabase.auth.signOut();
 
     setSession(null);
-    setUserRole("Council Member");
+    setProfile(null);
+    setProfileError(false);
+    setProfileLoading(false);
   };
 
   /* =======================================================
@@ -1161,8 +732,8 @@ export default function Home() {
                       {nextEvent.target ||
                         "School Community"}
 
-                      {nextEvent.venue &&
-                        ` · ${nextEvent.venue}`}
+                      {nextEvent.description &&
+                        ` · ${nextEvent.description}`}
                     </p>
 
                     <div className="mt-5 inline-flex rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white">
@@ -1292,11 +863,11 @@ export default function Home() {
                               {event.target ||
                                 "School Community"}
 
-                              {event.venue &&
-                                ` · ${event.venue}`}
+                              {event.description &&
+                                ` · ${event.description}`}
 
-                              {event.time &&
-                                ` · ${event.time}`}
+                              {event.event_time &&
+                                ` · ${event.event_time}`}
                             </p>
 
                           </div>
@@ -1400,11 +971,11 @@ export default function Home() {
                   "from-rose-50 to-pink-50",
               },
               {
-                title: "Resources",
+                title: "Study Material",
                 description:
-                  "Useful documents, links and institutional references.",
-                href: "/resources",
-                eyebrow: "Reference",
+                  "Notes, revision sheets, HOTS and VidyaGyan previous papers.",
+                href: "/study-material",
+                eyebrow: "Academics",
                 accent:
                   "from-cyan-50 to-sky-50",
               },
@@ -1487,13 +1058,26 @@ export default function Home() {
                         Current account
                       </div>
 
-                      <div className="mt-1 break-all text-sm font-semibold">
+                      <div className="mt-1 text-sm font-semibold">
+                        {profile?.name || "Verified School Account"}
+                      </div>
+
+                      <div className="mt-1 break-all text-xs text-blue-300">
                         {session.user.email}
                       </div>
 
                       <div className="mt-1 text-xs text-blue-300">
-                        {userRole}
+                        {profileLoading
+                          ? "Loading portal profile..."
+                          : profile?.role || "Student"}
                       </div>
+
+                      {profileError && (
+                        <p className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-[11px] leading-5 text-amber-100">
+                          Your school account is authenticated, but no
+                          matching portal profile could be loaded.
+                        </p>
+                      )}
 
                     </div>
                   )}
@@ -1697,10 +1281,10 @@ export default function Home() {
                 </Link>
 
                 <Link
-                  href="/resources"
+                  href="/study-material"
                   className="transition hover:text-blue-950"
                 >
-                  Resources
+                  Study Material
                 </Link>
 
               </div>
