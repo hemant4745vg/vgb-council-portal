@@ -56,7 +56,6 @@ const CATEGORY_CONFIG: Record<
     soft: string;
     border: string;
     bar: string;
-    accent: string;
   }
 > = {
   Academic: {
@@ -65,7 +64,6 @@ const CATEGORY_CONFIG: Record<
     soft: "bg-blue-50",
     border: "border-blue-100",
     bar: "bg-blue-100 text-blue-800",
-    accent: "bg-blue-600",
   },
   Exams: {
     dot: "bg-violet-500",
@@ -73,7 +71,6 @@ const CATEGORY_CONFIG: Record<
     soft: "bg-violet-50",
     border: "border-violet-100",
     bar: "bg-violet-100 text-violet-800",
-    accent: "bg-violet-600",
   },
   Cultural: {
     dot: "bg-rose-500",
@@ -81,7 +78,6 @@ const CATEGORY_CONFIG: Record<
     soft: "bg-rose-50",
     border: "border-rose-100",
     bar: "bg-rose-100 text-rose-800",
-    accent: "bg-rose-600",
   },
   Sports: {
     dot: "bg-emerald-500",
@@ -89,7 +85,6 @@ const CATEGORY_CONFIG: Record<
     soft: "bg-emerald-50",
     border: "border-emerald-100",
     bar: "bg-emerald-100 text-emerald-800",
-    accent: "bg-emerald-600",
   },
   Excursion: {
     dot: "bg-cyan-500",
@@ -97,7 +92,6 @@ const CATEGORY_CONFIG: Record<
     soft: "bg-cyan-50",
     border: "border-cyan-100",
     bar: "bg-cyan-100 text-cyan-800",
-    accent: "bg-cyan-600",
   },
   Flagship: {
     dot: "bg-amber-500",
@@ -105,7 +99,6 @@ const CATEGORY_CONFIG: Record<
     soft: "bg-amber-50",
     border: "border-amber-100",
     bar: "bg-amber-100 text-amber-800",
-    accent: "bg-amber-500",
   },
   Holiday: {
     dot: "bg-orange-500",
@@ -113,12 +106,11 @@ const CATEGORY_CONFIG: Record<
     soft: "bg-orange-50",
     border: "border-orange-100",
     bar: "bg-orange-100 text-orange-800",
-    accent: "bg-orange-500",
   },
 };
 
 const FILTERS: Array<{ key: Category | "All"; label: string }> = [
-  { key: "All", label: "All events" },
+  { key: "All", label: "All" },
   { key: "Academic", label: "Academic" },
   { key: "Exams", label: "Exams" },
   { key: "Cultural", label: "Cultural" },
@@ -198,17 +190,9 @@ function formatPeriod(period: Period) {
     )}`;
   }
 
-  if (start.getFullYear() === end.getFullYear()) {
-    return `${start.getDate()} ${start.toLocaleDateString("en-IN", {
-      month: "short",
-    })} – ${end.getDate()} ${end.toLocaleDateString("en-IN", {
-      month: "short",
-    })}`;
-  }
-
-  return `${formatShortDate(period.start)} ${start.getFullYear()} – ${formatShortDate(
+  return `${formatShortDate(period.start)} – ${formatShortDate(
     period.end
-  )} ${end.getFullYear()}`;
+  )}`;
 }
 
 function formatPeriods(periods: Period[]) {
@@ -236,22 +220,24 @@ function eventTouchesMonth(
 
 function firstEventDate(event: CalendarEvent) {
   return (
-    [...event.periods]
-      .sort((a, b) => a.start.localeCompare(b.start))[0]?.start ??
-    "9999-12-31"
+    [...event.periods].sort((a, b) =>
+      a.start.localeCompare(b.start)
+    )[0]?.start ?? "9999-12-31"
   );
 }
 
 function lastEventDate(event: CalendarEvent) {
   return (
-    [...event.periods]
-      .sort((a, b) => b.end.localeCompare(a.end))[0]?.end ??
-    "0000-01-01"
+    [...event.periods].sort((a, b) =>
+      b.end.localeCompare(a.end)
+    )[0]?.end ?? "0000-01-01"
   );
 }
 
 function isMultiDay(event: CalendarEvent) {
-  return event.periods.some((period) => period.start !== period.end);
+  return event.periods.some(
+    (period) => period.start !== period.end
+  );
 }
 
 function normalizeCategory(value?: string | null): Category {
@@ -290,11 +276,12 @@ function normalizeEvents(
   }
 
   return rawEvents.map((event) => {
-    const dbPeriods = periodsByEvent.get(String(event.id)) ?? [];
+    const dbPeriods =
+      periodsByEvent.get(String(event.id)) ?? [];
 
     const periods =
       dbPeriods.length > 0
-        ? [...dbPeriods].sort((a, b) =>
+        ? dbPeriods.sort((a, b) =>
             a.start.localeCompare(b.start)
           )
         : [
@@ -411,16 +398,72 @@ function CalendarIcon() {
         x="3.5"
         y="5"
         width="17"
-        height="15.5"
+        height="15"
         rx="2.5"
         stroke="currentColor"
-        strokeWidth="1.7"
+        strokeWidth="1.6"
       />
       <path
-        d="M7.5 3.5v4M16.5 3.5v4M3.5 9.5h17"
+        d="M7.5 3.5V7M16.5 3.5V7M3.5 9.5h17"
         stroke="currentColor"
-        strokeWidth="1.7"
+        strokeWidth="1.6"
         strokeLinecap="round"
+      />
+      <path
+        d="M8 13h.01M12 13h.01M16 13h.01M8 16.5h.01M12 16.5h.01"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function MapPinIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        d="M15.5 8.2c0 4.2-5.5 8.3-5.5 8.3S4.5 12.4 4.5 8.2a5.5 5.5 0 1 1 11 0Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="10"
+        cy="8"
+        r="1.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <circle
+        cx="10"
+        cy="10"
+        r="6.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M10 6.5v3.8l2.6 1.7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -454,23 +497,38 @@ function DetailRow({
 }
 
 export default function CalendarPage() {
-  const todayKey = useMemo(() => toDateKey(new Date()), []);
-  const today = useMemo(() => fromDateKey(todayKey), [todayKey]);
+  const todayKey = useMemo(
+    () => toDateKey(new Date()),
+    []
+  );
+
+  const today = useMemo(
+    () => fromDateKey(todayKey),
+    [todayKey]
+  );
 
   const [currentMonth, setCurrentMonth] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1)
   );
 
-  const [selectedDate, setSelectedDate] = useState(todayKey);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(
-    null
-  );
+  const [selectedDate, setSelectedDate] =
+    useState(todayKey);
 
-  const [category, setCategory] = useState<Category | "All">("All");
+  const [selectedEventId, setSelectedEventId] =
+    useState<string | null>(null);
+
+  const [category, setCategory] =
+    useState<Category | "All">("All");
+
   const [search, setSearch] = useState("");
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+
+  const [events, setEvents] =
+    useState<CalendarEvent[]>([]);
+
   const [loading, setLoading] = useState(true);
-  const [calendarError, setCalendarError] = useState<string | null>(null);
+
+  const [calendarError, setCalendarError] =
+    useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -479,29 +537,44 @@ export default function CalendarPage() {
       setLoading(true);
       setCalendarError(null);
 
-      const [eventsResponse, periodsResponse] = await Promise.all([
-        supabase
-          .from("calendar_events")
-          .select("*")
-          .order("event_date", { ascending: true }),
+      const [eventsResponse, periodsResponse] =
+        await Promise.all([
+          supabase
+            .from("calendar_events")
+            .select(
+              "id,title,event_date,description,event_time,category,created_by,target,venue"
+            )
+            .order("event_date", {
+              ascending: true,
+            }),
 
-        supabase
-          .from("calendar_event_periods")
-          .select("*")
-          .order("start_date", { ascending: true }),
-      ]);
+          supabase
+            .from("calendar_event_periods")
+            .select(
+              "id,event_id,start_date,end_date"
+            )
+            .order("start_date", {
+              ascending: true,
+            }),
+        ]);
 
       if (!mounted) return;
 
-      if (eventsResponse.error || periodsResponse.error) {
+      if (
+        eventsResponse.error ||
+        periodsResponse.error
+      ) {
         console.error("Calendar loading error:", {
           eventsError: eventsResponse.error,
           periodsError: periodsResponse.error,
         });
 
-        setCalendarError(
-          "The calendar could not be loaded from the portal database."
-        );
+        const errorMessage =
+          eventsResponse.error?.message ||
+          periodsResponse.error?.message ||
+          "Unable to load calendar data.";
+
+        setCalendarError(errorMessage);
         setEvents([]);
         setLoading(false);
         return;
@@ -530,7 +603,8 @@ export default function CalendarPage() {
     return events
       .filter(
         (event) =>
-          category === "All" || event.category === category
+          category === "All" ||
+          event.category === category
       )
       .filter((event) => {
         if (!query) return true;
@@ -545,50 +619,44 @@ export default function CalendarPage() {
         ]
           .filter(Boolean)
           .some((value) =>
-            String(value).toLowerCase().includes(query)
+            String(value)
+              .toLowerCase()
+              .includes(query)
           );
       })
       .sort(
         (a, b) =>
-          firstEventDate(a).localeCompare(firstEventDate(b)) ||
+          firstEventDate(a).localeCompare(
+            firstEventDate(b)
+          ) ||
           a.title.localeCompare(b.title)
       );
   }, [events, category, search]);
 
-  const currentMonthEvents = useMemo(() => {
-    return filteredEvents.filter((event) =>
-      eventTouchesMonth(
-        event,
-        currentMonth.getFullYear(),
-        currentMonth.getMonth()
-      )
-    );
-  }, [filteredEvents, currentMonth]);
-
-  const selectedDateEvents = useMemo(() => {
-    return filteredEvents.filter((event) =>
-      eventOccursOn(event, selectedDate)
-    );
-  }, [filteredEvents, selectedDate]);
+  const selectedDateEvents = useMemo(
+    () =>
+      filteredEvents.filter((event) =>
+        eventOccursOn(event, selectedDate)
+      ),
+    [filteredEvents, selectedDate]
+  );
 
   const selectedEvent = useMemo(() => {
     if (!selectedEventId) return null;
 
     return (
-      filteredEvents.find((event) => event.id === selectedEventId) ??
-      null
+      filteredEvents.find(
+        (event) => event.id === selectedEventId
+      ) ?? null
     );
   }, [filteredEvents, selectedEventId]);
 
   const upcomingEvents = useMemo(() => {
     return filteredEvents
-      .filter((event) => lastEventDate(event) >= todayKey)
-      .sort(
-        (a, b) =>
-          firstEventDate(a).localeCompare(firstEventDate(b)) ||
-          a.title.localeCompare(b.title)
+      .filter(
+        (event) => lastEventDate(event) >= todayKey
       )
-      .slice(0, 6);
+      .slice(0, 7);
   }, [filteredEvents, todayKey]);
 
   const calendarDays = useMemo(() => {
@@ -598,10 +666,18 @@ export default function CalendarPage() {
     const first = new Date(year, month, 1);
     const last = new Date(year, month + 1, 0);
 
-    const firstGridDay = addDays(first, -first.getDay());
-    const lastGridDay = addDays(last, 6 - last.getDay());
+    const firstGridDay = addDays(
+      first,
+      -first.getDay()
+    );
+
+    const lastGridDay = addDays(
+      last,
+      6 - last.getDay()
+    );
 
     const days: Date[] = [];
+
     let cursor = firstGridDay;
 
     while (cursor <= lastGridDay) {
@@ -615,14 +691,33 @@ export default function CalendarPage() {
   const weeks = useMemo(() => {
     const result: Date[][] = [];
 
-    for (let i = 0; i < calendarDays.length; i += 7) {
-      result.push(calendarDays.slice(i, i + 7));
+    for (
+      let i = 0;
+      i < calendarDays.length;
+      i += 7
+    ) {
+      result.push(
+        calendarDays.slice(i, i + 7)
+      );
     }
 
     return result;
   }, [calendarDays]);
 
-  const monthLabel = formatMonthYear(currentMonth);
+  const currentMonthEvents = useMemo(
+    () =>
+      filteredEvents.filter((event) =>
+        eventTouchesMonth(
+          event,
+          currentMonth.getFullYear(),
+          currentMonth.getMonth()
+        )
+      ),
+    [filteredEvents, currentMonth]
+  );
+
+  const monthLabel =
+    formatMonthYear(currentMonth);
 
   const goMonth = (amount: number) => {
     setCurrentMonth(
@@ -633,13 +728,19 @@ export default function CalendarPage() {
           1
         )
     );
+
     setSelectedEventId(null);
   };
 
   const goToday = () => {
     setCurrentMonth(
-      new Date(today.getFullYear(), today.getMonth(), 1)
+      new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1
+      )
     );
+
     setSelectedDate(todayKey);
     setSelectedEventId(null);
   };
@@ -651,24 +752,40 @@ export default function CalendarPage() {
 
     if (
       date.getMonth() !== currentMonth.getMonth() ||
-      date.getFullYear() !== currentMonth.getFullYear()
+      date.getFullYear() !==
+        currentMonth.getFullYear()
     ) {
-      setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+      setCurrentMonth(
+        new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          1
+        )
+      );
     }
 
     setSelectedEventId(null);
   };
 
-  const selectEvent = (event: CalendarEvent, dateKey?: string) => {
+  const selectEvent = (
+    event: CalendarEvent,
+    dateKey?: string
+  ) => {
     setSelectedEventId(event.id);
 
-    const targetDate = dateKey || firstEventDate(event);
+    const targetDate =
+      dateKey || firstEventDate(event);
+
     setSelectedDate(targetDate);
 
     const date = fromDateKey(targetDate);
 
     setCurrentMonth(
-      new Date(date.getFullYear(), date.getMonth(), 1)
+      new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        1
+      )
     );
   };
 
@@ -678,21 +795,18 @@ export default function CalendarPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f6f8fb] text-slate-900">
-      <div className="mx-auto max-w-[1540px] px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-8">
-
-        {/* =========================================================
-            HEADER
-        ========================================================== */}
+    <main className="min-h-screen bg-[#f6f7f9] text-slate-900">
+      <div className="mx-auto max-w-[1580px] px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-8">
+        {/* HEADER */}
         <header className="mb-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
                 VidyaGyan Bulandshahr
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="mt-3 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm">
                   <CalendarIcon />
                 </div>
@@ -703,50 +817,44 @@ export default function CalendarPage() {
                   </h1>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Everything happening across the 2026–27 academic year.
+                    Academic year 2026–27
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[10px] font-bold text-slate-500 shadow-sm">
-                Academic Year
-                <span className="ml-1.5 text-slate-900">2026–27</span>
+              <div className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-[10px] font-bold text-slate-500 shadow-sm">
+                {events.length} events
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[10px] font-bold text-slate-500 shadow-sm">
-                <span className="text-slate-900">{events.length}</span>{" "}
-                events
+              <div className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-[10px] font-bold text-slate-500 shadow-sm">
+                {currentMonthEvents.length} this month
               </div>
             </div>
           </div>
         </header>
 
-        {/* =========================================================
-            TOOLBAR
-        ========================================================== */}
-        <section className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+        {/* TOOLBAR */}
+        <section className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
-
-            {/* Month navigation */}
-            <div className="flex items-center">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => goMonth(-1)}
                 aria-label="Previous month"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
               >
                 <ChevronLeft />
               </button>
 
-              <div className="mx-3 min-w-[175px] text-center">
+              <div className="min-w-[190px] px-2 text-center">
                 <div className="text-lg font-bold tracking-tight text-slate-950">
                   {monthLabel}
                 </div>
 
-                <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">
-                  {currentMonthEvents.length} scheduled
+                <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  2026–27 academic calendar
                 </div>
               </div>
 
@@ -754,7 +862,7 @@ export default function CalendarPage() {
                 type="button"
                 onClick={() => goMonth(1)}
                 aria-label="Next month"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
               >
                 <ChevronRight />
               </button>
@@ -762,15 +870,14 @@ export default function CalendarPage() {
               <button
                 type="button"
                 onClick={goToday}
-                className="ml-2 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-slate-800"
+                className="ml-1 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-slate-800"
               >
                 Today
               </button>
             </div>
 
-            {/* Search */}
-            <div className="relative w-full xl:max-w-md">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+            <div className="relative w-full xl:max-w-sm">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                 <SearchIcon />
               </span>
 
@@ -780,7 +887,7 @@ export default function CalendarPage() {
                   setSearch(event.target.value)
                 }
                 placeholder="Search events, grades, venues..."
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-9 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
               />
 
               {search && (
@@ -788,7 +895,7 @@ export default function CalendarPage() {
                   type="button"
                   onClick={() => setSearch("")}
                   aria-label="Clear search"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 >
                   <CloseIcon />
                 </button>
@@ -796,18 +903,20 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* Category filters */}
           <div className="border-t border-slate-100 px-4 py-3 sm:px-5">
-            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+            <div className="flex items-center gap-2 overflow-x-auto">
               {FILTERS.map((item) => {
-                const active = category === item.key;
+                const active =
+                  category === item.key;
 
                 return (
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setCategory(item.key)}
-                    className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-[10px] font-bold transition ${
+                    onClick={() =>
+                      setCategory(item.key)
+                    }
+                    className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition ${
                       active
                         ? "border-slate-950 bg-slate-950 text-white"
                         : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-800"
@@ -818,7 +927,9 @@ export default function CalendarPage() {
                         className={`h-1.5 w-1.5 rounded-full ${
                           active
                             ? "bg-white"
-                            : CATEGORY_CONFIG[item.key].dot
+                            : CATEGORY_CONFIG[
+                                item.key
+                              ].dot
                         }`}
                       />
                     )}
@@ -828,11 +939,12 @@ export default function CalendarPage() {
                 );
               })}
 
-              {(search || category !== "All") && (
+              {(search ||
+                category !== "All") && (
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="ml-auto shrink-0 px-2 text-[10px] font-bold text-blue-600 transition hover:text-blue-800"
+                  className="ml-auto shrink-0 px-2 text-[10px] font-semibold text-blue-600 hover:text-blue-800"
                 >
                   Clear filters
                 </button>
@@ -841,63 +953,80 @@ export default function CalendarPage() {
           </div>
         </section>
 
-        {/* =========================================================
-            ERROR
-        ========================================================== */}
+        {/* ERROR */}
         {calendarError && (
-          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-xs text-amber-800 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="font-bold">
-                Calendar data could not be loaded.
-              </div>
-              <div className="mt-0.5 text-amber-700">
-                Check the Supabase connection and refresh the page.
-              </div>
+          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
+            <div className="text-xs font-bold text-red-800">
+              Calendar data could not be loaded.
             </div>
 
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="shrink-0 rounded-lg bg-amber-900 px-3 py-2 text-[10px] font-bold text-white hover:bg-amber-800"
-            >
-              Refresh
-            </button>
+            <p className="mt-1 text-[11px] leading-5 text-red-700">
+              {calendarError}
+            </p>
+
+            <p className="mt-2 text-[10px] text-red-600">
+              Check the Supabase API key and client
+              configuration, then refresh the page.
+            </p>
           </div>
         )}
 
-        {/* =========================================================
-            MAIN CONTENT
-        ========================================================== */}
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_350px]">
-
-          {/* =======================================================
-              CALENDAR
-          ======================================================== */}
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-
-            {/* Weekday header */}
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/80">
+        {/* CALENDAR + DETAILS */}
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          {/* CALENDAR */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {/* WEEKDAYS */}
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
               {WEEKDAYS.map((day) => (
                 <div
                   key={day.short}
-                  title={day.full}
-                  className="border-r border-slate-100 px-2 py-3 text-center text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 last:border-r-0 sm:text-[10px]"
+                  className="border-r border-slate-100 px-2 py-3 text-center last:border-r-0"
                 >
-                  <span className="sm:hidden">{day.short.charAt(0)}</span>
-                  <span className="hidden sm:inline">{day.short}</span>
+                  <span className="hidden text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 sm:block">
+                    {day.full}
+                  </span>
+
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 sm:hidden">
+                    {day.short}
+                  </span>
                 </div>
               ))}
             </div>
 
-            {/* Calendar body */}
+            {/* MONTH GRID */}
             {loading ? (
-              <div className="grid min-h-[690px] place-items-center">
+              <div className="grid min-h-[680px] place-items-center">
                 <div className="text-center">
                   <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
 
-                  <p className="mt-3 text-xs font-medium text-slate-400">
+                  <p className="mt-3 text-xs font-semibold text-slate-400">
                     Loading calendar...
                   </p>
+                </div>
+              </div>
+            ) : filteredEvents.length === 0 ? (
+              <div className="grid min-h-[680px] place-items-center px-6">
+                <div className="max-w-sm text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                    <CalendarIcon />
+                  </div>
+
+                  <h2 className="mt-4 text-sm font-bold text-slate-700">
+                    No events found
+                  </h2>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    No calendar events match the
+                    current search or category filter.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="mt-4 rounded-lg bg-slate-950 px-3 py-2 text-[10px] font-bold text-white hover:bg-slate-800"
+                  >
+                    Clear filters
+                  </button>
                 </div>
               </div>
             ) : (
@@ -908,52 +1037,71 @@ export default function CalendarPage() {
                     className="grid grid-cols-7"
                   >
                     {week.map((date) => {
-                      const dateKey = toDateKey(date);
+                      const dateKey =
+                        toDateKey(date);
 
                       const inMonth =
-                        date.getMonth() === currentMonth.getMonth() &&
+                        date.getMonth() ===
+                          currentMonth.getMonth() &&
                         date.getFullYear() ===
                           currentMonth.getFullYear();
 
-                      const isToday = dateKey === todayKey;
-                      const isSelected = dateKey === selectedDate;
+                      const isToday =
+                        dateKey === todayKey;
 
-                      const dayEvents = filteredEvents.filter((event) =>
-                        eventOccursOn(event, dateKey)
-                      );
+                      const isSelected =
+                        dateKey === selectedDate;
 
-                      const visibleEvents = dayEvents.slice(0, 4);
+                      const dayEvents =
+                        filteredEvents.filter(
+                          (event) =>
+                            eventOccursOn(
+                              event,
+                              dateKey
+                            )
+                        );
+
+                      const visibleEvents =
+                        dayEvents.slice(0, 4);
 
                       const moreCount = Math.max(
-                        dayEvents.length - visibleEvents.length,
+                        dayEvents.length -
+                          visibleEvents.length,
                         0
                       );
 
                       return (
-                        <button
+                        <div
                           key={dateKey}
-                          type="button"
-                          onClick={() => selectDate(dateKey)}
-                          className={`group relative min-h-[138px] border-b border-r border-slate-100 p-2 text-left transition last:border-r-0 sm:min-h-[155px] sm:p-2.5 ${
+                          className={`relative min-h-[132px] border-b border-r border-slate-100 p-2 transition sm:min-h-[148px] sm:p-2.5 ${
                             !inMonth
-                              ? "bg-slate-50/60"
-                              : "bg-white hover:bg-slate-50/70"
+                              ? "bg-slate-50/70"
+                              : "bg-white"
                           } ${
                             isSelected
-                              ? "bg-blue-50/40 ring-1 ring-inset ring-blue-100"
+                              ? "bg-blue-50/50"
                               : ""
                           }`}
                         >
-                          {/* Date */}
-                          <div className="flex items-center justify-between">
+                          {/* DATE BUTTON */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              selectDate(dateKey)
+                            }
+                            aria-label={`Select ${formatLongDate(
+                              dateKey
+                            )}`}
+                            className="group/date flex w-full items-center justify-between text-left"
+                          >
                             <span
-                              className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-xs font-bold ${
+                              className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-xs font-bold transition ${
                                 isToday
                                   ? "bg-blue-600 text-white shadow-sm"
                                   : isSelected
                                     ? "bg-blue-100 text-blue-800"
                                     : inMonth
-                                      ? "text-slate-700"
+                                      ? "text-slate-700 group-hover/date:bg-slate-100"
                                       : "text-slate-300"
                               }`}
                             >
@@ -961,86 +1109,103 @@ export default function CalendarPage() {
                             </span>
 
                             {isToday && (
-                              <span className="hidden text-[8px] font-bold uppercase tracking-[0.12em] text-blue-600 sm:block">
+                              <span className="hidden text-[8px] font-bold uppercase tracking-[0.14em] text-blue-600 sm:block">
                                 Today
                               </span>
                             )}
-                          </div>
+                          </button>
 
-                          {/* Events */}
+                          {/* EVENTS */}
                           <div className="mt-2 space-y-1">
-                            {visibleEvents.map((event) => {
-                              const config =
-                                CATEGORY_CONFIG[event.category];
+                            {visibleEvents.map(
+                              (event) => {
+                                const config =
+                                  CATEGORY_CONFIG[
+                                    event.category
+                                  ];
 
-                              const startsHere = event.periods.some(
-                                (period) => period.start === dateKey
-                              );
+                                const startsHere =
+                                  event.periods.some(
+                                    (period) =>
+                                      period.start ===
+                                      dateKey
+                                  );
 
-                              const endsHere = event.periods.some(
-                                (period) => period.end === dateKey
-                              );
+                                const endsHere =
+                                  event.periods.some(
+                                    (period) =>
+                                      period.end ===
+                                      dateKey
+                                  );
 
-                              const multiDay =
-                                isMultiDay(event) &&
-                                eventOccursOn(event, dateKey);
+                                const multiDay =
+                                  isMultiDay(event) &&
+                                  eventOccursOn(
+                                    event,
+                                    dateKey
+                                  );
 
-                              return (
-                                <span
-                                  key={`${event.id}-${dateKey}`}
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    selectEvent(event, dateKey);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (
-                                      e.key === "Enter" ||
-                                      e.key === " "
-                                    ) {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      selectEvent(event, dateKey);
+                                return (
+                                  <button
+                                    key={`${event.id}-${dateKey}`}
+                                    type="button"
+                                    onClick={() =>
+                                      selectEvent(
+                                        event,
+                                        dateKey
+                                      )
                                     }
-                                  }}
-                                  title={`${event.title} · ${formatPeriods(
-                                    event.periods
-                                  )}`}
-                                  className={`group/event flex min-w-0 items-center gap-1.5 text-left text-[9px] font-semibold leading-4 transition sm:text-[10px] ${
-                                    multiDay
-                                      ? `${config.bar} ${
-                                          startsHere
-                                            ? "rounded-l-md"
-                                            : "-ml-2 rounded-l-none"
-                                        } ${
-                                          endsHere
-                                            ? "rounded-r-md"
-                                            : "-mr-2 rounded-r-none"
-                                        } px-1.5 py-1`
-                                      : `${config.soft} ${config.text} rounded-md border ${config.border} px-1.5 py-1`
-                                  } ${
-                                    selectedEventId === event.id
-                                      ? "ring-2 ring-blue-400/30"
-                                      : "hover:brightness-95"
-                                  }`}
-                                >
-                                  <EventDot category={event.category} />
+                                    title={`${event.title} · ${formatPeriods(
+                                      event.periods
+                                    )}`}
+                                    className={`group/event flex w-full min-w-0 items-center gap-1.5 text-left text-[9px] font-semibold leading-4 transition sm:text-[10px] ${
+                                      multiDay
+                                        ? `${config.bar} ${
+                                            startsHere
+                                              ? "rounded-l-md"
+                                              : "-ml-2 rounded-l-none"
+                                          } ${
+                                            endsHere
+                                              ? "rounded-r-md"
+                                              : "-mr-2 rounded-r-none"
+                                          } px-1.5 py-1`
+                                        : `${config.soft} ${config.text} rounded-md border ${config.border} px-1.5 py-1`
+                                    } ${
+                                      selectedEventId ===
+                                      event.id
+                                        ? "ring-2 ring-blue-400/30"
+                                        : "hover:brightness-95"
+                                    }`}
+                                  >
+                                    <EventDot
+                                      category={
+                                        event.category
+                                      }
+                                    />
 
-                                  <span className="min-w-0 truncate">
-                                    {event.title}
-                                  </span>
-                                </span>
-                              );
-                            })}
+                                    <span className="min-w-0 truncate">
+                                      {event.title}
+                                    </span>
+                                  </button>
+                                );
+                              }
+                            )}
 
                             {moreCount > 0 && (
-                              <span className="block px-1 text-[9px] font-bold text-slate-400">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  selectDate(
+                                    dateKey
+                                  )
+                                }
+                                className="block px-1 text-[9px] font-bold text-slate-400 hover:text-slate-700"
+                              >
                                 +{moreCount} more
-                              </span>
+                              </button>
                             )}
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -1048,8 +1213,8 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* Legend */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 px-4 py-3.5 sm:px-5">
+            {/* LEGEND */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 px-4 py-3 sm:px-5">
               {FILTERS.filter(
                 (item) => item.key !== "All"
               ).map((item) => (
@@ -1069,26 +1234,15 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* =======================================================
-              SIDEBAR
-          ======================================================== */}
-          <aside className="flex min-h-[650px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-
-            {/* Selected day */}
+          {/* SIDE PANEL */}
+          <aside className="flex min-h-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {/* SELECTED DATE */}
             <div className="border-b border-slate-100 p-5">
-              <div className="flex items-center justify-between">
-                <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-blue-600">
-                  Selected day
-                </div>
-
-                {selectedDate === todayKey && (
-                  <span className="rounded-full bg-blue-50 px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-blue-700">
-                    Today
-                  </span>
-                )}
+              <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-blue-600">
+                Selected day
               </div>
 
-              <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-950">
+              <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
                 {formatLongDate(selectedDate)}
               </h2>
 
@@ -1096,113 +1250,110 @@ export default function CalendarPage() {
                 {selectedDateEvents.length === 0
                   ? "No matching events"
                   : `${selectedDateEvents.length} event${
-                      selectedDateEvents.length === 1 ? "" : "s"
+                      selectedDateEvents.length ===
+                      1
+                        ? ""
+                        : "s"
                     }`}
               </p>
             </div>
 
             <div className="flex-1 overflow-y-auto">
-
-              {/* Selected date events */}
+              {/* DAY EVENTS */}
               <div className="border-b border-slate-100 p-4">
-                {selectedDateEvents.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center">
+                {selectedDateEvents.length ===
+                0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-7 text-center">
                     <div className="text-sm font-semibold text-slate-600">
                       Nothing scheduled
                     </div>
 
                     <p className="mt-1 text-[10px] leading-5 text-slate-400">
-                      No events match the current filters for
-                      this date.
+                      No events match the current
+                      filters for this date.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {selectedDateEvents.map((event) => {
-                      const config =
-                        CATEGORY_CONFIG[event.category];
+                    {selectedDateEvents.map(
+                      (event) => {
+                        const config =
+                          CATEGORY_CONFIG[
+                            event.category
+                          ];
 
-                      const active =
-                        selectedEventId === event.id;
+                        const active =
+                          selectedEventId ===
+                          event.id;
 
-                      return (
-                        <button
-                          key={event.id}
-                          type="button"
-                          onClick={() =>
-                            selectEvent(event, selectedDate)
-                          }
-                          className={`w-full rounded-xl border p-3 text-left transition ${
-                            active
-                              ? `${config.soft} ${config.border}`
-                              : "border-slate-100 hover:border-slate-200 hover:bg-slate-50"
-                          }`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <span
-                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${config.dot}`}
-                            />
+                        return (
+                          <button
+                            key={event.id}
+                            type="button"
+                            onClick={() =>
+                              selectEvent(
+                                event,
+                                selectedDate
+                              )
+                            }
+                            className={`w-full rounded-xl border p-3 text-left transition ${
+                              active
+                                ? `${config.soft} ${config.border}`
+                                : "border-slate-100 hover:border-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <span
+                                className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${config.dot}`}
+                              />
 
-                            <div className="min-w-0 flex-1">
-                              <div className="text-xs font-bold leading-4 text-slate-800">
-                                {event.title}
-                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-bold leading-4 text-slate-800">
+                                  {event.title}
+                                </div>
 
-                              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span
-                                  className={`text-[9px] font-bold ${config.text}`}
+                                <p
+                                  className={`mt-1 text-[10px] font-semibold ${config.text}`}
                                 >
                                   {event.category}
-                                </span>
+                                </p>
 
-                                {event.time && (
-                                  <>
-                                    <span className="text-[9px] text-slate-300">
-                                      •
-                                    </span>
-
-                                    <span className="text-[9px] text-slate-400">
-                                      {event.time}
-                                    </span>
-                                  </>
+                                {event.target && (
+                                  <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                                    {event.target}
+                                  </p>
                                 )}
                               </div>
-
-                              {event.target && (
-                                <p className="mt-1 truncate text-[10px] text-slate-500">
-                                  {event.target}
-                                </p>
-                              )}
                             </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      }
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Event details */}
+              {/* EVENT DETAILS */}
               {selectedEvent && (
                 <div className="border-b border-slate-100 p-5">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={`rounded-md border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em] ${
-                        CATEGORY_CONFIG[selectedEvent.category].soft
+                        CATEGORY_CONFIG[
+                          selectedEvent.category
+                        ].soft
                       } ${
-                        CATEGORY_CONFIG[selectedEvent.category].text
+                        CATEGORY_CONFIG[
+                          selectedEvent.category
+                        ].text
                       } ${
-                        CATEGORY_CONFIG[selectedEvent.category].border
+                        CATEGORY_CONFIG[
+                          selectedEvent.category
+                        ].border
                       }`}
                     >
                       {selectedEvent.category}
                     </span>
-
-                    {isMultiDay(selectedEvent) && (
-                      <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                        Multi-day
-                      </span>
-                    )}
                   </div>
 
                   <h3 className="mt-3 text-lg font-bold leading-6 tracking-tight text-slate-950">
@@ -1210,7 +1361,9 @@ export default function CalendarPage() {
                   </h3>
 
                   <p className="mt-1 text-xs font-medium text-slate-500">
-                    {formatPeriods(selectedEvent.periods)}
+                    {formatPeriods(
+                      selectedEvent.periods
+                    )}
                   </p>
 
                   <div className="mt-4">
@@ -1246,6 +1399,25 @@ export default function CalendarPage() {
                     />
                   </div>
 
+                  {(selectedEvent.venue ||
+                    selectedEvent.time) && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {selectedEvent.venue && (
+                        <div className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-2 text-[9px] font-semibold text-slate-500">
+                          <MapPinIcon />
+                          {selectedEvent.venue}
+                        </div>
+                      )}
+
+                      {selectedEvent.time && (
+                        <div className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-2 text-[9px] font-semibold text-slate-500">
+                          <ClockIcon />
+                          {selectedEvent.time}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {selectedEvent.description && (
                     <div className="mt-4 rounded-xl bg-slate-50 px-3.5 py-3 text-[11px] leading-5 text-slate-600">
                       {selectedEvent.description}
@@ -1264,7 +1436,7 @@ export default function CalendarPage() {
                 </div>
               )}
 
-              {/* Upcoming */}
+              {/* UPCOMING */}
               <div className="p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
@@ -1277,84 +1449,97 @@ export default function CalendarPage() {
                     </div>
                   </div>
 
-                  <span className="rounded-full bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-400">
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-500">
                     {upcomingEvents.length}
                   </span>
                 </div>
 
-                {upcomingEvents.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-[10px] text-slate-400">
-                    No upcoming events match the current filters.
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {upcomingEvents.map((event) => {
-                      const config =
-                        CATEGORY_CONFIG[event.category];
+                <div className="space-y-1">
+                  {upcomingEvents.length ===
+                  0 ? (
+                    <div className="rounded-xl bg-slate-50 px-3 py-4 text-center text-[10px] text-slate-400">
+                      No upcoming events.
+                    </div>
+                  ) : (
+                    upcomingEvents.map(
+                      (event) => {
+                        const config =
+                          CATEGORY_CONFIG[
+                            event.category
+                          ];
 
-                      const eventDate =
-                        firstEventDate(event);
+                        const eventDate =
+                          firstEventDate(event);
 
-                      const date =
-                        fromDateKey(eventDate);
+                        return (
+                          <button
+                            key={`upcoming-${event.id}`}
+                            type="button"
+                            onClick={() =>
+                              selectEvent(event)
+                            }
+                            className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition hover:bg-slate-50"
+                          >
+                            <div className="w-10 shrink-0 text-center">
+                              <div className="text-[8px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                                {fromDateKey(
+                                  eventDate
+                                ).toLocaleDateString(
+                                  "en-IN",
+                                  {
+                                    month:
+                                      "short",
+                                  }
+                                )}
+                              </div>
 
-                      return (
-                        <button
-                          key={`upcoming-${event.id}`}
-                          type="button"
-                          onClick={() =>
-                            selectEvent(event)
-                          }
-                          className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition hover:bg-slate-50"
-                        >
-                          <div className="w-10 shrink-0 text-center">
-                            <div className="text-[8px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                              {date.toLocaleDateString(
-                                "en-IN",
-                                { month: "short" }
-                              )}
+                              <div className="text-lg font-bold leading-5 text-slate-800">
+                                {fromDateKey(
+                                  eventDate
+                                ).getDate()}
+                              </div>
                             </div>
 
-                            <div className="text-lg font-bold leading-5 text-slate-800">
-                              {date.getDate()}
+                            <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${config.dot}`}
+                                />
+
+                                <span className="truncate text-[11px] font-bold text-slate-700">
+                                  {event.title}
+                                </span>
+                              </div>
+
+                              <p className="mt-0.5 truncate text-[9px] text-slate-400">
+                                {formatPeriods(
+                                  event.periods
+                                )}
+                              </p>
                             </div>
-                          </div>
-
-                          <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${config.dot}`}
-                              />
-
-                              <span className="truncate text-[11px] font-bold text-slate-700">
-                                {event.title}
-                              </span>
-                            </div>
-
-                            <p className="mt-0.5 truncate text-[9px] text-slate-400">
-                              {formatPeriods(event.periods)}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                          </button>
+                        );
+                      }
+                    )
+                  )}
+                </div>
               </div>
             </div>
           </aside>
         </section>
 
-        {/* Filter status */}
+        {/* FILTER STATUS */}
         {(search || category !== "All") && (
           <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-[10px] font-medium text-blue-700">
             Showing{" "}
-            <span className="font-bold">
+            <strong>
               {filteredEvents.length}
-            </span>{" "}
+            </strong>{" "}
             matching event
-            {filteredEvents.length === 1 ? "" : "s"}.
-
+            {filteredEvents.length === 1
+              ? ""
+              : "s"}
+            .
             <button
               type="button"
               onClick={clearFilters}
@@ -1365,10 +1550,10 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* Footer */}
+        {/* FOOTER */}
         <footer className="px-1 pb-2 pt-6 text-center text-[9px] leading-5 text-slate-400">
-          Calendar information is maintained through the
-          VidyaGyan Bulandshahr portal database.
+          Calendar information is maintained through
+          the VidyaGyan Bulandshahr portal database.
         </footer>
       </div>
     </main>
