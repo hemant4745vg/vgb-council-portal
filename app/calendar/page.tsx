@@ -48,6 +48,16 @@ type RawPeriod = {
   end_date: string;
 };
 
+type WeekSegment = {
+  event: CalendarEvent;
+  startIndex: number;
+  endIndex: number;
+  lane: number;
+  periodIndex: number;
+  isEventStart: boolean;
+  isEventEnd: boolean;
+};
+
 const CATEGORY_CONFIG: Record<
   Category,
   {
@@ -186,7 +196,9 @@ function formatPeriod(period: Period) {
   ) {
     return `${start.getDate()}–${end.getDate()} ${start.toLocaleDateString(
       "en-IN",
-      { month: "short" }
+      {
+        month: "short",
+      }
     )}`;
   }
 
@@ -234,12 +246,6 @@ function lastEventDate(event: CalendarEvent) {
   );
 }
 
-function isMultiDay(event: CalendarEvent) {
-  return event.periods.some(
-    (period) => period.start !== period.end
-  );
-}
-
 function normalizeCategory(value?: string | null): Category {
   if (
     value === "Academic" ||
@@ -276,14 +282,11 @@ function normalizeEvents(
   }
 
   return rawEvents.map((event) => {
-    const dbPeriods =
-      periodsByEvent.get(String(event.id)) ?? [];
+    const dbPeriods = periodsByEvent.get(String(event.id)) ?? [];
 
     const periods =
       dbPeriods.length > 0
-        ? dbPeriods.sort((a, b) =>
-            a.start.localeCompare(b.start)
-          )
+        ? dbPeriods.sort((a, b) => a.start.localeCompare(b.start))
         : [
             {
               start: event.event_date,
@@ -301,6 +304,98 @@ function normalizeEvents(
       time: event.event_time || undefined,
       description: event.description || undefined,
       createdBy: event.created_by || undefined,
+    };
+  });
+}
+
+/**
+ * Converts the events intersecting a single calendar week into
+ * horizontal segments. Each segment occupies one lane so overlapping
+ * events remain readable.
+ */
+function buildWeekSegments(
+  week: Date[],
+  events: CalendarEvent[]
+): WeekSegment[] {
+  const weekStart = toDateKey(week[0]);
+  const weekEnd = toDateKey(week[6]);
+
+  const rawSegments: Omit<WeekSegment, "lane">[] = [];
+
+  events.forEach((event) => {
+    event.periods.forEach((period, periodIndex) => {
+      if (period.end < weekStart || period.start > weekEnd) {
+        return;
+      }
+
+      const visibleStart =
+        period.start < weekStart ? weekStart : period.start;
+
+      const visibleEnd =
+        period.end > weekEnd ? weekEnd : period.end;
+
+      const startIndex = Math.max(
+        0,
+        Math.round(
+          (fromDateKey(visibleStart).getTime() -
+            fromDateKey(weekStart).getTime()) /
+            (24 * 60 * 60 * 1000)
+        )
+      );
+
+      const endIndex = Math.min(
+        6,
+        Math.round(
+          (fromDateKey(visibleEnd).getTime() -
+            fromDateKey(weekStart).getTime()) /
+            (24 * 60 * 60 * 1000)
+        )
+      );
+
+      rawSegments.push({
+        event,
+        startIndex,
+        endIndex,
+        periodIndex,
+        isEventStart: period.start === visibleStart,
+        isEventEnd: period.end === visibleEnd,
+      });
+    });
+  });
+
+  rawSegments.sort((a, b) => {
+    if (a.startIndex !== b.startIndex) {
+      return a.startIndex - b.startIndex;
+    }
+
+    if (a.endIndex !== b.endIndex) {
+      return b.endIndex - a.endIndex;
+    }
+
+    return a.event.title.localeCompare(b.event.title);
+  });
+
+  const laneEndIndices: number[] = [];
+
+  return rawSegments.map((segment) => {
+    let lane = 0;
+
+    while (
+      lane < laneEndIndices.length &&
+      laneEndIndices[lane] >= segment.startIndex
+    ) {
+      lane += 1;
+    }
+
+    if (lane === laneEndIndices.length) {
+      laneEndIndices.push(segment.endIndex);
+    } else {
+      laneEndIndices[lane] = segment.endIndex;
+    }
+
+    return {
+      ...segment,
+      lane,
     };
   });
 }
@@ -489,6 +584,7 @@ function DetailRow({
       <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">
         {label}
       </div>
+
       <div className="mt-1 text-sm font-medium leading-5 text-slate-700">
         {value}
       </div>
@@ -497,10 +593,7 @@ function DetailRow({
 }
 
 export default function CalendarPage() {
-  const todayKey = useMemo(
-    () => toDateKey(new Date()),
-    []
-  );
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
 
   const today = useMemo(
     () => fromDateKey(todayKey),
@@ -798,7 +891,7 @@ export default function CalendarPage() {
     <main className="min-h-screen bg-[#f6f7f9] text-slate-900">
       <div className="mx-auto max-w-[1580px] px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-8">
         {/* HEADER */}
-        <header className="mb-6">
+        <header className="mb-5">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">
@@ -823,13 +916,19 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <div className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-[10px] font-bold text-slate-500 shadow-sm">
-                {events.length} events
+                <span className="text-slate-800">
+                  {events.length}
+                </span>{" "}
+                events
               </div>
 
               <div className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-[10px] font-bold text-slate-500 shadow-sm">
-                {currentMonthEvents.length} this month
+                <span className="text-slate-800">
+                  {currentMonthEvents.length}
+                </span>{" "}
+                this month
               </div>
             </div>
           </div>
@@ -972,15 +1071,19 @@ export default function CalendarPage() {
         )}
 
         {/* CALENDAR + DETAILS */}
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_350px]">
           {/* CALENDAR */}
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {/* WEEKDAYS */}
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
-              {WEEKDAYS.map((day) => (
+              {WEEKDAYS.map((day, index) => (
                 <div
                   key={day.short}
-                  className="border-r border-slate-100 px-2 py-3 text-center last:border-r-0"
+                  className={`border-r border-slate-100 px-2 py-3 text-center last:border-r-0 ${
+                    index === 0 || index === 6
+                      ? "bg-slate-100/70"
+                      : ""
+                  }`}
                 >
                   <span className="hidden text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 sm:block">
                     {day.full}
@@ -1031,215 +1134,218 @@ export default function CalendarPage() {
               </div>
             ) : (
               <div>
-                {weeks.map((week, weekIndex) => (
-                  <div
-                    key={`week-${weekIndex}`}
-                    className="grid grid-cols-7"
-                  >
-                    {week.map((date) => {
-                      const dateKey =
-                        toDateKey(date);
+                {weeks.map((week, weekIndex) => {
+                  const weekSegments =
+                    buildWeekSegments(
+                      week,
+                      filteredEvents
+                    );
 
-                      const inMonth =
-                        date.getMonth() ===
-                          currentMonth.getMonth() &&
-                        date.getFullYear() ===
-                          currentMonth.getFullYear();
+                  const laneCount =
+                    weekSegments.length === 0
+                      ? 0
+                      : Math.max(
+                          ...weekSegments.map(
+                            (segment) =>
+                              segment.lane
+                          )
+                        ) + 1;
 
-                      const isToday =
-                        dateKey === todayKey;
+                  const rowHeight = Math.max(
+                    146,
+                    52 + laneCount * 27
+                  );
 
-                      const isSelected =
-                        dateKey === selectedDate;
+                  return (
+                    <div
+                      key={`week-${weekIndex}`}
+                      className="relative grid grid-cols-7"
+                      style={{
+                        minHeight: `${rowHeight}px`,
+                      }}
+                    >
+                      {/* DATE CELLS */}
+                      {week.map((date) => {
+                        const dateKey =
+                          toDateKey(date);
 
-                      const dayEvents =
-                        filteredEvents.filter(
-                          (event) =>
-                            eventOccursOn(
-                              event,
-                              dateKey
-                            )
-                        );
+                        const inMonth =
+                          date.getMonth() ===
+                            currentMonth.getMonth() &&
+                          date.getFullYear() ===
+                            currentMonth.getFullYear();
 
-                      const visibleEvents =
-                        dayEvents.slice(0, 4);
+                        const isToday =
+                          dateKey === todayKey;
 
-                      const moreCount = Math.max(
-                        dayEvents.length -
-                          visibleEvents.length,
-                        0
-                      );
+                        const isSelected =
+                          dateKey === selectedDate;
 
-                      return (
-                        <div
-                          key={dateKey}
-                          className={`relative min-h-[132px] border-b border-r border-slate-100 p-2 transition sm:min-h-[148px] sm:p-2.5 ${
-                            !inMonth
-                              ? "bg-slate-50/70"
-                              : "bg-white"
-                          } ${
-                            isSelected
-                              ? "bg-blue-50/50"
-                              : ""
-                          }`}
-                        >
-                          {/* DATE BUTTON */}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              selectDate(dateKey)
-                            }
-                            aria-label={`Select ${formatLongDate(
-                              dateKey
-                            )}`}
-                            className="group/date flex w-full items-center justify-between text-left"
+                        const isWeekend =
+                          date.getDay() === 0 ||
+                          date.getDay() === 6;
+
+                        return (
+                          <div
+                            key={dateKey}
+                            className={`relative min-w-0 border-b border-r border-slate-100 p-2 transition sm:p-2.5 ${
+                              !inMonth
+                                ? "bg-slate-50/75"
+                                : isWeekend
+                                  ? "bg-slate-50/35"
+                                  : "bg-white"
+                            } ${
+                              isSelected
+                                ? "bg-blue-50/45"
+                                : ""
+                            }`}
+                            style={{
+                              minHeight: `${rowHeight}px`,
+                            }}
                           >
-                            <span
-                              className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-xs font-bold transition ${
-                                isToday
-                                  ? "bg-blue-600 text-white shadow-sm"
-                                  : isSelected
-                                    ? "bg-blue-100 text-blue-800"
-                                    : inMonth
-                                      ? "text-slate-700 group-hover/date:bg-slate-100"
-                                      : "text-slate-300"
-                              }`}
-                            >
-                              {date.getDate()}
-                            </span>
-
-                            {isToday && (
-                              <span className="hidden text-[8px] font-bold uppercase tracking-[0.14em] text-blue-600 sm:block">
-                                Today
-                              </span>
-                            )}
-                          </button>
-
-                          {/* EVENTS */}
-                          <div className="mt-2 space-y-1">
-                            {visibleEvents.map(
-                              (event) => {
-                                const config =
-                                  CATEGORY_CONFIG[
-                                    event.category
-                                  ];
-
-                                const startsHere =
-                                  event.periods.some(
-                                    (period) =>
-                                      period.start ===
-                                      dateKey
-                                  );
-
-                                const endsHere =
-                                  event.periods.some(
-                                    (period) =>
-                                      period.end ===
-                                      dateKey
-                                  );
-
-                                const multiDay =
-                                  isMultiDay(event) &&
-                                  eventOccursOn(
-                                    event,
-                                    dateKey
-                                  );
-
-                                return (
-                                  <button
-                                    key={`${event.id}-${dateKey}`}
-                                    type="button"
-                                    onClick={() =>
-                                      selectEvent(
-                                        event,
-                                        dateKey
-                                      )
-                                    }
-                                    title={`${event.title} · ${formatPeriods(
-                                      event.periods
-                                    )}`}
-                                    className={`group/event flex w-full min-w-0 items-center gap-1.5 text-left text-[9px] font-semibold leading-4 transition sm:text-[10px] ${
-                                      multiDay
-                                        ? `${config.bar} ${
-                                            startsHere
-                                              ? "rounded-l-md"
-                                              : "-ml-2 rounded-l-none"
-                                          } ${
-                                            endsHere
-                                              ? "rounded-r-md"
-                                              : "-mr-2 rounded-r-none"
-                                          } px-1.5 py-1`
-                                        : `${config.soft} ${config.text} rounded-md border ${config.border} px-1.5 py-1`
-                                    } ${
-                                      selectedEventId ===
-                                      event.id
-                                        ? "ring-2 ring-blue-400/30"
-                                        : "hover:brightness-95"
-                                    }`}
-                                  >
-                                    <EventDot
-                                      category={
-                                        event.category
-                                      }
-                                    />
-
-                                    <span className="min-w-0 truncate">
-                                      {event.title}
-                                    </span>
-                                  </button>
-                                );
+                            <button
+                              type="button"
+                              onClick={() =>
+                                selectDate(
+                                  dateKey
+                                )
                               }
-                            )}
+                              aria-label={`Select ${formatLongDate(
+                                dateKey
+                              )}`}
+                              className="group/date relative z-10 flex w-full items-center justify-between text-left"
+                            >
+                              <span
+                                className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-xs font-bold transition ${
+                                  isToday
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : isSelected
+                                      ? "bg-blue-100 text-blue-800"
+                                      : inMonth
+                                        ? "text-slate-700 group-hover/date:bg-slate-100"
+                                        : "text-slate-300"
+                                }`}
+                              >
+                                {date.getDate()}
+                              </span>
 
-                            {moreCount > 0 && (
+                              {isToday && (
+                                <span className="hidden text-[8px] font-bold uppercase tracking-[0.14em] text-blue-600 sm:block">
+                                  Today
+                                </span>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      {/* EVENT BARS */}
+                      <div className="pointer-events-none absolute inset-x-0 top-0 grid grid-cols-7">
+                        {weekSegments.map(
+                          (segment) => {
+                            const config =
+                              CATEGORY_CONFIG[
+                                segment.event.category
+                              ];
+
+                            const multiDay =
+                              segment.startIndex !==
+                              segment.endIndex;
+
+                            const roundedLeft =
+                              !multiDay ||
+                              segment.isEventStart;
+
+                            const roundedRight =
+                              !multiDay ||
+                              segment.isEventEnd;
+
+                            return (
                               <button
+                                key={`${segment.event.id}-${segment.periodIndex}-${weekIndex}`}
                                 type="button"
                                 onClick={() =>
-                                  selectDate(
-                                    dateKey
+                                  selectEvent(
+                                    segment.event,
+                                    toDateKey(
+                                      addDays(
+                                        week[0],
+                                        segment.startIndex
+                                      )
+                                    )
                                   )
                                 }
-                                className="block px-1 text-[9px] font-bold text-slate-400 hover:text-slate-700"
+                                title={`${segment.event.title} · ${formatPeriods(
+                                  segment.event.periods
+                                )}`}
+                                aria-label={`Select ${segment.event.title}`}
+                                className={`pointer-events-auto relative z-20 mx-0.5 flex h-[23px] min-w-0 items-center gap-1.5 px-2 text-left text-[9px] font-semibold leading-4 transition sm:mx-1 sm:text-[10px] ${
+                                  config.bar
+                                } ${
+                                  roundedLeft
+                                    ? "rounded-l-md"
+                                    : ""
+                                } ${
+                                  roundedRight
+                                    ? "rounded-r-md"
+                                    : ""
+                                } ${
+                                  selectedEventId ===
+                                  segment.event.id
+                                    ? "z-30 ring-2 ring-blue-400/40"
+                                    : "hover:brightness-95"
+                                }`}
+                                style={{
+                                  gridColumn: `${
+                                    segment.startIndex +
+                                    1
+                                  } / ${
+                                    segment.endIndex +
+                                    2
+                                  }`,
+                                  marginTop: `${
+                                    40 +
+                                    segment.lane *
+                                      27
+                                  }px`,
+                                }}
                               >
-                                +{moreCount} more
+                                <EventDot
+                                  category={
+                                    segment.event
+                                      .category
+                                  }
+                                />
+
+                                <span className="min-w-0 truncate">
+                                  {segment.event.title}
+                                </span>
                               </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
-
-            {/* LEGEND */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 px-4 py-3 sm:px-5">
-              {FILTERS.filter(
-                (item) => item.key !== "All"
-              ).map((item) => (
-                <div
-                  key={item.key}
-                  className="inline-flex items-center gap-1.5 text-[9px] font-medium text-slate-500"
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      CATEGORY_CONFIG[item.key].dot
-                    }`}
-                  />
-
-                  {item.label}
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* SIDE PANEL */}
           <aside className="flex min-h-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {/* SELECTED DATE */}
             <div className="border-b border-slate-100 p-5">
-              <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-blue-600">
-                Selected day
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-blue-600">
+                  Selected day
+                </div>
+
+                {selectedDate === todayKey && (
+                  <span className="rounded-full bg-blue-50 px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-blue-700">
+                    Today
+                  </span>
+                )}
               </div>
 
               <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
@@ -1274,7 +1380,7 @@ export default function CalendarPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {selectedDateEvents.map(
                       (event) => {
                         const config =
@@ -1312,17 +1418,25 @@ export default function CalendarPage() {
                                   {event.title}
                                 </div>
 
-                                <p
-                                  className={`mt-1 text-[10px] font-semibold ${config.text}`}
-                                >
-                                  {event.category}
-                                </p>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  <span
+                                    className={`text-[9px] font-bold ${config.text}`}
+                                  >
+                                    {event.category}
+                                  </span>
 
-                                {event.target && (
-                                  <p className="mt-0.5 truncate text-[10px] text-slate-500">
-                                    {event.target}
-                                  </p>
-                                )}
+                                  {event.target && (
+                                    <>
+                                      <span className="text-[8px] text-slate-300">
+                                        •
+                                      </span>
+
+                                      <span className="truncate text-[9px] text-slate-500">
+                                        {event.target}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </button>
@@ -1405,7 +1519,9 @@ export default function CalendarPage() {
                       {selectedEvent.venue && (
                         <div className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-2 text-[9px] font-semibold text-slate-500">
                           <MapPinIcon />
-                          {selectedEvent.venue}
+                          <span className="truncate">
+                            {selectedEvent.venue}
+                          </span>
                         </div>
                       )}
 
@@ -1441,11 +1557,11 @@ export default function CalendarPage() {
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                      Upcoming
+                      Up next
                     </div>
 
                     <div className="mt-0.5 text-sm font-bold text-slate-800">
-                      Next events
+                      Upcoming events
                     </div>
                   </div>
 
@@ -1454,7 +1570,7 @@ export default function CalendarPage() {
                   </span>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {upcomingEvents.length ===
                   0 ? (
                     <div className="rounded-xl bg-slate-50 px-3 py-4 text-center text-[10px] text-slate-400">
@@ -1462,7 +1578,7 @@ export default function CalendarPage() {
                     </div>
                   ) : (
                     upcomingEvents.map(
-                      (event) => {
+                      (event, index) => {
                         const config =
                           CATEGORY_CONFIG[
                             event.category
@@ -1471,6 +1587,13 @@ export default function CalendarPage() {
                         const eventDate =
                           firstEventDate(event);
 
+                        const eventDateObject =
+                          fromDateKey(eventDate);
+
+                        const isLast =
+                          index ===
+                          upcomingEvents.length - 1;
+
                         return (
                           <button
                             key={`upcoming-${event.id}`}
@@ -1478,13 +1601,11 @@ export default function CalendarPage() {
                             onClick={() =>
                               selectEvent(event)
                             }
-                            className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition hover:bg-slate-50"
+                            className="group flex w-full items-stretch gap-3 rounded-xl p-2 text-left transition hover:bg-slate-50"
                           >
-                            <div className="w-10 shrink-0 text-center">
+                            <div className="flex w-10 shrink-0 flex-col items-center">
                               <div className="text-[8px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                                {fromDateKey(
-                                  eventDate
-                                ).toLocaleDateString(
+                                {eventDateObject.toLocaleDateString(
                                   "en-IN",
                                   {
                                     month:
@@ -1494,24 +1615,26 @@ export default function CalendarPage() {
                               </div>
 
                               <div className="text-lg font-bold leading-5 text-slate-800">
-                                {fromDateKey(
-                                  eventDate
-                                ).getDate()}
+                                {eventDateObject.getDate()}
                               </div>
+
+                              {!isLast && (
+                                <div className="mt-1 w-px flex-1 bg-slate-200" />
+                              )}
                             </div>
 
-                            <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
-                              <div className="flex items-center gap-1.5">
+                            <div className="min-w-0 flex-1 border-l border-slate-100 pl-3 pb-2">
+                              <div className="flex items-start gap-1.5">
                                 <span
-                                  className={`h-1.5 w-1.5 rounded-full ${config.dot}`}
+                                  className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${config.dot}`}
                                 />
 
-                                <span className="truncate text-[11px] font-bold text-slate-700">
+                                <span className="line-clamp-2 text-[11px] font-bold leading-4 text-slate-700 group-hover:text-slate-950">
                                   {event.title}
                                 </span>
                               </div>
 
-                              <p className="mt-0.5 truncate text-[9px] text-slate-400">
+                              <p className="mt-1 text-[9px] text-slate-400">
                                 {formatPeriods(
                                   event.periods
                                 )}
