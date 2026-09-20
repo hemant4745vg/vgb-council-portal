@@ -6,7 +6,7 @@ import { createClient, type Session } from "@supabase/supabase-js";
 
 const supabase = createClient(
   "https://lllmgmfofwczpqbmigey.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJsbGxtZ21mb2Z3Y3BxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
 );
 
 type UserProfile = {
@@ -126,47 +126,34 @@ export default function Dashboard() {
     console.log("Loading portal profile for:", userEmail);
 
     const { data, error } = await supabase.rpc(
-  "get_my_portal_profile"
-);
+      "get_my_portal_profile"
+    );
 
-console.log("Portal profile RPC response:", {
-  data,
-  error,
-});
+    console.log("Portal profile RPC response:", {
+      data,
+      error,
+    });
 
-if (error) {
-  console.error("Portal profile RPC failed:", error);
-  setProfile(null);
-  setProfileError(true);
-  setProfileLoading(false);
-  return;
-}
+    if (error) {
+      console.error("Portal profile RPC failed:", error);
+      setProfile(null);
+      setProfileError(true);
+      setProfileLoading(false);
+      return;
+    }
 
-const profileData = Array.isArray(data) ? data[0] : data;
+    const profileData: RpcProfile | null = Array.isArray(data)
+      ? (data[0] as RpcProfile | undefined) ?? null
+      : (data as RpcProfile | null);
 
-if (!profileData) {
-  console.error(
-    "Portal profile RPC returned no profile for:",
-    userEmail
-  );
-  setProfile(null);
-  setProfileError(true);
-  setProfileLoading(false);
-  return;
-}
-
-setProfile({
-  id: Number(profileData.id),
-  name: profileData.name ?? null,
-  email: profileData.email ?? userEmail,
-  role: profileData.role ?? null,
-  admin_status:
-    profileData.admin_status === "yes" ? "yes" : "no",
-});
-
-setProfileError(false);
-setProfileLoading(false);
-
+    if (!profileData) {
+      console.error(
+        "Portal profile RPC returned no profile for:",
+        userEmail
+      );
+      setProfile(null);
+      setProfileError(true);
+      setProfileLoading(false);
       return;
     }
 
@@ -179,7 +166,10 @@ setProfileLoading(false);
         profileData.admin_status === "yes" ? "yes" : "no",
     };
 
-    console.log("Normalized portal profile:", normalizedProfile);
+    console.log(
+      "Normalized portal profile:",
+      normalizedProfile
+    );
 
     setProfile(normalizedProfile);
     setProfileError(false);
@@ -215,27 +205,29 @@ setProfileLoading(false);
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!mounted) return;
+    } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        if (!mounted) return;
 
-      setSession(nextSession);
+        setSession(nextSession);
 
-      if (nextSession?.user?.email) {
-        /*
-         * Defer the profile request slightly so the auth
-         * state has fully settled before the RPC runs.
-         */
-        window.setTimeout(() => {
-          if (!mounted) return;
+        if (nextSession?.user?.email) {
+          /**
+           * Defer the profile request slightly so the auth
+           * state has fully settled before the RPC runs.
+           */
+          window.setTimeout(() => {
+            if (!mounted) return;
 
-          loadProfile(nextSession.user.email!);
-        }, 0);
-      } else {
-        setProfile(null);
-        setProfileError(false);
-        setProfileLoading(false);
+            loadProfile(nextSession.user.email!);
+          }, 0);
+        } else {
+          setProfile(null);
+          setProfileError(false);
+          setProfileLoading(false);
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -379,7 +371,11 @@ setProfileLoading(false);
           <Stat
             label="Account"
             value={isAdmin ? "Admin" : "Verified"}
-            detail={isAdmin ? "Administrative access" : "Portal account"}
+            detail={
+              isAdmin
+                ? "Administrative access"
+                : "Portal account"
+            }
           />
         </section>
 
@@ -428,7 +424,9 @@ setProfileLoading(false);
               </p>
 
               <p className="mt-2 text-sm font-semibold text-slate-900">
-                {profileLoading ? "Loading…" : role || "Student"}
+                {profileLoading
+                  ? "Loading…"
+                  : role || "Student"}
               </p>
             </div>
 
@@ -584,7 +582,9 @@ setProfileLoading(false);
             ].map((x) => (
               <div key={x.t} className="bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-semibold text-slate-900">{x.t}</h3>
+                  <h3 className="font-semibold text-slate-900">
+                    {x.t}
+                  </h3>
 
                   <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
                     {x.s}
