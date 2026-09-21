@@ -44,6 +44,32 @@ const CLASSES = [
   "XII",
 ];
 
+const SUBJECTS = [
+  "English",
+  "Hindi",
+  "Mathematics",
+  "Applied Mathematics",
+  "Science",
+  "Social Science",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Economics",
+  "Political Science",
+  "History",
+  "Geography",
+  "Accountancy",
+  "Business Studies",
+  "Informatics Practices",
+  "Information Technology",
+  "Artificial Intelligence",
+  "Sanskrit",
+  "Psychology",
+  "Sociology",
+  "Physical Education",
+  "Painting",
+];
+
 const MATERIAL_TYPES: MaterialType[] = [
   "Notes",
   "Revision Sheet",
@@ -106,25 +132,35 @@ const TYPE_STYLES: Record<
 };
 
 export default function DashboardStudyMaterialPage() {
-  const [profile, setProfile] = useState<PortalProfile | null>(null);
-  const [checkingAccess, setCheckingAccess] = useState(true);
+  const [profile, setProfile] =
+    useState<PortalProfile | null>(null);
 
-  const [materials, setMaterials] = useState<StudyMaterial[]>([]);
-  const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [checkingAccess, setCheckingAccess] =
+    useState(true);
+
+  const [materials, setMaterials] =
+    useState<StudyMaterial[]>([]);
+
+  const [loadingMaterials, setLoadingMaterials] =
+    useState(false);
 
   const [search, setSearch] = useState("");
   const [filterClass, setFilterClass] = useState("All");
+
   const [filterType, setFilterType] = useState<
     MaterialType | "All"
   >("All");
 
   const [uploading, setUploading] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(
-    null
-  );
 
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [deletingId, setDeletingId] =
+    useState<number | null>(null);
+
+  const [successMessage, setSuccessMessage] =
+    useState("");
+
+  const [errorMessage, setErrorMessage] =
+    useState("");
 
   const [form, setForm] = useState({
     title: "",
@@ -163,9 +199,11 @@ export default function DashboardStudyMaterialPage() {
 
     if (error) {
       console.error("Profile check failed:", error);
+
       setErrorMessage(
         "We couldn't verify your dashboard permissions."
       );
+
       setCheckingAccess(false);
       return;
     }
@@ -193,11 +231,15 @@ export default function DashboardStudyMaterialPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Study material fetch failed:", error);
+      console.error(
+        "Study material fetch failed:",
+        error
+      );
 
       setErrorMessage(
         "Unable to load the study material library."
       );
+
       setMaterials([]);
     } else {
       setMaterials((data || []) as StudyMaterial[]);
@@ -231,7 +273,9 @@ export default function DashboardStudyMaterialPage() {
         ]
           .filter(Boolean)
           .some((value) =>
-            String(value).toLowerCase().includes(query)
+            String(value)
+              .toLowerCase()
+              .includes(query)
           );
 
       return (
@@ -240,17 +284,12 @@ export default function DashboardStudyMaterialPage() {
         matchesSearch
       );
     });
-  }, [materials, search, filterClass, filterType]);
-
-  const subjects = useMemo(() => {
-    return Array.from(
-      new Set(
-        materials
-          .map((material) => material.subject)
-          .filter(Boolean)
-      )
-    ).sort();
-  }, [materials]);
+  }, [
+    materials,
+    search,
+    filterClass,
+    filterType,
+  ]);
 
   function updateForm(
     field: keyof typeof form,
@@ -268,7 +307,8 @@ export default function DashboardStudyMaterialPage() {
     setErrorMessage("");
     setSuccessMessage("");
 
-    const file = event.target.files?.[0] || null;
+    const file =
+      event.target.files?.[0] || null;
 
     if (!file) {
       setSelectedFile(null);
@@ -322,13 +362,24 @@ export default function DashboardStudyMaterialPage() {
       return;
     }
 
-    if (!form.subject.trim()) {
-      setErrorMessage("Please enter a subject.");
+    if (!form.subject) {
+      setErrorMessage(
+        "Please select a subject."
+      );
+      return;
+    }
+
+    if (!SUBJECTS.includes(form.subject)) {
+      setErrorMessage(
+        "Please select a valid subject from the subject list."
+      );
       return;
     }
 
     if (!selectedFile) {
-      setErrorMessage("Please choose a file to upload.");
+      setErrorMessage(
+        "Please choose a file to upload."
+      );
       return;
     }
 
@@ -349,8 +400,12 @@ export default function DashboardStudyMaterialPage() {
        * Re-check admin status immediately before the upload.
        * The UI check above is not treated as the security boundary.
        */
-      const { data: profileData, error: profileError } =
-        await supabase.rpc("get_my_portal_profile");
+      const {
+        data: profileData,
+        error: profileError,
+      } = await supabase.rpc(
+        "get_my_portal_profile"
+      );
 
       if (profileError) {
         throw new Error(
@@ -358,12 +413,14 @@ export default function DashboardStudyMaterialPage() {
         );
       }
 
-      const currentProfile = Array.isArray(profileData)
-        ? profileData[0]
-        : profileData;
+      const currentProfile =
+        Array.isArray(profileData)
+          ? profileData[0]
+          : profileData;
 
       if (
-        currentProfile?.admin_status?.toLowerCase() !== "yes"
+        currentProfile?.admin_status?.toLowerCase() !==
+        "yes"
       ) {
         throw new Error(
           "You do not have permission to upload study material."
@@ -371,8 +428,10 @@ export default function DashboardStudyMaterialPage() {
       }
 
       const extension =
-        selectedFile.name.split(".").pop()?.toLowerCase() ||
-        "file";
+        selectedFile.name
+          .split(".")
+          .pop()
+          ?.toLowerCase() || "file";
 
       const safeTitle = form.title
         .trim()
@@ -382,25 +441,37 @@ export default function DashboardStudyMaterialPage() {
 
       const uniqueId = crypto.randomUUID();
 
+      const safeSubject = form.subject
+        .replace(/[^a-zA-Z0-9-_ ]/g, "")
+        .replace(/\s+/g, "-");
+
       const storagePath = [
         form.classLevel,
-        form.subject
-          .trim()
-          .replace(/[^a-zA-Z0-9-_ ]/g, "")
-          .replace(/\s+/g, "-"),
+        safeSubject,
         `${uniqueId}-${safeTitle}.${extension}`,
       ].join("/");
 
-      const { error: uploadError } =
-        await supabase.storage
-          .from("study-materials")
-          .upload(storagePath, selectedFile, {
+      const {
+        error: uploadError,
+      } = await supabase.storage
+        .from("study-materials")
+        .upload(
+          storagePath,
+          selectedFile,
+          {
             cacheControl: "3600",
             upsert: false,
-          });
+            contentType:
+              selectedFile.type || undefined,
+          }
+        );
 
       if (uploadError) {
-        console.error("Storage upload failed:", uploadError);
+        console.error(
+          "Storage upload failed:",
+          uploadError
+        );
+
         throw new Error(
           uploadError.message ||
             "The file could not be uploaded."
@@ -416,15 +487,20 @@ export default function DashboardStudyMaterialPage() {
       const publicUrl =
         publicUrlData?.publicUrl || null;
 
-      const { error: insertError } = await supabase
+      const {
+        error: insertError,
+      } = await supabase
         .from("study_materials")
         .insert({
           title: form.title.trim(),
           class_level: form.classLevel,
-          subject: form.subject.trim(),
-          chapter: form.chapter.trim() || null,
-          material_type: form.materialType,
-          exam_type: form.examType || null,
+          subject: form.subject,
+          chapter:
+            form.chapter.trim() || null,
+          material_type:
+            form.materialType,
+          exam_type:
+            form.examType || null,
           description:
             form.description.trim() || null,
           file_path: storagePath,
@@ -482,7 +558,10 @@ export default function DashboardStudyMaterialPage() {
 
       await fetchMaterials();
     } catch (error) {
-      console.error("Upload failed:", error);
+      console.error(
+        "Upload failed:",
+        error
+      );
 
       setErrorMessage(
         error instanceof Error
@@ -494,7 +573,9 @@ export default function DashboardStudyMaterialPage() {
     }
   }
 
-  async function handleDelete(material: StudyMaterial) {
+  async function handleDelete(
+    material: StudyMaterial
+  ) {
     const confirmed = window.confirm(
       `Delete "${material.title}"?\n\nThis will remove both the database entry and the uploaded file.`
     );
@@ -512,10 +593,13 @@ export default function DashboardStudyMaterialPage() {
        * Delete the Storage object first.
        */
       if (material.file_path) {
-        const { error: storageError } =
-          await supabase.storage
-            .from("study-materials")
-            .remove([material.file_path]);
+        const {
+          error: storageError,
+        } = await supabase.storage
+          .from("study-materials")
+          .remove([
+            material.file_path,
+          ]);
 
         if (storageError) {
           console.error(
@@ -529,7 +613,9 @@ export default function DashboardStudyMaterialPage() {
         }
       }
 
-      const { error: deleteError } = await supabase
+      const {
+        error: deleteError,
+      } = await supabase
         .from("study_materials")
         .delete()
         .eq("id", material.id);
@@ -547,7 +633,8 @@ export default function DashboardStudyMaterialPage() {
 
       setMaterials((current) =>
         current.filter(
-          (item) => item.id !== material.id
+          (item) =>
+            item.id !== material.id
         )
       );
 
@@ -555,7 +642,10 @@ export default function DashboardStudyMaterialPage() {
         "Study material deleted successfully."
       );
     } catch (error) {
-      console.error("Delete failed:", error);
+      console.error(
+        "Delete failed:",
+        error
+      );
 
       setErrorMessage(
         error instanceof Error
@@ -598,7 +688,9 @@ export default function DashboardStudyMaterialPage() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="animate-pulse">
             <div className="h-4 w-32 rounded bg-slate-200" />
+
             <div className="mt-4 h-10 w-80 rounded bg-slate-200" />
+
             <div className="mt-3 h-5 w-[28rem] max-w-full rounded bg-slate-100" />
 
             <div className="mt-10 h-80 rounded-3xl bg-white" />
@@ -628,7 +720,10 @@ export default function DashboardStudyMaterialPage() {
     );
   }
 
-  if (profile.admin_status?.toLowerCase() !== "yes") {
+  if (
+    profile.admin_status?.toLowerCase() !==
+    "yes"
+  ) {
     return (
       <main className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-2xl px-4 py-20 text-center">
@@ -748,29 +843,56 @@ export default function DashboardStudyMaterialPage() {
             className="p-5 sm:p-7"
           >
             <div className="grid gap-5 lg:grid-cols-2">
-              <FormField label="Title" required>
+              <FormField
+                label="Title"
+                required
+              >
                 <input
                   value={form.title}
                   onChange={(e) =>
-                    updateForm("title", e.target.value)
+                    updateForm(
+                      "title",
+                      e.target.value
+                    )
                   }
                   placeholder="e.g. Sets & Relations Notes"
                   className={inputClass}
                 />
               </FormField>
 
-              <FormField label="Subject" required>
-                <input
+              <FormField
+                label="Subject"
+                required
+              >
+                <select
                   value={form.subject}
                   onChange={(e) =>
-                    updateForm("subject", e.target.value)
+                    updateForm(
+                      "subject",
+                      e.target.value
+                    )
                   }
-                  placeholder="e.g. Mathematics"
                   className={inputClass}
-                />
+                >
+                  <option value="">
+                    Select a subject
+                  </option>
+
+                  {SUBJECTS.map((subject) => (
+                    <option
+                      key={subject}
+                      value={subject}
+                    >
+                      {subject}
+                    </option>
+                  ))}
+                </select>
               </FormField>
 
-              <FormField label="Class" required>
+              <FormField
+                label="Class"
+                required
+              >
                 <select
                   value={form.classLevel}
                   onChange={(e) =>
@@ -782,7 +904,10 @@ export default function DashboardStudyMaterialPage() {
                   className={inputClass}
                 >
                   {CLASSES.map((item) => (
-                    <option key={item} value={item}>
+                    <option
+                      key={item}
+                      value={item}
+                    >
                       Class {item}
                     </option>
                   ))}
@@ -793,14 +918,20 @@ export default function DashboardStudyMaterialPage() {
                 <input
                   value={form.chapter}
                   onChange={(e) =>
-                    updateForm("chapter", e.target.value)
+                    updateForm(
+                      "chapter",
+                      e.target.value
+                    )
                   }
                   placeholder="e.g. Sets"
                   className={inputClass}
                 />
               </FormField>
 
-              <FormField label="Material Type" required>
+              <FormField
+                label="Material Type"
+                required
+              >
                 <select
                   value={form.materialType}
                   onChange={(e) =>
@@ -811,11 +942,16 @@ export default function DashboardStudyMaterialPage() {
                   }
                   className={inputClass}
                 >
-                  {MATERIAL_TYPES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
+                  {MATERIAL_TYPES.map(
+                    (item) => (
+                      <option
+                        key={item}
+                        value={item}
+                      >
+                        {item}
+                      </option>
+                    )
+                  )}
                 </select>
               </FormField>
 
@@ -834,11 +970,16 @@ export default function DashboardStudyMaterialPage() {
                     Not tied to a specific exam
                   </option>
 
-                  {EXAM_TYPES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
+                  {EXAM_TYPES.map(
+                    (item) => (
+                      <option
+                        key={item}
+                        value={item}
+                      >
+                        {item}
+                      </option>
+                    )
+                  )}
                 </select>
               </FormField>
 
@@ -860,13 +1001,18 @@ export default function DashboardStudyMaterialPage() {
               </div>
 
               <div className="lg:col-span-2">
-                <FormField label="File" required>
+                <FormField
+                  label="File"
+                  required
+                >
                   <label
                     htmlFor="study-material-file"
                     className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-center transition hover:border-blue-300 hover:bg-blue-50/40"
                   >
                     <span className="text-2xl">
-                      {selectedFile ? "📄" : "📁"}
+                      {selectedFile
+                        ? "📄"
+                        : "📁"}
                     </span>
 
                     <span className="mt-2 text-sm font-semibold text-slate-700">
@@ -876,15 +1022,17 @@ export default function DashboardStudyMaterialPage() {
                     </span>
 
                     <span className="mt-1 text-xs text-slate-400">
-                      PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX ·
-                      Max 20 MB
+                      PDF, DOC, DOCX, PPT, PPTX, XLS,
+                      XLSX · Max 20 MB
                     </span>
 
                     <input
                       id="study-material-file"
                       type="file"
                       accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
-                      onChange={handleFileChange}
+                      onChange={
+                        handleFileChange
+                      }
                       className="sr-only"
                     />
                   </label>
@@ -949,14 +1097,21 @@ export default function DashboardStudyMaterialPage() {
               <select
                 value={filterClass}
                 onChange={(e) =>
-                  setFilterClass(e.target.value)
+                  setFilterClass(
+                    e.target.value
+                  )
                 }
                 className={inputClass}
               >
-                <option value="All">All Classes</option>
+                <option value="All">
+                  All Classes
+                </option>
 
                 {CLASSES.map((item) => (
-                  <option key={item} value={item}>
+                  <option
+                    key={item}
+                    value={item}
+                  >
                     Class {item}
                   </option>
                 ))}
@@ -977,11 +1132,16 @@ export default function DashboardStudyMaterialPage() {
                   All Material Types
                 </option>
 
-                {MATERIAL_TYPES.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
+                {MATERIAL_TYPES.map(
+                  (item) => (
+                    <option
+                      key={item}
+                      value={item}
+                    >
+                      {item}
+                    </option>
+                  )
+                )}
               </select>
             </div>
           </div>
@@ -989,21 +1149,25 @@ export default function DashboardStudyMaterialPage() {
           {/* MATERIAL LIST */}
           {loadingMaterials ? (
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {Array.from({ length: 4 }).map(
-                (_, index) => (
-                  <div
-                    key={index}
-                    className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"
-                  >
-                    <div className="h-10 w-10 rounded-xl bg-slate-200" />
-                    <div className="mt-4 h-4 w-3/4 rounded bg-slate-200" />
-                    <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
-                    <div className="mt-6 h-10 rounded-xl bg-slate-100" />
-                  </div>
-                )
-              )}
+              {Array.from({
+                length: 4,
+              }).map((_, index) => (
+                <div
+                  key={index}
+                  className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"
+                >
+                  <div className="h-10 w-10 rounded-xl bg-slate-200" />
+
+                  <div className="mt-4 h-4 w-3/4 rounded bg-slate-200" />
+
+                  <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
+
+                  <div className="mt-6 h-10 rounded-xl bg-slate-100" />
+                </div>
+              ))}
             </div>
-          ) : filteredMaterials.length === 0 ? (
+          ) : filteredMaterials.length ===
+            0 ? (
             <div className="mt-5 rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
                 📚
@@ -1021,18 +1185,23 @@ export default function DashboardStudyMaterialPage() {
             </div>
           ) : (
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {filteredMaterials.map((material) => (
-                <MaterialAdminCard
-                  key={material.id}
-                  material={material}
-                  deleting={
-                    deletingId === material.id
-                  }
-                  onDelete={() =>
-                    handleDelete(material)
-                  }
-                />
-              ))}
+              {filteredMaterials.map(
+                (material) => (
+                  <MaterialAdminCard
+                    key={material.id}
+                    material={material}
+                    deleting={
+                      deletingId ===
+                      material.id
+                    }
+                    onDelete={() =>
+                      handleDelete(
+                        material
+                      )
+                    }
+                  />
+                )
+              )}
             </div>
           )}
         </section>
@@ -1041,11 +1210,14 @@ export default function DashboardStudyMaterialPage() {
         <div className="mt-8 flex flex-col gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-xs leading-5 text-blue-800 sm:flex-row sm:items-center sm:justify-between">
           <span>
             Files are stored securely in the{" "}
-            <strong>study-materials</strong> Storage bucket.
+            <strong>
+              study-materials
+            </strong>{" "}
+            Storage bucket.
           </span>
 
           <span>
-            {subjects.length} subjects ·{" "}
+            {SUBJECTS.length} subjects ·{" "}
             {materials.length} resources
           </span>
         </div>
@@ -1074,8 +1246,11 @@ function FormField({
     <label className="block">
       <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
         {label}
+
         {required && (
-          <span className="ml-1 text-red-500">*</span>
+          <span className="ml-1 text-red-500">
+            *
+          </span>
         )}
       </span>
 
@@ -1094,7 +1269,9 @@ function MaterialAdminCard({
   onDelete: () => void;
 }) {
   const style =
-    TYPE_STYLES[material.material_type];
+    TYPE_STYLES[
+      material.material_type
+    ];
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -1130,6 +1307,7 @@ function MaterialAdminCard({
 
           <p className="mt-1 text-xs font-semibold text-blue-600">
             {material.subject}
+
             {material.chapter
               ? ` · ${material.chapter}`
               : ""}
@@ -1144,7 +1322,9 @@ function MaterialAdminCard({
           <div className="mt-4 flex flex-wrap gap-2">
             {material.external_url && (
               <a
-                href={material.external_url}
+                href={
+                  material.external_url
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-600"
@@ -1159,7 +1339,9 @@ function MaterialAdminCard({
               disabled={deleting}
               className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting
+                ? "Deleting..."
+                : "Delete"}
             </button>
           </div>
         </div>
