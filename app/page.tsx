@@ -36,6 +36,71 @@ interface CalendarEvent {
   target?: string | null;
 }
 
+interface PortalProfile {
+  id: number;
+  name: string | null;
+  email: string;
+  role: string | null;
+  admin_status: string | null;
+}
+
+type MealType =
+  | "Breakfast"
+  | "Morning Snacks"
+  | "Lunch"
+  | "Evening Snacks"
+  | "Dinner";
+
+interface MealWindow {
+  type: MealType;
+  startHour: number;
+  endHour: number;
+  label: string;
+  description: string;
+}
+
+/* =========================================================
+   MEAL WINDOWS
+========================================================= */
+
+const MEAL_WINDOWS: MealWindow[] = [
+  {
+    type: "Breakfast",
+    startHour: 0,
+    endHour: 9,
+    label: "Breakfast",
+    description: "Morning meal",
+  },
+  {
+    type: "Morning Snacks",
+    startHour: 9,
+    endHour: 12,
+    label: "Morning Snacks",
+    description: "Morning break",
+  },
+  {
+    type: "Lunch",
+    startHour: 12,
+    endHour: 15,
+    label: "Lunch",
+    description: "Midday meal",
+  },
+  {
+    type: "Evening Snacks",
+    startHour: 15,
+    endHour: 18,
+    label: "Evening Snacks",
+    description: "Afternoon break",
+  },
+  {
+    type: "Dinner",
+    startHour: 18,
+    endHour: 21,
+    label: "Dinner",
+    description: "Evening meal",
+  },
+];
+
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -44,6 +109,16 @@ function getIndiaDateString() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
   }).format(new Date());
+}
+
+function getIndiaHour() {
+  return Number(
+    new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date())
+  );
 }
 
 function formatDate(dateString: string) {
@@ -65,21 +140,13 @@ function getShortDate(dateString: string) {
   });
 }
 
-function daysUntil(
-  dateString: string,
-  today: string
-) {
-  const start = new Date(
-    `${today}T00:00:00`
-  ).getTime();
+function daysUntil(dateString: string, today: string) {
+  const start = new Date(`${today}T00:00:00`).getTime();
 
-  const end = new Date(
-    `${dateString}T00:00:00`
-  ).getTime();
+  const end = new Date(`${dateString}T00:00:00`).getTime();
 
   return Math.round(
-    (end - start) /
-      (1000 * 60 * 60 * 24)
+    (end - start) / (1000 * 60 * 60 * 24)
   );
 }
 
@@ -136,6 +203,47 @@ function getCategoryStyles(category?: string) {
   }
 }
 
+function getGreeting(hour: number) {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  if (hour < 21) return "Good evening";
+  return "Good night";
+}
+
+function getCurrentMeal(hour: number): MealWindow {
+  const meal = MEAL_WINDOWS.find(
+    (item) =>
+      hour >= item.startHour &&
+      hour < item.endHour
+  );
+
+  if (meal) return meal;
+
+  return {
+    type: "Dinner",
+    startHour: 18,
+    endHour: 21,
+    label: "Dinner",
+    description: "Evening meal",
+  };
+}
+
+function getNextMeal(hour: number): MealWindow {
+  const next = MEAL_WINDOWS.find(
+    (item) => item.startHour > hour
+  );
+
+  return (
+    next || {
+      type: "Breakfast",
+      startHour: 0,
+      endHour: 9,
+      label: "Breakfast",
+      description: "Tomorrow morning",
+    }
+  );
+}
+
 /* =========================================================
    SECTION HEADING
 ========================================================= */
@@ -175,6 +283,182 @@ function SectionHeading({
 }
 
 /* =========================================================
+   ROLLING CLOCK
+========================================================= */
+
+function RollingDigit({
+  value,
+  delay,
+  animate,
+}: {
+  value: string;
+  delay: number;
+  animate: boolean;
+}) {
+  const numericValue = Number(value);
+
+  const digits = Array.from(
+    { length: 20 },
+    (_, index) => index % 10
+  );
+
+  const targetIndex = 10 + numericValue;
+
+  return (
+    <span
+      className="relative inline-block h-[1em] w-[0.62em] overflow-hidden align-middle"
+      aria-hidden="true"
+    >
+      <span
+        className="absolute left-0 top-0 flex flex-col"
+        style={{
+          transform: animate
+            ? `translateY(-${targetIndex}em)`
+            : "translateY(-0em)",
+          transition: animate
+            ? `transform 1.25s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`
+            : "none",
+        }}
+      >
+        {digits.map((digit, index) => (
+          <span
+            key={`${digit}-${index}`}
+            className="flex h-[1em] items-center justify-center"
+          >
+            {digit}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+function AnimatedClock({
+  time,
+  date,
+}: {
+  time: string;
+  date: string;
+}) {
+  const [hasAnimated, setHasAnimated] =
+    useState(false);
+
+  const [displayTime, setDisplayTime] =
+    useState("00:00:00");
+
+  const [meridiem, setMeridiem] =
+    useState("");
+
+  useEffect(() => {
+    if (!time) return;
+
+    const numericTime = time.match(
+      /^(\d{2}):(\d{2}):(\d{2})/
+    );
+
+    if (!numericTime) return;
+
+    const target = `${numericTime[1]}:${numericTime[2]}:${numericTime[3]}`;
+
+    const timeout = window.setTimeout(() => {
+      setDisplayTime(target);
+      setMeridiem(
+        time.includes("PM") ? "PM" : "AM"
+      );
+      setHasAnimated(true);
+    }, 50);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [time]);
+
+  const digits = displayTime.replace(
+    /:/g,
+    ""
+  );
+
+  const digitDelays = [
+    0,
+    90,
+    180,
+    300,
+    390,
+    480,
+  ];
+
+  return (
+    <div>
+      <div
+        className="flex items-center justify-center whitespace-nowrap text-4xl font-semibold tracking-[-0.055em] text-white tabular-nums sm:text-5xl md:text-6xl lg:text-7xl"
+        aria-live="polite"
+        aria-label={`${time || "Loading campus time"}, ${date}`}
+      >
+        <RollingDigit
+          value={digits[0] || "0"}
+          delay={digitDelays[0]}
+          animate={hasAnimated}
+        />
+
+        <RollingDigit
+          value={digits[1] || "0"}
+          delay={digitDelays[1]}
+          animate={hasAnimated}
+        />
+
+        <span className="mx-[0.04em] opacity-70">
+          :
+        </span>
+
+        <RollingDigit
+          value={digits[2] || "0"}
+          delay={digitDelays[2]}
+          animate={hasAnimated}
+        />
+
+        <RollingDigit
+          value={digits[3] || "0"}
+          delay={digitDelays[3]}
+          animate={hasAnimated}
+        />
+
+        <span className="mx-[0.04em] opacity-70">
+          :
+        </span>
+
+        <RollingDigit
+          value={digits[4] || "0"}
+          delay={digitDelays[4]}
+          animate={hasAnimated}
+        />
+
+        <RollingDigit
+          value={digits[5] || "0"}
+          delay={digitDelays[5]}
+          animate={hasAnimated}
+        />
+
+        <span className="ml-2 self-end pb-[0.17em] text-sm font-bold tracking-[0.05em] text-blue-200 sm:text-base md:text-lg">
+          {meridiem}
+        </span>
+      </div>
+
+      <div className="mt-3 text-center text-sm font-medium text-blue-200">
+        {date || "Loading campus time..."}
+      </div>
+
+      <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] text-blue-300/80">
+        <span>India Standard Time</span>
+
+        <span className="h-1 w-1 rounded-full bg-blue-400/60" />
+
+        <span>UTC +05:30</span>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
    HOME
 ========================================================= */
 
@@ -187,6 +471,15 @@ export default function Home() {
 
   const [supabaseEvents, setSupabaseEvents] =
     useState<CalendarEvent[]>([]);
+
+  const [profile, setProfile] =
+    useState<PortalProfile | null>(null);
+
+  const [profileLoading, setProfileLoading] =
+    useState(true);
+
+  const [indiaHour, setIndiaHour] =
+    useState<number | null>(null);
 
   /* =======================================================
      CLOCK
@@ -215,6 +508,8 @@ export default function Home() {
           year: "numeric",
         })
       );
+
+      setIndiaHour(getIndiaHour());
     }
 
     updateClock();
@@ -226,6 +521,97 @@ export default function Home() {
 
     return () => {
       window.clearInterval(interval);
+    };
+  }, []);
+
+  /* =======================================================
+     PROFILE
+  ======================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadProfile() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        if (!session?.user?.email) {
+          setProfile(null);
+          setProfileLoading(false);
+          return;
+        }
+
+        const { data, error } =
+          await supabase.rpc(
+            "get_my_portal_profile"
+          );
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error(
+            "Unable to load portal profile:",
+            error
+          );
+
+          setProfile(null);
+          setProfileLoading(false);
+          return;
+        }
+
+        const profileData = Array.isArray(data)
+          ? data[0]
+          : data;
+
+        if (!profileData) {
+          setProfile(null);
+          setProfileLoading(false);
+          return;
+        }
+
+        setProfile({
+          id: Number(profileData.id),
+          name: profileData.name ?? null,
+          email:
+            profileData.email ??
+            session.user.email,
+          role:
+            profileData.role ?? null,
+          admin_status:
+            profileData.admin_status ?? null,
+        });
+
+        setProfileLoading(false);
+      } catch (error) {
+        console.error(
+          "Unexpected profile error:",
+          error
+        );
+
+        if (mounted) {
+          setProfile(null);
+          setProfileLoading(false);
+        }
+      }
+    }
+
+    loadProfile();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      () => {
+        loadProfile();
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -285,8 +671,7 @@ export default function Home() {
      DERIVED DATA
   ======================================================= */
 
-  const today =
-    getIndiaDateString();
+  const today = getIndiaDateString();
 
   const sortedEvents = useMemo(() => {
     return [...supabaseEvents].sort(
@@ -338,6 +723,34 @@ export default function Home() {
   const futureEventCount =
     sortedEvents.length;
 
+  const currentMeal =
+    indiaHour !== null
+      ? getCurrentMeal(indiaHour)
+      : null;
+
+  const nextMeal =
+    indiaHour !== null
+      ? getNextMeal(indiaHour)
+      : null;
+
+  const greeting =
+    indiaHour !== null
+      ? getGreeting(indiaHour)
+      : "Welcome";
+
+  const displayName =
+    profileLoading
+      ? "there"
+      : profile?.name?.trim() ||
+        "there";
+
+  const firstName =
+    displayName !== "there"
+      ? displayName
+          .trim()
+          .split(/\s+/)[0]
+      : "there";
+
   /* =======================================================
      RENDER
   ======================================================= */
@@ -359,6 +772,7 @@ export default function Home() {
           {/* Background geometry */}
 
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
+
             <div className="absolute -right-32 -top-32 h-[460px] w-[460px] rounded-full border border-white/[0.08]" />
 
             <div className="absolute -right-8 -top-8 h-[300px] w-[300px] rounded-full border border-white/[0.07]" />
@@ -368,44 +782,70 @@ export default function Home() {
             <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full border border-emerald-300/[0.08]" />
 
             <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
           </div>
 
-          <div className="relative px-6 py-10 sm:px-10 md:px-14 md:py-12 lg:px-16 lg:py-14">
+          <div className="relative px-6 py-9 sm:px-10 md:px-14 md:py-12 lg:px-16 lg:py-14">
 
             {/* =================================================
-                BRAND / INTRO
+                TOP CONTEXT
             ================================================= */}
 
-            <div className="text-center">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
 
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-3.5 py-1.5">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              <div>
 
-                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
-                  VidyaGyan Bulandshahr
-                </span>
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-3.5 py-1.5">
+
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+
+                  <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
+                    VidyaGyan Bulandshahr
+                  </span>
+
+                </div>
+
+                <h1 className="mt-5 text-3xl font-bold leading-tight tracking-[-0.035em] sm:text-4xl md:text-5xl">
+                  {greeting},{" "}
+                  {firstName}.
+                </h1>
+
+                <p className="mt-2 max-w-xl text-sm leading-6 text-blue-200/80 md:text-base">
+                  Here&apos;s what&apos;s
+                  happening on campus
+                  today.
+                </p>
+
               </div>
 
-              <h1 className="mt-6 text-4xl font-bold leading-[1.05] tracking-[-0.035em] sm:text-5xl md:text-6xl">
-                One portal for
-                <br />
-                <span className="text-white/90">
-                  campus life.
-                </span>
-              </h1>
+              {profile && (
+                <div className="flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 backdrop-blur-sm">
 
-              <p className="mx-auto mt-5 max-w-2xl text-sm leading-6 text-blue-100/80 md:text-base">
-                A unified student-facing platform for campus information,
-                events, activities, leadership and essential resources.
-              </p>
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+
+                  <div className="text-right">
+
+                    <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-blue-300">
+                      {profile.role ||
+                        "Student"}
+                    </p>
+
+                    <p className="text-xs font-medium text-white">
+                      Campus account
+                    </p>
+
+                  </div>
+
+                </div>
+              )}
 
             </div>
 
             {/* =================================================
-                CAMPUS TIME + NEXT EVENT
+                CLOCK + NEXT EVENT
             ================================================= */}
 
-            <div className="mx-auto mt-9 max-w-5xl">
+            <div className="mx-auto mt-8 max-w-5xl">
 
               <div className="grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
 
@@ -413,39 +853,31 @@ export default function Home() {
                     CLOCK
                 ================================================= */}
 
-                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] px-5 py-6 shadow-inner backdrop-blur-sm sm:px-8 sm:py-7">
+                <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] px-5 py-7 shadow-inner backdrop-blur-sm sm:px-8 sm:py-8">
 
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                  <div className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.035]" />
 
-                    <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">
-                      Campus Time
-                    </span>
-                  </div>
+                  <div className="relative">
 
-                  <div
-                    className="mt-3 text-center text-4xl font-semibold tracking-[-0.04em] text-white tabular-nums sm:text-5xl md:text-6xl"
-                    aria-live="polite"
-                  >
-                    {clockTime ||
-                      "--:--:--"}
-                  </div>
+                    <div className="flex items-center justify-center gap-2">
 
-                  <div className="mt-2 text-center text-sm font-medium text-blue-200">
-                    {clockDate ||
-                      "Loading campus time..."}
-                  </div>
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
 
-                  <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] text-blue-300/80">
-                    <span>
-                      India Standard Time
-                    </span>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">
+                        Campus Time
+                      </span>
 
-                    <span className="h-1 w-1 rounded-full bg-blue-400/60" />
+                    </div>
 
-                    <span>
-                      UTC +05:30
-                    </span>
+                    <div className="mt-5">
+
+                      <AnimatedClock
+                        time={clockTime}
+                        date={clockDate}
+                      />
+
+                    </div>
+
                   </div>
 
                 </div>
@@ -461,6 +893,7 @@ export default function Home() {
                   <div className="relative">
 
                     <div className="flex items-center justify-between gap-3">
+
                       <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
                         Next on Campus
                       </span>
@@ -474,6 +907,7 @@ export default function Home() {
                             : `${nextEventDays} days`}
                         </span>
                       )}
+
                     </div>
 
                     {nextEvent ? (
@@ -483,6 +917,7 @@ export default function Home() {
                         </h2>
 
                         <div className="mt-4 flex flex-wrap items-center gap-2">
+
                           <span className="text-sm font-medium text-blue-200">
                             {formatDate(
                               nextEvent.event_date
@@ -504,6 +939,7 @@ export default function Home() {
                               {nextEvent.category}
                             </span>
                           )}
+
                         </div>
 
                         <p className="mt-4 text-xs leading-5 text-blue-300">
@@ -519,6 +955,7 @@ export default function Home() {
                           className="mt-5 inline-flex items-center rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
                         >
                           View event
+
                           <span className="ml-1.5">
                             →
                           </span>
@@ -531,8 +968,10 @@ export default function Home() {
                         </h2>
 
                         <p className="mt-3 text-xs leading-5 text-blue-300">
-                          There are currently no future
-                          events recorded in the portal calendar.
+                          There are currently
+                          no future events
+                          recorded in the
+                          portal calendar.
                         </p>
 
                         <Link
@@ -540,6 +979,7 @@ export default function Home() {
                           className="mt-5 inline-flex items-center rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
                         >
                           Open Calendar
+
                           <span className="ml-1.5">
                             →
                           </span>
@@ -555,7 +995,7 @@ export default function Home() {
             </div>
 
             {/* =================================================
-                ACTIONS
+                HERO ACTIONS
             ================================================= */}
 
             <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -588,6 +1028,7 @@ export default function Home() {
             ================================================= */}
 
             <div className="mt-8 flex items-center justify-center gap-3 text-[10px] text-blue-300/60">
+
               <span className="h-px w-10 bg-white/10" />
 
               <span>
@@ -595,6 +1036,7 @@ export default function Home() {
               </span>
 
               <span className="h-px w-10 bg-white/10" />
+
             </div>
 
           </div>
@@ -615,22 +1057,24 @@ export default function Home() {
             description="A quick campus snapshot. The detailed pages contain the full information."
           />
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-3">
 
             {/* =================================================
-                CAMPUS STATUS
+                TODAY ON CAMPUS
             ================================================= */}
 
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
 
               <div className="flex items-center justify-between">
+
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                  Campus
+                  Today on Campus
                 </span>
 
                 <span className="text-xs text-slate-400">
                   {formatDate(today)}
                 </span>
+
               </div>
 
               <h3 className="mt-4 text-xl font-bold text-blue-950">
@@ -640,7 +1084,7 @@ export default function Home() {
                         ? "s"
                         : ""
                     }`
-                  : "No recorded events"}
+                  : "A quieter day"}
               </h3>
 
               {todayEvents.length > 0 ? (
@@ -660,11 +1104,13 @@ export default function Home() {
                             key={`${event.title}-${event.event_date}-${index}`}
                             className="flex items-start gap-3"
                           >
+
                             <span
                               className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${styles.dot}`}
                             />
 
                             <div className="min-w-0">
+
                               <p className="text-sm font-semibold text-slate-800">
                                 {event.title}
                               </p>
@@ -676,20 +1122,22 @@ export default function Home() {
                                 {event.event_time &&
                                   ` · ${event.event_time}`}
                               </p>
+
                             </div>
+
                           </div>
                         );
                       }
                     )}
 
-                  {todayEvents.length >
-                    3 && (
+                  {todayEvents.length > 3 && (
                     <Link
                       href="/calendar"
                       className="inline-block pt-1 text-xs font-semibold text-blue-900 hover:text-emerald-700"
                     >
                       +{" "}
-                      {todayEvents.length - 3}{" "}
+                      {todayEvents.length -
+                        3}{" "}
                       more on Calendar →
                     </Link>
                   )}
@@ -697,12 +1145,147 @@ export default function Home() {
                 </div>
               ) : (
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  No event is recorded for today
-                  in the current calendar.
+                  No event is recorded for
+                  today in the current
+                  calendar.
                 </p>
               )}
 
             </div>
+
+            {/* =================================================
+                TIME-AWARE MENU
+            ================================================= */}
+
+            <div className="relative overflow-hidden rounded-2xl bg-blue-950 p-5 text-white shadow-sm">
+
+              <div className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full border border-white/10" />
+
+              <div className="relative">
+
+                <div className="flex items-center justify-between">
+
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                    Today&apos;s Menu
+                  </span>
+
+                  {currentMeal && (
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-semibold text-blue-100">
+                      Now
+                    </span>
+                  )}
+
+                </div>
+
+                <h3 className="mt-4 text-xl font-bold">
+                  {currentMeal?.label ||
+                    "Campus dining"}
+                </h3>
+
+                <p className="mt-1 text-xs text-blue-300">
+                  {currentMeal?.description ||
+                    "Daily cafeteria menu"}
+                </p>
+
+                <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.055] p-4">
+
+                  <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-blue-300">
+                    Menu
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-blue-100/80">
+                    Menu details are maintained
+                    on the Cafeteria page.
+                  </p>
+
+                  <Link
+                    href="/cafeteria"
+                    className="mt-3 inline-flex items-center text-xs font-semibold text-white hover:text-emerald-300"
+                  >
+                    View {currentMeal?.label || "menu"}
+                    <span className="ml-1.5">
+                      →
+                    </span>
+                  </Link>
+
+                </div>
+
+                {nextMeal && (
+                  <div className="mt-4 flex items-center justify-between gap-3 text-xs">
+
+                    <span className="text-blue-300">
+                      Next
+                    </span>
+
+                    <span className="font-semibold text-blue-100">
+                      {nextMeal.label}
+                    </span>
+
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+
+            {/* =================================================
+                QUICK CAMPUS STATUS
+            ================================================= */}
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-purple-700">
+                  Calendar
+                </span>
+
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">
+                  {futureEventCount} upcoming
+                </span>
+
+              </div>
+
+              <h3 className="mt-4 text-xl font-bold text-blue-950">
+                Plan ahead.
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Browse the academic year,
+                examinations, sports,
+                cultural programmes and
+                excursions.
+              </p>
+
+              <Link
+                href="/calendar"
+                className="mt-5 inline-flex items-center text-xs font-semibold text-blue-950 transition hover:text-emerald-700"
+              >
+                Explore full calendar
+
+                <span className="ml-1">
+                  →
+                </span>
+              </Link>
+
+            </div>
+
+          </div>
+        </section>
+
+        {/* =================================================
+            CAMPUS SNAPSHOT
+        ================================================= */}
+
+        <section className="mt-14">
+
+          <SectionHeading
+            eyebrow="Campus Snapshot"
+            title="A few things worth knowing."
+            description="Quick access to the parts of campus life you are most likely to need."
+          />
+
+          <div className="grid gap-4 md:grid-cols-3">
 
             {/* =================================================
                 NEXT EVENT
@@ -742,12 +1325,6 @@ export default function Home() {
                         </>
                       )}
 
-                      {nextEvent.category && (
-                        <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-blue-100">
-                          {nextEvent.category}
-                        </span>
-                      )}
-
                     </div>
 
                     <p className="mt-3 text-xs leading-5 text-blue-300">
@@ -773,8 +1350,9 @@ export default function Home() {
                     </h3>
 
                     <p className="mt-2 text-sm leading-6 text-blue-300">
-                      Nothing is currently scheduled
-                      in the portal calendar.
+                      Nothing is currently
+                      scheduled in the
+                      portal calendar.
                     </p>
                   </>
                 )}
@@ -784,43 +1362,85 @@ export default function Home() {
             </div>
 
             {/* =================================================
-                CALENDAR STATUS
+                CAMPUS NOTICES
             ================================================= */}
 
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
 
               <div className="flex items-center justify-between">
 
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-purple-700">
-                  Calendar
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-700">
+                  Campus Notices
                 </span>
 
-                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">
-                  {futureEventCount} upcoming
-                </span>
+                <span className="h-2 w-2 rounded-full bg-slate-300" />
 
               </div>
 
               <h3 className="mt-4 text-xl font-bold text-blue-950">
-                Plan ahead.
+                No notices connected yet.
               </h3>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Browse the complete academic year,
-                including examinations, sports,
-                cultural programmes and excursions.
+                The homepage is ready for
+                official campus announcements
+                once a notice source is
+                connected.
               </p>
 
-              <Link
-                href="/calendar"
-                className="mt-5 inline-flex items-center text-xs font-semibold text-blue-950 transition hover:text-emerald-700"
-              >
-                Explore full calendar
+              <div className="mt-5 text-xs font-semibold text-slate-400">
+                Official notices only
+              </div>
 
-                <span className="ml-1">
-                  →
+            </div>
+
+            {/* =================================================
+                PROFILE
+            ================================================= */}
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+
+              <div className="flex items-center justify-between">
+
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+                  Your Portal
                 </span>
-              </Link>
+
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+
+              </div>
+
+              {profile ? (
+                <>
+                  <h3 className="mt-4 text-xl font-bold text-blue-950">
+                    {profile.name ||
+                      "Campus account"}
+                  </h3>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    {profile.role ||
+                      "Student"}
+                  </p>
+
+                  <p className="mt-4 text-xs leading-5 text-slate-500">
+                    Your portal access is
+                    connected to your verified
+                    campus account.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="mt-4 text-xl font-bold text-blue-950">
+                    Campus portal
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Sign in to see your
+                    personalized campus
+                    information.
+                  </p>
+                </>
+              )}
 
             </div>
 
@@ -849,8 +1469,7 @@ export default function Home() {
 
           <div className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
 
-            {upcomingEvents.length >
-            0 ? (
+            {upcomingEvents.length > 0 ? (
               <div className="divide-y divide-slate-100">
 
                 {upcomingEvents.map(
@@ -877,9 +1496,11 @@ export default function Home() {
                         <div className="flex min-w-0 items-start gap-4">
 
                           <div className="pt-1">
+
                             <span
                               className={`block h-2.5 w-2.5 rounded-full ${styles.dot}`}
                             />
+
                           </div>
 
                           <div className="min-w-0">
@@ -944,7 +1565,8 @@ export default function Home() {
               </div>
             ) : (
               <div className="p-8 text-center text-sm text-slate-500">
-                No upcoming events are currently available.
+                No upcoming events are
+                currently available.
               </div>
             )}
 
@@ -952,15 +1574,15 @@ export default function Home() {
         </section>
 
         {/* =================================================
-            EXPLORE
+            QUICK ACCESS
         ================================================= */}
 
         <section className="mt-14">
 
           <SectionHeading
-            eyebrow="Explore"
+            eyebrow="Quick Access"
             title="Everything else, in its proper place."
-            description="Each section has a focused page instead of making Home carry the entire school on its back."
+            description="Focused pages for the parts of campus life that deserve more than a homepage card."
           />
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1083,9 +1705,10 @@ export default function Home() {
               </div>
 
               <p className="mt-2 max-w-sm text-xs leading-5 text-slate-500">
-                A unified digital layer for campus
-                information, student life and
-                institutional leadership.
+                A unified digital layer for
+                campus information, student
+                life and institutional
+                leadership.
               </p>
 
             </div>
