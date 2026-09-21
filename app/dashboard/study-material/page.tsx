@@ -68,7 +68,7 @@ const SUBJECTS = [
   "Sociology",
   "Physical Education",
   "Painting",
-];
+] as const;
 
 const MATERIAL_TYPES: MaterialType[] = [
   "Notes",
@@ -132,35 +132,29 @@ const TYPE_STYLES: Record<
 };
 
 export default function DashboardStudyMaterialPage() {
-  const [profile, setProfile] =
-    useState<PortalProfile | null>(null);
+  const [profile, setProfile] = useState<PortalProfile | null>(null);
+  const [checkingAccess, setCheckingAccess] = useState(true);
 
-  const [checkingAccess, setCheckingAccess] =
-    useState(true);
-
-  const [materials, setMaterials] =
-    useState<StudyMaterial[]>([]);
-
-  const [loadingMaterials, setLoadingMaterials] =
-    useState(false);
+  const [materials, setMaterials] = useState<StudyMaterial[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
 
   const [search, setSearch] = useState("");
   const [filterClass, setFilterClass] = useState("All");
-
   const [filterType, setFilterType] = useState<
     MaterialType | "All"
   >("All");
 
   const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(
+    null
+  );
+  const [editingId, setEditingId] = useState<number | null>(
+    null
+  );
+  const [savingEdit, setSavingEdit] = useState(false);
 
-  const [deletingId, setDeletingId] =
-    useState<number | null>(null);
-
-  const [successMessage, setSuccessMessage] =
-    useState("");
-
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [form, setForm] = useState({
     title: "",
@@ -174,6 +168,17 @@ export default function DashboardStudyMaterialPage() {
 
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
+
+  const [editForm, setEditForm] = useState({
+    fileName: "",
+    title: "",
+    classLevel: "XI",
+    subject: "",
+    chapter: "",
+    materialType: "Notes" as MaterialType,
+    examType: "" as ExamType | "",
+    description: "",
+  });
 
   useEffect(() => {
     checkAccess();
@@ -231,10 +236,7 @@ export default function DashboardStudyMaterialPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error(
-        "Study material fetch failed:",
-        error
-      );
+      console.error("Study material fetch failed:", error);
 
       setErrorMessage(
         "Unable to load the study material library."
@@ -270,12 +272,11 @@ export default function DashboardStudyMaterialPage() {
           material.class_level,
           material.exam_type,
           material.material_type,
+          material.file_path,
         ]
           .filter(Boolean)
           .some((value) =>
-            String(value)
-              .toLowerCase()
-              .includes(query)
+            String(value).toLowerCase().includes(query)
           );
 
       return (
@@ -284,12 +285,7 @@ export default function DashboardStudyMaterialPage() {
         matchesSearch
       );
     });
-  }, [
-    materials,
-    search,
-    filterClass,
-    filterType,
-  ]);
+  }, [materials, search, filterClass, filterType]);
 
   function updateForm(
     field: keyof typeof form,
@@ -301,14 +297,23 @@ export default function DashboardStudyMaterialPage() {
     }));
   }
 
+  function updateEditForm(
+    field: keyof typeof editForm,
+    value: string
+  ) {
+    setEditForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
   function handleFileChange(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
     setErrorMessage("");
     setSuccessMessage("");
 
-    const file =
-      event.target.files?.[0] || null;
+    const file = event.target.files?.[0] || null;
 
     if (!file) {
       setSelectedFile(null);
@@ -349,6 +354,77 @@ export default function DashboardStudyMaterialPage() {
     setSelectedFile(file);
   }
 
+  function getFileExtension(fileName: string) {
+    const parts = fileName.split(".");
+
+    if (parts.length < 2) {
+      return "";
+    }
+
+    return `.${parts.pop()!.toLowerCase()}`;
+  }
+
+  function getBaseFileName(fileName: string) {
+    const extension = getFileExtension(fileName);
+
+    if (!extension) {
+      return fileName;
+    }
+
+    return fileName.slice(
+      0,
+      fileName.length - extension.length
+    );
+  }
+
+  function sanitizeFileName(fileName: string) {
+    return fileName
+      .trim()
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^\.+/, "")
+      .slice(0, 120);
+  }
+
+  async function verifyAdmin() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error(
+        "Your session has expired. Please log in again."
+      );
+    }
+
+    const { data: profileData, error: profileError } =
+      await supabase.rpc("get_my_portal_profile");
+
+    if (profileError) {
+      throw new Error(
+        "Unable to verify your administrator permissions."
+      );
+    }
+
+    const currentProfile = Array.isArray(profileData)
+      ? profileData[0]
+      : profileData;
+
+    if (
+      currentProfile?.admin_status?.toLowerCase() !== "yes"
+    ) {
+      throw new Error(
+        "You do not have permission to modify study material."
+      );
+    }
+
+    return {
+      user,
+      profile: currentProfile as PortalProfile,
+    };
+  }
+
   async function handleUpload(
     event: React.FormEvent<HTMLFormElement>
   ) {
@@ -362,76 +438,25 @@ export default function DashboardStudyMaterialPage() {
       return;
     }
 
-    if (!form.subject) {
-      setErrorMessage(
-        "Please select a subject."
-      );
-      return;
-    }
-
-    if (!SUBJECTS.includes(form.subject)) {
-      setErrorMessage(
-        "Please select a valid subject from the subject list."
-      );
+    if (!form.subject.trim()) {
+      setErrorMessage("Please select a subject.");
       return;
     }
 
     if (!selectedFile) {
-      setErrorMessage(
-        "Please choose a file to upload."
-      );
+      setErrorMessage("Please choose a file to upload.");
       return;
     }
 
     setUploading(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        throw new Error(
-          "Your session has expired. Please log in again."
-        );
-      }
-
-      /*
-       * Re-check admin status immediately before the upload.
-       * The UI check above is not treated as the security boundary.
-       */
-      const {
-        data: profileData,
-        error: profileError,
-      } = await supabase.rpc(
-        "get_my_portal_profile"
-      );
-
-      if (profileError) {
-        throw new Error(
-          "Unable to verify your administrator permissions."
-        );
-      }
-
-      const currentProfile =
-        Array.isArray(profileData)
-          ? profileData[0]
-          : profileData;
-
-      if (
-        currentProfile?.admin_status?.toLowerCase() !==
-        "yes"
-      ) {
-        throw new Error(
-          "You do not have permission to upload study material."
-        );
-      }
+      const { user, profile: currentProfile } =
+        await verifyAdmin();
 
       const extension =
-        selectedFile.name
-          .split(".")
-          .pop()
-          ?.toLowerCase() || "file";
+        selectedFile.name.split(".").pop()?.toLowerCase() ||
+        "file";
 
       const safeTitle = form.title
         .trim()
@@ -441,30 +466,24 @@ export default function DashboardStudyMaterialPage() {
 
       const uniqueId = crypto.randomUUID();
 
-      const safeSubject = form.subject
-        .replace(/[^a-zA-Z0-9-_ ]/g, "")
-        .replace(/\s+/g, "-");
-
       const storagePath = [
         form.classLevel,
-        safeSubject,
+        form.subject
+          .trim()
+          .replace(/[^a-zA-Z0-9-_ ]/g, "")
+          .replace(/\s+/g, "-"),
         `${uniqueId}-${safeTitle}.${extension}`,
       ].join("/");
 
-      const {
-        error: uploadError,
-      } = await supabase.storage
-        .from("study-materials")
-        .upload(
-          storagePath,
-          selectedFile,
-          {
+      const { error: uploadError } =
+        await supabase.storage
+          .from("study-materials")
+          .upload(storagePath, selectedFile, {
             cacheControl: "3600",
             upsert: false,
             contentType:
               selectedFile.type || undefined,
-          }
-        );
+          });
 
       if (uploadError) {
         console.error(
@@ -487,20 +506,15 @@ export default function DashboardStudyMaterialPage() {
       const publicUrl =
         publicUrlData?.publicUrl || null;
 
-      const {
-        error: insertError,
-      } = await supabase
+      const { error: insertError } = await supabase
         .from("study_materials")
         .insert({
           title: form.title.trim(),
           class_level: form.classLevel,
-          subject: form.subject,
-          chapter:
-            form.chapter.trim() || null,
-          material_type:
-            form.materialType,
-          exam_type:
-            form.examType || null,
+          subject: form.subject.trim(),
+          chapter: form.chapter.trim() || null,
+          material_type: form.materialType,
+          exam_type: form.examType || null,
           description:
             form.description.trim() || null,
           file_path: storagePath,
@@ -512,10 +526,6 @@ export default function DashboardStudyMaterialPage() {
         });
 
       if (insertError) {
-        /*
-         * If database insertion fails after the file has uploaded,
-         * remove the orphaned Storage object.
-         */
         await supabase.storage
           .from("study-materials")
           .remove([storagePath]);
@@ -535,33 +545,11 @@ export default function DashboardStudyMaterialPage() {
         "Study material uploaded successfully."
       );
 
-      setForm({
-        title: "",
-        classLevel: "XI",
-        subject: "",
-        chapter: "",
-        materialType: "Notes",
-        examType: "",
-        description: "",
-      });
-
-      setSelectedFile(null);
-
-      const fileInput =
-        document.getElementById(
-          "study-material-file"
-        ) as HTMLInputElement | null;
-
-      if (fileInput) {
-        fileInput.value = "";
-      }
+      resetForm();
 
       await fetchMaterials();
     } catch (error) {
-      console.error(
-        "Upload failed:",
-        error
-      );
+      console.error("Upload failed:", error);
 
       setErrorMessage(
         error instanceof Error
@@ -570,6 +558,266 @@ export default function DashboardStudyMaterialPage() {
       );
     } finally {
       setUploading(false);
+    }
+  }
+
+  function startEditing(material: StudyMaterial) {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const fileName = material.file_path
+      ? material.file_path.split("/").pop() || ""
+      : "";
+
+    setEditForm({
+      fileName,
+      title: material.title,
+      classLevel: material.class_level,
+      subject: material.subject,
+      chapter: material.chapter || "",
+      materialType: material.material_type,
+      examType: material.exam_type || "",
+      description: material.description || "",
+    });
+
+    setEditingId(material.id);
+
+    window.setTimeout(() => {
+      document
+        .getElementById(`edit-material-${material.id}`)
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+    }, 50);
+  }
+
+  function cancelEditing() {
+    if (savingEdit) {
+      return;
+    }
+
+    setEditingId(null);
+    setEditForm({
+      fileName: "",
+      title: "",
+      classLevel: "XI",
+      subject: "",
+      chapter: "",
+      materialType: "Notes",
+      examType: "",
+      description: "",
+    });
+  }
+
+  async function handleEditSave(
+    material: StudyMaterial
+  ) {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!editForm.title.trim()) {
+      setErrorMessage("Please enter a title.");
+      return;
+    }
+
+    if (!editForm.subject.trim()) {
+      setErrorMessage("Please select a subject.");
+      return;
+    }
+
+    if (!editForm.fileName.trim()) {
+      setErrorMessage("Please enter a file name.");
+      return;
+    }
+
+    setSavingEdit(true);
+
+    try {
+      await verifyAdmin();
+
+      const oldStoragePath = material.file_path;
+
+      if (!oldStoragePath) {
+        throw new Error(
+          "This material does not have an associated Storage file."
+        );
+      }
+
+      const oldFileName =
+        oldStoragePath.split("/").pop() || "";
+
+      const oldExtension =
+        getFileExtension(oldFileName);
+
+      const requestedExtension =
+        getFileExtension(editForm.fileName);
+
+      let cleanFileName = sanitizeFileName(
+        editForm.fileName
+      );
+
+      if (!cleanFileName) {
+        throw new Error(
+          "Please enter a valid file name."
+        );
+      }
+
+      if (!requestedExtension && oldExtension) {
+        cleanFileName += oldExtension;
+      }
+
+      const finalExtension =
+        getFileExtension(cleanFileName);
+
+      if (
+        !ALLOWED_EXTENSIONS.includes(finalExtension)
+      ) {
+        throw new Error(
+          "Unsupported file extension. Please use PDF, DOC, DOCX, PPT, PPTX, XLS, or XLSX."
+        );
+      }
+
+      const subjectFolder = editForm.subject
+        .trim()
+        .replace(/[^a-zA-Z0-9-_ ]/g, "")
+        .replace(/\s+/g, "-");
+
+      const newStoragePath = [
+        editForm.classLevel,
+        subjectFolder,
+        cleanFileName,
+      ].join("/");
+
+      const storagePathChanged =
+        oldStoragePath !== newStoragePath;
+
+      if (storagePathChanged) {
+        const { error: moveError } =
+          await supabase.storage
+            .from("study-materials")
+            .move(
+              oldStoragePath,
+              newStoragePath
+            );
+
+        if (moveError) {
+          console.error(
+            "Storage move failed:",
+            moveError
+          );
+
+          throw new Error(
+            moveError.message ||
+              "The file could not be renamed or moved."
+          );
+        }
+      }
+
+      const {
+        data: publicUrlData,
+      } = supabase.storage
+        .from("study-materials")
+        .getPublicUrl(newStoragePath);
+
+      const publicUrl =
+        publicUrlData?.publicUrl || null;
+
+      const { error: updateError } =
+        await supabase
+          .from("study_materials")
+          .update({
+            title: editForm.title.trim(),
+            class_level: editForm.classLevel,
+            subject: editForm.subject.trim(),
+            chapter:
+              editForm.chapter.trim() || null,
+            material_type: editForm.materialType,
+            exam_type: editForm.examType || null,
+            description:
+              editForm.description.trim() || null,
+            file_path: newStoragePath,
+            external_url: publicUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", material.id);
+
+      if (updateError) {
+        console.error(
+          "Study material update failed:",
+          updateError
+        );
+
+        /*
+         * If metadata update fails after a successful Storage
+         * move, attempt to move the file back so the database
+         * and Storage do not drift apart.
+         */
+        if (storagePathChanged) {
+          const { error: rollbackError } =
+            await supabase.storage
+              .from("study-materials")
+              .move(
+                newStoragePath,
+                oldStoragePath
+              );
+
+          if (rollbackError) {
+            console.error(
+              "Storage rollback failed:",
+              rollbackError
+            );
+          }
+        }
+
+        throw new Error(
+          updateError.message ||
+            "The material details could not be updated."
+        );
+      }
+
+      setMaterials((current) =>
+        current.map((item) =>
+          item.id === material.id
+            ? {
+                ...item,
+                title: editForm.title.trim(),
+                class_level: editForm.classLevel,
+                subject: editForm.subject.trim(),
+                chapter:
+                  editForm.chapter.trim() || null,
+                material_type:
+                  editForm.materialType,
+                exam_type:
+                  editForm.examType || null,
+                description:
+                  editForm.description.trim() || null,
+                file_path: newStoragePath,
+                external_url: publicUrl,
+                updated_at:
+                  new Date().toISOString(),
+              }
+            : item
+        )
+      );
+
+      setSuccessMessage(
+        "Study material updated successfully."
+      );
+
+      cancelEditing();
+    } catch (error) {
+      console.error("Edit failed:", error);
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while updating the material."
+      );
+
+      await fetchMaterials();
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -589,17 +837,13 @@ export default function DashboardStudyMaterialPage() {
     setSuccessMessage("");
 
     try {
-      /*
-       * Delete the Storage object first.
-       */
+      await verifyAdmin();
+
       if (material.file_path) {
-        const {
-          error: storageError,
-        } = await supabase.storage
-          .from("study-materials")
-          .remove([
-            material.file_path,
-          ]);
+        const { error: storageError } =
+          await supabase.storage
+            .from("study-materials")
+            .remove([material.file_path]);
 
         if (storageError) {
           console.error(
@@ -613,12 +857,11 @@ export default function DashboardStudyMaterialPage() {
         }
       }
 
-      const {
-        error: deleteError,
-      } = await supabase
-        .from("study_materials")
-        .delete()
-        .eq("id", material.id);
+      const { error: deleteError } =
+        await supabase
+          .from("study_materials")
+          .delete()
+          .eq("id", material.id);
 
       if (deleteError) {
         console.error(
@@ -633,8 +876,7 @@ export default function DashboardStudyMaterialPage() {
 
       setMaterials((current) =>
         current.filter(
-          (item) =>
-            item.id !== material.id
+          (item) => item.id !== material.id
         )
       );
 
@@ -642,10 +884,7 @@ export default function DashboardStudyMaterialPage() {
         "Study material deleted successfully."
       );
     } catch (error) {
-      console.error(
-        "Delete failed:",
-        error
-      );
+      console.error("Delete failed:", error);
 
       setErrorMessage(
         error instanceof Error
@@ -688,11 +927,8 @@ export default function DashboardStudyMaterialPage() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="animate-pulse">
             <div className="h-4 w-32 rounded bg-slate-200" />
-
             <div className="mt-4 h-10 w-80 rounded bg-slate-200" />
-
             <div className="mt-3 h-5 w-[28rem] max-w-full rounded bg-slate-100" />
-
             <div className="mt-10 h-80 rounded-3xl bg-white" />
           </div>
         </div>
@@ -720,10 +956,7 @@ export default function DashboardStudyMaterialPage() {
     );
   }
 
-  if (
-    profile.admin_status?.toLowerCase() !==
-    "yes"
-  ) {
+  if (profile.admin_status?.toLowerCase() !== "yes") {
     return (
       <main className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-2xl px-4 py-20 text-center">
@@ -753,7 +986,6 @@ export default function DashboardStudyMaterialPage() {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      {/* HEADER */}
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -768,7 +1000,7 @@ export default function DashboardStudyMaterialPage() {
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-                Upload, organise, and maintain the academic
+                Upload, organise, edit, and maintain the academic
                 resources available to students through the
                 Study Material library.
               </p>
@@ -799,7 +1031,6 @@ export default function DashboardStudyMaterialPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* MESSAGES */}
         {successMessage && (
           <div
             role="status"
@@ -818,7 +1049,6 @@ export default function DashboardStudyMaterialPage() {
           </div>
         )}
 
-        {/* UPLOAD AREA */}
         <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-5 sm:px-7">
             <div className="flex items-center gap-3">
@@ -843,39 +1073,27 @@ export default function DashboardStudyMaterialPage() {
             className="p-5 sm:p-7"
           >
             <div className="grid gap-5 lg:grid-cols-2">
-              <FormField
-                label="Title"
-                required
-              >
+              <FormField label="Title" required>
                 <input
                   value={form.title}
                   onChange={(e) =>
-                    updateForm(
-                      "title",
-                      e.target.value
-                    )
+                    updateForm("title", e.target.value)
                   }
                   placeholder="e.g. Sets & Relations Notes"
                   className={inputClass}
                 />
               </FormField>
 
-              <FormField
-                label="Subject"
-                required
-              >
+              <FormField label="Subject" required>
                 <select
                   value={form.subject}
                   onChange={(e) =>
-                    updateForm(
-                      "subject",
-                      e.target.value
-                    )
+                    updateForm("subject", e.target.value)
                   }
                   className={inputClass}
                 >
                   <option value="">
-                    Select a subject
+                    Select subject
                   </option>
 
                   {SUBJECTS.map((subject) => (
@@ -889,10 +1107,7 @@ export default function DashboardStudyMaterialPage() {
                 </select>
               </FormField>
 
-              <FormField
-                label="Class"
-                required
-              >
+              <FormField label="Class" required>
                 <select
                   value={form.classLevel}
                   onChange={(e) =>
@@ -942,16 +1157,14 @@ export default function DashboardStudyMaterialPage() {
                   }
                   className={inputClass}
                 >
-                  {MATERIAL_TYPES.map(
-                    (item) => (
-                      <option
-                        key={item}
-                        value={item}
-                      >
-                        {item}
-                      </option>
-                    )
-                  )}
+                  {MATERIAL_TYPES.map((item) => (
+                    <option
+                      key={item}
+                      value={item}
+                    >
+                      {item}
+                    </option>
+                  ))}
                 </select>
               </FormField>
 
@@ -970,16 +1183,14 @@ export default function DashboardStudyMaterialPage() {
                     Not tied to a specific exam
                   </option>
 
-                  {EXAM_TYPES.map(
-                    (item) => (
-                      <option
-                        key={item}
-                        value={item}
-                      >
-                        {item}
-                      </option>
-                    )
-                  )}
+                  {EXAM_TYPES.map((item) => (
+                    <option
+                      key={item}
+                      value={item}
+                    >
+                      {item}
+                    </option>
+                  ))}
                 </select>
               </FormField>
 
@@ -1001,10 +1212,7 @@ export default function DashboardStudyMaterialPage() {
               </div>
 
               <div className="lg:col-span-2">
-                <FormField
-                  label="File"
-                  required
-                >
+                <FormField label="File" required>
                   <label
                     htmlFor="study-material-file"
                     className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-center transition hover:border-blue-300 hover:bg-blue-50/40"
@@ -1022,17 +1230,14 @@ export default function DashboardStudyMaterialPage() {
                     </span>
 
                     <span className="mt-1 text-xs text-slate-400">
-                      PDF, DOC, DOCX, PPT, PPTX, XLS,
-                      XLSX · Max 20 MB
+                      PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX · Max 20 MB
                     </span>
 
                     <input
                       id="study-material-file"
                       type="file"
                       accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
-                      onChange={
-                        handleFileChange
-                      }
+                      onChange={handleFileChange}
                       className="sr-only"
                     />
                   </label>
@@ -1063,7 +1268,6 @@ export default function DashboardStudyMaterialPage() {
           </form>
         </section>
 
-        {/* LIBRARY MANAGEMENT */}
         <section className="mt-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -1082,7 +1286,6 @@ export default function DashboardStudyMaterialPage() {
             </p>
           </div>
 
-          {/* FILTERS */}
           <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="grid gap-3 md:grid-cols-[1fr_180px_190px]">
               <input
@@ -1090,16 +1293,14 @@ export default function DashboardStudyMaterialPage() {
                 onChange={(e) =>
                   setSearch(e.target.value)
                 }
-                placeholder="Search title, subject, chapter..."
+                placeholder="Search title, subject, chapter, file name..."
                 className={inputClass}
               />
 
               <select
                 value={filterClass}
                 onChange={(e) =>
-                  setFilterClass(
-                    e.target.value
-                  )
+                  setFilterClass(e.target.value)
                 }
                 className={inputClass}
               >
@@ -1132,42 +1333,38 @@ export default function DashboardStudyMaterialPage() {
                   All Material Types
                 </option>
 
-                {MATERIAL_TYPES.map(
-                  (item) => (
-                    <option
-                      key={item}
-                      value={item}
-                    >
-                      {item}
-                    </option>
-                  )
-                )}
+                {MATERIAL_TYPES.map((item) => (
+                  <option
+                    key={item}
+                    value={item}
+                  >
+                    {item}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* MATERIAL LIST */}
           {loadingMaterials ? (
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {Array.from({
-                length: 4,
-              }).map((_, index) => (
-                <div
-                  key={index}
-                  className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"
-                >
-                  <div className="h-10 w-10 rounded-xl bg-slate-200" />
+              {Array.from({ length: 4 }).map(
+                (_, index) => (
+                  <div
+                    key={index}
+                    className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"
+                  >
+                    <div className="h-10 w-10 rounded-xl bg-slate-200" />
 
-                  <div className="mt-4 h-4 w-3/4 rounded bg-slate-200" />
+                    <div className="mt-4 h-4 w-3/4 rounded bg-slate-200" />
 
-                  <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
+                    <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
 
-                  <div className="mt-6 h-10 rounded-xl bg-slate-100" />
-                </div>
-              ))}
+                    <div className="mt-6 h-10 rounded-xl bg-slate-100" />
+                  </div>
+                )
+              )}
             </div>
-          ) : filteredMaterials.length ===
-            0 ? (
+          ) : filteredMaterials.length === 0 ? (
             <div className="mt-5 rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
                 📚
@@ -1191,13 +1388,30 @@ export default function DashboardStudyMaterialPage() {
                     key={material.id}
                     material={material}
                     deleting={
-                      deletingId ===
-                      material.id
+                      deletingId === material.id
+                    }
+                    editing={
+                      editingId === material.id
+                    }
+                    savingEdit={
+                      savingEdit &&
+                      editingId === material.id
+                    }
+                    editForm={editForm}
+                    onStartEdit={() =>
+                      startEditing(material)
+                    }
+                    onCancelEdit={
+                      cancelEditing
+                    }
+                    onEditFormChange={
+                      updateEditForm
+                    }
+                    onSaveEdit={() =>
+                      handleEditSave(material)
                     }
                     onDelete={() =>
-                      handleDelete(
-                        material
-                      )
+                      handleDelete(material)
                     }
                   />
                 )
@@ -1206,14 +1420,10 @@ export default function DashboardStudyMaterialPage() {
           )}
         </section>
 
-        {/* FOOTER INFO */}
         <div className="mt-8 flex flex-col gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-xs leading-5 text-blue-800 sm:flex-row sm:items-center sm:justify-between">
           <span>
             Files are stored securely in the{" "}
-            <strong>
-              study-materials
-            </strong>{" "}
-            Storage bucket.
+            <strong>study-materials</strong> Storage bucket.
           </span>
 
           <span>
@@ -1225,10 +1435,6 @@ export default function DashboardStudyMaterialPage() {
     </main>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/* COMPONENTS                                                                 */
-/* -------------------------------------------------------------------------- */
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50";
@@ -1262,19 +1468,58 @@ function FormField({
 function MaterialAdminCard({
   material,
   deleting,
+  editing,
+  savingEdit,
+  editForm,
+  onStartEdit,
+  onCancelEdit,
+  onEditFormChange,
+  onSaveEdit,
   onDelete,
 }: {
   material: StudyMaterial;
   deleting: boolean;
+  editing: boolean;
+  savingEdit: boolean;
+  editForm: {
+    fileName: string;
+    title: string;
+    classLevel: string;
+    subject: string;
+    chapter: string;
+    materialType: MaterialType;
+    examType: ExamType | "";
+    description: string;
+  };
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onEditFormChange: (
+    field:
+      | "fileName"
+      | "title"
+      | "classLevel"
+      | "subject"
+      | "chapter"
+      | "materialType"
+      | "examType"
+      | "description",
+    value: string
+  ) => void;
+  onSaveEdit: () => void;
   onDelete: () => void;
 }) {
   const style =
-    TYPE_STYLES[
-      material.material_type
-    ];
+    TYPE_STYLES[material.material_type];
+
+  const currentFileName = material.file_path
+    ? material.file_path.split("/").pop()
+    : null;
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <article
+      id={`edit-material-${material.id}`}
+      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+    >
       <div className="flex gap-4">
         <div
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${style.badge}`}
@@ -1307,7 +1552,6 @@ function MaterialAdminCard({
 
           <p className="mt-1 text-xs font-semibold text-blue-600">
             {material.subject}
-
             {material.chapter
               ? ` · ${material.chapter}`
               : ""}
@@ -1319,33 +1563,297 @@ function MaterialAdminCard({
             </p>
           )}
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {material.external_url && (
-              <a
-                href={
-                  material.external_url
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-600"
-              >
-                Open File ↗
-              </a>
-            )}
+          {editing ? (
+            <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+              <div className="mb-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                  Edit Material
+                </p>
 
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={deleting}
-              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {deleting
-                ? "Deleting..."
-                : "Delete"}
-            </button>
-          </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Changes are saved to both the database and Storage.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <EditField
+                  label="File Name"
+                  required
+                  className="sm:col-span-2"
+                >
+                  <input
+                    value={editForm.fileName}
+                    onChange={(e) =>
+                      onEditFormChange(
+                        "fileName",
+                        e.target.value
+                      )
+                    }
+                    placeholder="e.g. Sets-and-Relations-Notes.pdf"
+                    className={inputClass}
+                    disabled={savingEdit}
+                  />
+
+                  <p className="mt-1.5 text-[11px] text-slate-400">
+                    The extension is preserved automatically if omitted.
+                  </p>
+                </EditField>
+
+                <EditField
+                  label="Title"
+                  required
+                >
+                  <input
+                    value={editForm.title}
+                    onChange={(e) =>
+                      onEditFormChange(
+                        "title",
+                        e.target.value
+                      )
+                    }
+                    className={inputClass}
+                    disabled={savingEdit}
+                  />
+                </EditField>
+
+                <EditField
+                  label="Class"
+                  required
+                >
+                  <select
+                    value={editForm.classLevel}
+                    onChange={(e) =>
+                      onEditFormChange(
+                        "classLevel",
+                        e.target.value
+                      )
+                    }
+                    className={inputClass}
+                    disabled={savingEdit}
+                  >
+                    {CLASSES.map((item) => (
+                      <option
+                        key={item}
+                        value={item}
+                      >
+                        Class {item}
+                      </option>
+                    ))}
+                  </select>
+                </EditField>
+
+                <EditField
+                  label="Subject"
+                  required
+                >
+                  <select
+                    value={editForm.subject}
+                    onChange={(e) =>
+                      onEditFormChange(
+                        "subject",
+                        e.target.value
+                      )
+                    }
+                    className={inputClass}
+                    disabled={savingEdit}
+                  >
+                    <option value="">
+                      Select subject
+                    </option>
+
+                    {SUBJECTS.map((subject) => (
+                      <option
+                        key={subject}
+                        value={subject}
+                      >
+                        {subject}
+                      </option>
+                    ))}
+                  </select>
+                </EditField>
+
+                <EditField label="Chapter">
+                  <input
+                    value={editForm.chapter}
+                    onChange={(e) =>
+                      onEditFormChange(
+                        "chapter",
+                        e.target.value
+                      )
+                    }
+                    className={inputClass}
+                    disabled={savingEdit}
+                  />
+                </EditField>
+
+                <EditField
+                  label="Material Type"
+                  required
+                >
+                  <select
+                    value={editForm.materialType}
+                    onChange={(e) =>
+                      onEditFormChange(
+                        "materialType",
+                        e.target.value
+                      )
+                    }
+                    className={inputClass}
+                    disabled={savingEdit}
+                  >
+                    {MATERIAL_TYPES.map(
+                      (item) => (
+                        <option
+                          key={item}
+                          value={item}
+                        >
+                          {item}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </EditField>
+
+                <EditField label="Exam">
+                  <select
+                    value={editForm.examType}
+                    onChange={(e) =>
+                      onEditFormChange(
+                        "examType",
+                        e.target.value
+                      )
+                    }
+                    className={inputClass}
+                    disabled={savingEdit}
+                  >
+                    <option value="">
+                      Not tied to a specific exam
+                    </option>
+
+                    {EXAM_TYPES.map((item) => (
+                      <option
+                        key={item}
+                        value={item}
+                      >
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </EditField>
+
+                <EditField
+                  label="Description"
+                  className="sm:col-span-2"
+                >
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) =>
+                      onEditFormChange(
+                        "description",
+                        e.target.value
+                      )
+                    }
+                    rows={3}
+                    className={`${inputClass} resize-none`}
+                    disabled={savingEdit}
+                  />
+                </EditField>
+              </div>
+
+              <div className="mt-4 flex flex-col-reverse gap-2 border-t border-blue-100 pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={onCancelEdit}
+                  disabled={savingEdit}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onSaveEdit}
+                  disabled={savingEdit}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingEdit
+                    ? "Saving Changes..."
+                    : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {currentFileName && (
+                <p className="mt-2 truncate text-[11px] text-slate-400">
+                  📄 {currentFileName}
+                </p>
+              )}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {material.external_url && (
+                  <a
+                    href={material.external_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-600"
+                  >
+                    Open File ↗
+                  </a>
+                )}
+
+                <button
+                  type="button"
+                  onClick={onStartEdit}
+                  disabled={deleting}
+                  className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Edit
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  disabled={deleting}
+                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deleting
+                    ? "Deleting..."
+                    : "Delete"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </article>
+  );
+}
+
+function EditField({
+  label,
+  required = false,
+  className = "",
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        {label}
+
+        {required && (
+          <span className="ml-1 text-red-500">
+            *
+          </span>
+        )}
+      </span>
+
+      {children}
+    </label>
   );
 }
