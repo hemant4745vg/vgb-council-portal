@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 
 const supabase = createClient(
   "https://lllmgmfofwczpqbmigey.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzIiwicmVmIjoibGxsbWdtZm9md2N6cHFibWlnZXkiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4OTU1MjE3NiwiZXhwIjoyMTA1MTI4MTc2fQ.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
 );
 
 type UserProfile = {
@@ -15,7 +15,7 @@ type UserProfile = {
   name: string | null;
   email: string;
   role: string | null;
-  admin_status: string;
+  admin_status: "yes" | "no";
 };
 
 type RpcProfile = {
@@ -38,18 +38,26 @@ const navItems = [
 
 export default function Navbar() {
   const pathname = usePathname();
+
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
+
+  const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState(false);
+
   const [accountOpen, setAccountOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   const accountRef = useRef<HTMLDivElement | null>(null);
+
+  /* =========================================================
+     LOAD PROFILE
+  ========================================================= */
 
   async function loadProfile(userEmail: string): Promise<boolean> {
     if (!userEmail.trim()) {
@@ -62,13 +70,24 @@ export default function Navbar() {
     setProfileLoading(true);
     setProfileError(false);
 
-    const { data, error } = await supabase.rpc("get_my_portal_profile");
+    console.log("NAV: Loading portal profile for:", userEmail);
+
+    const { data, error } = await supabase.rpc(
+      "get_my_portal_profile"
+    );
+
+    console.log("NAV: Portal profile RPC response:", {
+      data,
+      error,
+    });
 
     if (error) {
-      console.error("Portal profile RPC failed:", error);
+      console.error("NAV: Portal profile RPC failed:", error);
+
       setProfile(null);
       setProfileError(true);
       setProfileLoading(false);
+
       return false;
     }
 
@@ -77,30 +96,51 @@ export default function Navbar() {
       : (data as RpcProfile | null);
 
     if (!profileData) {
-      console.warn("Authenticated user is not authorised for the portal:", userEmail);
+      console.warn(
+        "NAV: Authenticated account has no portal profile:",
+        userEmail
+      );
+
       setProfile(null);
       setProfileError(true);
       setProfileLoading(false);
 
-      // Authentication alone does not grant portal access.
-      // The user's email must have a matching row in allowed_users.
+      /*
+       * Authentication alone does not grant portal access.
+       * A matching allowed_users record is required.
+       */
       await supabase.auth.signOut();
+
       setSession(null);
       setProfile(null);
+
       return false;
     }
 
-    setProfile({
+    const normalizedProfile: UserProfile = {
       id: Number(profileData.id),
       name: profileData.name ?? null,
       email: profileData.email ?? userEmail,
       role: profileData.role ?? null,
-      admin_status: profileData.admin_status === "yes" ? "yes" : "no",
-    });
+      admin_status:
+        profileData.admin_status === "yes" ? "yes" : "no",
+    };
+
+    console.log(
+      "NAV: Normalized portal profile:",
+      normalizedProfile
+    );
+
+    setProfile(normalizedProfile);
     setProfileError(false);
     setProfileLoading(false);
+
     return true;
   }
+
+  /* =========================================================
+     AUTH INITIALISATION
+  ========================================================= */
 
   useEffect(() => {
     let mounted = true;
@@ -112,35 +152,49 @@ export default function Navbar() {
 
       if (!mounted) return;
 
+      console.log(
+        "NAV: Initial session:",
+        currentSession?.user?.email ?? "none"
+      );
+
       setSession(currentSession);
 
-      if (currentSession?.user?.email) {
-        await loadProfile(currentSession.user.email);
-      } else {
+      if (!currentSession) {
         setProfile(null);
         setProfileError(false);
+        setProfileLoading(false);
       }
     }
 
     initializeAuth();
 
+    /*
+     * IMPORTANT:
+     * The auth listener only updates the session.
+     *
+     * It does NOT call the profile RPC directly.
+     * Profile loading is handled by the separate effect below.
+     */
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (!mounted) return;
+    } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        if (!mounted) return;
 
-      setSession(nextSession);
+        console.log(
+          "NAV: Auth state changed:",
+          nextSession?.user?.email ?? "none"
+        );
 
-      if (nextSession?.user?.email) {
-        window.setTimeout(() => {
-          if (!mounted) return;
-          loadProfile(nextSession.user.email!);
-        }, 0);
-      } else {
-        setProfile(null);
-        setProfileError(false);
+        setSession(nextSession);
+
+        if (!nextSession) {
+          setProfile(null);
+          setProfileError(false);
+          setProfileLoading(false);
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -148,17 +202,150 @@ export default function Navbar() {
     };
   }, []);
 
+  /* =========================================================
+     LOAD PROFILE WHEN SESSION CHANGES
+  ========================================================= */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchProfile() {
+      if (!session?.user?.email) {
+        setProfile(null);
+        setProfileError(false);
+        setProfileLoading(false);
+        return;
+      }
+
+      /*
+       * Keep the loading state visible while the RPC is running.
+       */
+      setProfileLoading(true);
+      setProfileError(false);
+
+      const userEmail = session.user.email;
+
+      console.log(
+        "NAV: Fetching profile for session:",
+        userEmail
+      );
+
+      const { data, error } = await supabase.rpc(
+        "get_my_portal_profile"
+      );
+
+      /*
+       * Ignore results from an obsolete session/profile request.
+       */
+      if (cancelled) return;
+
+      console.log("NAV: Profile result:", {
+        data,
+        error,
+      });
+
+      if (error) {
+        console.error(
+          "NAV: Profile RPC failed:",
+          error
+        );
+
+        setProfile(null);
+        setProfileError(true);
+        setProfileLoading(false);
+
+        return;
+      }
+
+      const profileData: RpcProfile | null = Array.isArray(data)
+        ? ((data[0] as RpcProfile | undefined) ?? null)
+        : (data as RpcProfile | null);
+
+      if (!profileData) {
+        console.warn(
+          "NAV: No portal profile found for:",
+          userEmail
+        );
+
+        setProfile(null);
+        setProfileError(true);
+        setProfileLoading(false);
+
+        /*
+         * This is an authorization failure, not a temporary
+         * profile-loading error.
+         */
+        await supabase.auth.signOut();
+
+        if (!cancelled) {
+          setSession(null);
+          setProfile(null);
+        }
+
+        return;
+      }
+
+      const normalizedProfile: UserProfile = {
+        id: Number(profileData.id),
+        name: profileData.name ?? null,
+        email: profileData.email ?? userEmail,
+        role: profileData.role ?? null,
+        admin_status:
+          profileData.admin_status === "yes"
+            ? "yes"
+            : "no",
+      };
+
+      console.log(
+        "NAV: Profile successfully loaded:",
+        normalizedProfile
+      );
+
+      setProfile(normalizedProfile);
+      setProfileError(false);
+      setProfileLoading(false);
+    }
+
+    fetchProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  /* =========================================================
+     CLOSE MENUS ON OUTSIDE CLICK
+  ========================================================= */
+
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
-      if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
+      if (
+        accountRef.current &&
+        !accountRef.current.contains(
+          event.target as Node
+        )
+      ) {
         setAccountOpen(false);
         setSignInOpen(false);
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
+    document.addEventListener(
+      "mousedown",
+      handlePointerDown
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handlePointerDown
+      );
+    };
   }, []);
+
+  /* =========================================================
+     CLOSE MENUS ON ESCAPE
+  ========================================================= */
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -169,9 +356,22 @@ export default function Navbar() {
       }
     }
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    document.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+    };
   }, []);
+
+  /* =========================================================
+     CLOSE MOBILE NAV WHEN ROUTE CHANGES
+  ========================================================= */
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -179,31 +379,52 @@ export default function Navbar() {
     setSignInOpen(false);
   }, [pathname]);
 
-  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+  /* =========================================================
+     SIGN IN
+  ========================================================= */
+
+  async function handleLogin(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
+
     setLoading(true);
     setMessage("");
 
-    const formattedEmail = email.trim().toLowerCase();
+    const formattedEmail =
+      email.trim().toLowerCase();
 
     if (!formattedEmail.endsWith("@vidyagyan.in")) {
-      setMessage("Access denied. Use an official @vidyagyan.in school email.");
+      setMessage(
+        "Access denied. Use an official @vidyagyan.in school email."
+      );
       setLoading(false);
       return;
     }
 
-    // Do not allow signInWithOtp to create a new Supabase Auth user.
-    // Only accounts already provisioned in Supabase can request a link.
-    const { error } = await supabase.auth.signInWithOtp({
-      email: formattedEmail,
-      options: {
-        emailRedirectTo: "https://vgb-student-council-portal.vercel.app",
-        shouldCreateUser: false,
-      },
-    });
+    /*
+     * Do not allow Supabase Auth to automatically create
+     * new users.
+     *
+     * Only already-provisioned Auth accounts can request
+     * a magic link.
+     */
+    const { error } =
+      await supabase.auth.signInWithOtp({
+        email: formattedEmail,
+        options: {
+          emailRedirectTo:
+            "https://vgb-student-council-portal.vercel.app",
+          shouldCreateUser: false,
+        },
+      });
 
     if (error) {
-      console.error("Magic-link sign-in failed:", error);
+      console.error(
+        "Magic-link sign-in failed:",
+        error
+      );
+
       setMessage(
         "Access denied. This email is not authorised for the Student Council Portal."
       );
@@ -216,29 +437,56 @@ export default function Navbar() {
     setLoading(false);
   }
 
+  /* =========================================================
+     SIGN OUT
+  ========================================================= */
+
   async function handleLogout() {
     await supabase.auth.signOut();
+
     setSession(null);
     setProfile(null);
     setProfileError(false);
+    setProfileLoading(false);
     setAccountOpen(false);
   }
 
-  const displayName =
-    profile?.name || session?.user?.email?.split("@")[0] || "Account";
+  /* =========================================================
+     DISPLAY HELPERS
+  ========================================================= */
+
+  /*
+   * Do NOT fall back to the email prefix here.
+   *
+   * Previously:
+   *   hr4745@vidyagyan.in → hr4745
+   *
+   * That made an unresolved profile look like a real
+   * portal identity.
+   */
+  const displayName = profileLoading
+    ? "Loading..."
+    : profile?.name?.trim() || "Verified Student";
 
   const initials =
     profile?.name
-      ?.split(" ")
+      ?.trim()
+      .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join("") ||
-    session?.user?.email?.charAt(0).toUpperCase() ||
-    "A";
+      .map((part) =>
+        part.charAt(0).toUpperCase()
+      )
+      .join("") || "VG";
+
+  const displayRole = profileLoading
+    ? "Loading..."
+    : profile?.role?.trim() || "Verified Account";
 
   function isActive(href: string) {
-    return href === "/" ? pathname === "/" : pathname.startsWith(href);
+    return href === "/"
+      ? pathname === "/"
+      : pathname.startsWith(href);
   }
 
   function closeMenus() {
@@ -247,6 +495,10 @@ export default function Navbar() {
     setMobileNavOpen(false);
   }
 
+  /* =========================================================
+     SIGN-IN PANEL
+  ========================================================= */
+
   function SignInPanel() {
     return (
       <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -254,23 +506,37 @@ export default function Navbar() {
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
             Authorised Access
           </p>
-          <h3 className="mt-1 text-lg font-bold text-blue-950">Sign in to the portal</h3>
+
+          <h3 className="mt-1 text-lg font-bold text-blue-950">
+            Sign in to the portal
+          </h3>
+
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Use your registered VidyaGyan school email. No password required.
+            Use your registered VidyaGyan school email.
+            No password required.
           </p>
         </div>
 
         <div className="p-5">
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form
+            onSubmit={handleLogin}
+            className="space-y-4"
+          >
             <div>
-              <label htmlFor="navbar-school-email" className="mb-1.5 block text-xs font-semibold text-slate-600">
+              <label
+                htmlFor="navbar-school-email"
+                className="mb-1.5 block text-xs font-semibold text-slate-600"
+              >
                 School Email
               </label>
+
               <input
                 id="navbar-school-email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
                 placeholder="username@vidyagyan.in"
                 required
                 autoComplete="email"
@@ -283,14 +549,18 @@ export default function Navbar() {
               disabled={loading}
               className="w-full rounded-xl bg-blue-950 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Checking..." : "Send Magic Link"}
+              {loading
+                ? "Checking..."
+                : "Send Magic Link"}
             </button>
           </form>
 
           {message && (
             <div
               className={`mt-4 rounded-xl border p-3 text-center text-xs ${
-                message.toLowerCase().includes("sent")
+                message
+                  .toLowerCase()
+                  .includes("sent")
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                   : "border-red-200 bg-red-50 text-red-700"
               }`}
@@ -300,24 +570,38 @@ export default function Navbar() {
           )}
 
           <p className="mt-4 text-center text-[10px] leading-4 text-slate-400">
-            Access is restricted to registered Student Council Portal accounts.
+            Access is restricted to registered Student
+            Council Portal accounts.
           </p>
         </div>
       </div>
     );
   }
 
+  /* =========================================================
+     ACCOUNT MENU
+  ========================================================= */
+
   function AccountMenu() {
     return (
-      <div role="menu" className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(330px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div
+        role="menu"
+        className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(330px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+      >
         <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-950 text-xs font-bold text-white">
               {initials}
             </div>
+
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-slate-900">{displayName}</p>
-              <p className="truncate text-[10px] text-slate-500">{session?.user.email}</p>
+              <p className="truncate text-sm font-bold text-slate-900">
+                {displayName}
+              </p>
+
+              <p className="truncate text-[10px] text-slate-500">
+                {session?.user.email}
+              </p>
             </div>
           </div>
 
@@ -326,6 +610,7 @@ export default function Navbar() {
               <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-blue-800">
                 {profile.role}
               </span>
+
               {profile.admin_status === "yes" && (
                 <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-emerald-800">
                   Admin
@@ -334,10 +619,16 @@ export default function Navbar() {
             </div>
           )}
 
-          {profileLoading && <p className="mt-2 text-[10px] text-slate-400">Loading account details...</p>}
+          {profileLoading && (
+            <p className="mt-2 text-[10px] text-slate-400">
+              Loading account details...
+            </p>
+          )}
+
           {profileError && (
             <p className="mt-2 text-[10px] leading-4 text-amber-700">
-              This account is not authorised for the portal.
+              Your portal profile could not be loaded.
+              Please refresh the page.
             </p>
           )}
         </div>
@@ -349,10 +640,18 @@ export default function Navbar() {
             onClick={closeMenus}
             className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-800">D</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-800">
+              D
+            </span>
+
             <span>
-              <span className="block text-sm font-semibold text-slate-800">Dashboard</span>
-              <span className="block text-[10px] text-slate-400">Your authorised workspace</span>
+              <span className="block text-sm font-semibold text-slate-800">
+                Dashboard
+              </span>
+
+              <span className="block text-[10px] text-slate-400">
+                Your authorised workspace
+              </span>
             </span>
           </Link>
 
@@ -363,25 +662,42 @@ export default function Navbar() {
               onClick={closeMenus}
               className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-emerald-50"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-xs font-bold text-emerald-800">A</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-xs font-bold text-emerald-800">
+                A
+              </span>
+
               <span>
-                <span className="block text-sm font-semibold text-slate-800">Administration</span>
-                <span className="block text-[10px] text-slate-400">Manage authorised portal functions</span>
+                <span className="block text-sm font-semibold text-slate-800">
+                  Administration
+                </span>
+
+                <span className="block text-[10px] text-slate-400">
+                  Manage authorised portal functions
+                </span>
               </span>
             </Link>
           )}
 
           <div className="my-1 border-t border-slate-100" />
+
           <button
             type="button"
             role="menuitem"
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-red-50"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-xs font-bold text-red-700">↪</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-xs font-bold text-red-700">
+              ↪
+            </span>
+
             <span>
-              <span className="block text-sm font-semibold text-slate-800">Sign Out</span>
-              <span className="block text-[10px] text-slate-400">End this portal session</span>
+              <span className="block text-sm font-semibold text-slate-800">
+                Sign Out
+              </span>
+
+              <span className="block text-[10px] text-slate-400">
+                End this portal session
+              </span>
             </span>
           </button>
         </div>
@@ -389,17 +705,37 @@ export default function Navbar() {
     );
   }
 
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex shrink-0 items-center gap-3" onClick={closeMenus}>
-          <img src="/vidyagyan-logo.png" alt="VidyaGyan" className="h-9 w-auto object-contain sm:h-10" />
+        {/* BRAND */}
+        <Link
+          href="/"
+          className="flex shrink-0 items-center gap-3"
+          onClick={closeMenus}
+        >
+          <img
+            src="/vidyagyan-logo.png"
+            alt="VidyaGyan"
+            className="h-9 w-auto object-contain sm:h-10"
+          />
+
           <div className="hidden border-l border-slate-200 pl-3 sm:block">
-            <p className="text-sm font-bold leading-tight text-slate-900">VidyaGyan</p>
-            <p className="text-[11px] font-medium leading-tight text-slate-500">Student Council Portal</p>
+            <p className="text-sm font-bold leading-tight text-slate-900">
+              VidyaGyan
+            </p>
+
+            <p className="text-[11px] font-medium leading-tight text-slate-500">
+              Student Council Portal
+            </p>
           </div>
         </Link>
 
+        {/* DESKTOP NAVIGATION */}
         <nav className="ml-auto hidden items-center gap-0.5 lg:flex">
           {navItems.map((item) => (
             <Link
@@ -417,13 +753,19 @@ export default function Navbar() {
           ))}
         </nav>
 
-        <div ref={accountRef} className="relative ml-2 border-l border-slate-200 pl-2 sm:ml-3 sm:pl-3">
+        {/* ACCOUNT AREA */}
+        <div
+          ref={accountRef}
+          className="relative ml-2 border-l border-slate-200 pl-2 sm:ml-3 sm:pl-3"
+        >
           {!session ? (
             <>
               <button
                 type="button"
                 onClick={() => {
-                  setSignInOpen((current) => !current);
+                  setSignInOpen(
+                    (current) => !current
+                  );
                   setAccountOpen(false);
                   setMobileNavOpen(false);
                   setMessage("");
@@ -432,6 +774,7 @@ export default function Navbar() {
               >
                 Sign In
               </button>
+
               {signInOpen && <SignInPanel />}
             </>
           ) : (
@@ -439,7 +782,9 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={() => {
-                  setAccountOpen((current) => !current);
+                  setAccountOpen(
+                    (current) => !current
+                  );
                   setSignInOpen(false);
                   setMobileNavOpen(false);
                 }}
@@ -447,31 +792,64 @@ export default function Navbar() {
                 aria-haspopup="menu"
                 className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 transition hover:border-slate-300 hover:bg-slate-50 sm:px-2"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-950 text-[11px] font-bold text-white">{initials}</span>
-                <span className="hidden max-w-[135px] text-left sm:block">
-                  <span className="block truncate text-xs font-semibold text-slate-800">{displayName}</span>
-                  <span className="block truncate text-[9px] text-slate-400">{profile?.role || "Portal Account"}</span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-950 text-[11px] font-bold text-white">
+                  {initials}
                 </span>
-                <span aria-hidden="true" className={`hidden text-xs text-slate-400 transition-transform sm:inline ${accountOpen ? "rotate-180" : ""}`}>▾</span>
+
+                <span className="hidden max-w-[135px] text-left sm:block">
+                  <span className="block truncate text-xs font-semibold text-slate-800">
+                    {displayName}
+                  </span>
+
+                  <span className="block truncate text-[9px] text-slate-400">
+                    {displayRole}
+                  </span>
+                </span>
+
+                <span
+                  aria-hidden="true"
+                  className={`hidden text-xs text-slate-400 transition-transform sm:inline ${
+                    accountOpen
+                      ? "rotate-180"
+                      : ""
+                  }`}
+                >
+                  ▾
+                </span>
               </button>
+
               {accountOpen && <AccountMenu />}
             </div>
           )}
 
+          {/* MOBILE NAV TOGGLE */}
           <button
             type="button"
-            aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+            aria-label={
+              mobileNavOpen
+                ? "Close navigation"
+                : "Open navigation"
+            }
             aria-expanded={mobileNavOpen}
             onClick={() => {
-              setMobileNavOpen((current) => !current);
+              setMobileNavOpen(
+                (current) => !current
+              );
               setAccountOpen(false);
               setSignInOpen(false);
             }}
             className="ml-1.5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 lg:hidden"
           >
-            <span className="sr-only">{mobileNavOpen ? "Close navigation" : "Open navigation"}</span>
+            <span className="sr-only">
+              {mobileNavOpen
+                ? "Close navigation"
+                : "Open navigation"}
+            </span>
+
             {mobileNavOpen ? (
-              <span className="text-lg leading-none">×</span>
+              <span className="text-lg leading-none">
+                ×
+              </span>
             ) : (
               <span className="flex flex-col gap-1">
                 <span className="block h-0.5 w-4 rounded-full bg-current" />
@@ -483,6 +861,7 @@ export default function Navbar() {
         </div>
       </div>
 
+      {/* MOBILE NAVIGATION */}
       {mobileNavOpen && (
         <div className="border-t border-slate-100 bg-white lg:hidden">
           <nav className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
@@ -499,7 +878,17 @@ export default function Navbar() {
                   }`}
                 >
                   <span>{item.name}</span>
-                  <span aria-hidden="true" className={`text-sm ${isActive(item.href) ? "text-white/70" : "text-slate-300"}`}>→</span>
+
+                  <span
+                    aria-hidden="true"
+                    className={`text-sm ${
+                      isActive(item.href)
+                        ? "text-white/70"
+                        : "text-slate-300"
+                    }`}
+                  >
+                    →
+                  </span>
                 </Link>
               ))}
             </div>
