@@ -652,78 +652,233 @@ function MaterialCard({
   const style = TYPE_STYLES[material.material_type];
 
   const resourceUrl =
-    material.external_url ||
-    material.file_path ||
-    null;
+    material.external_url || material.file_path || null;
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const fileName =
+    material.file_path?.split("/").pop() ||
+    material.title;
+
+  const extension =
+    fileName.split(".").pop()?.toLowerCase() || "";
+
+  const isPdf = extension === "pdf";
+
+  const officePreviewUrl = resourceUrl
+    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
+        resourceUrl
+      )}`
+    : null;
 
   return (
-    <article
-      className={`group flex h-full flex-col rounded-2xl border bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg ${style.accent}`}
+    <>
+      <article className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
+        <div className="flex gap-4">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${style.accent}`}
+          >
+            {style.icon}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${style.badge}`}
+              >
+                {material.material_type}
+              </span>
+
+              <span className="text-xs font-semibold text-slate-400">
+                Class {material.class_level}
+              </span>
+
+              {material.exam_type && (
+                <span className="text-xs font-semibold text-slate-400">
+                  · {material.exam_type}
+                </span>
+              )}
+            </div>
+
+            <h3 className="mt-2 text-base font-bold text-slate-950">
+              {material.title}
+            </h3>
+
+            <p className="mt-1 text-xs font-semibold text-blue-600">
+              {material.subject}
+              {material.chapter
+                ? ` · ${material.chapter}`
+                : ""}
+            </p>
+
+            {material.description && (
+              <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-500">
+                {material.description}
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {resourceUrl ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-600"
+                  >
+                    <span>👁</span>
+                    Preview
+                  </button>
+
+                  <a
+                    href={`${resourceUrl}${
+                      resourceUrl.includes("?")
+                        ? "&download"
+                        : "?download"
+                    }`}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <span>↓</span>
+                    Download
+                  </a>
+                </>
+              ) : (
+                <span className="text-xs font-medium text-slate-400">
+                  Material coming soon
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </article>
+
+      {previewOpen && resourceUrl && (
+        <PreviewModal
+          title={material.title}
+          resourceUrl={resourceUrl}
+          officePreviewUrl={officePreviewUrl}
+          isPdf={isPdf}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function PreviewModal({
+  title,
+  resourceUrl,
+  officePreviewUrl,
+  isPdf,
+  onClose,
+}: {
+  title: string;
+  resourceUrl: string;
+  officePreviewUrl: string | null;
+  isPdf: boolean;
+  onClose: () => void;
+}) {
+  const previewUrl = isPdf
+    ? resourceUrl
+    : officePreviewUrl;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 sm:p-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${style.badge}`}
-        >
-          {style.icon}
+      <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        {/* HEADER */}
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-bold text-slate-950 sm:text-base">
+              {title}
+            </h2>
+
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              Preview
+            </p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <a
+              href={
+                resourceUrl.includes("?")
+                  ? `${resourceUrl}&download`
+                  : `${resourceUrl}?download`
+              }
+              className="hidden rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
+            >
+              ↓ Download
+            </a>
+
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close preview"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
-        <span
-          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${style.badge}`}
-        >
-          {material.material_type}
-        </span>
-      </div>
+        {/* PREVIEW */}
+        <div className="min-h-0 flex-1 bg-slate-100">
+          {previewUrl ? (
+            <iframe
+              src={previewUrl}
+              title={`Preview of ${title}`}
+              className="h-full w-full border-0"
+              allow="fullscreen"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center p-6 text-center">
+              <div>
+                <div className="text-4xl">📄</div>
 
-      <div className="mt-5">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-400">
-          <span>Class {material.class_level}</span>
+                <h3 className="mt-4 font-bold text-slate-900">
+                  Preview unavailable
+                </h3>
 
-          <span>•</span>
+                <p className="mt-2 max-w-md text-sm text-slate-500">
+                  This file cannot be previewed in the browser.
+                  You can download it instead.
+                </p>
 
-          <span>{material.subject}</span>
-
-          {material.exam_type && (
-            <>
-              <span>•</span>
-              <span>{material.exam_type}</span>
-            </>
+                <a
+                  href={resourceUrl}
+                  className="mt-5 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  Download file
+                </a>
+              </div>
+            </div>
           )}
         </div>
 
-        <h3 className="mt-2 text-base font-bold leading-6 text-slate-900">
-          {material.title}
-        </h3>
+        {/* MOBILE FOOTER */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:hidden">
+          <span className="text-xs text-slate-400">
+            Preview only
+          </span>
 
-        {material.chapter && (
-          <p className="mt-1 text-xs font-semibold text-blue-600">
-            {material.chapter}
-          </p>
-        )}
-
-        {material.description && (
-          <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-500">
-            {material.description}
-          </p>
-        )}
-      </div>
-
-      <div className="mt-auto pt-6">
-        {resourceUrl ? (
           <a
-            href={resourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600"
+            href={
+              resourceUrl.includes("?")
+                ? `${resourceUrl}&download`
+                : `${resourceUrl}?download`
+            }
+            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
           >
-            Open Material
-            <span aria-hidden="true">↗</span>
+            ↓ Download
           </a>
-        ) : (
-          <div className="rounded-xl bg-slate-100 px-4 py-2.5 text-center text-sm font-semibold text-slate-400">
-            Material coming soon
-          </div>
-        )}
+        </div>
       </div>
-    </article>
+    </div>
   );
 }
+
