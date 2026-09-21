@@ -452,6 +452,7 @@ export default function DashboardStudyMaterialPage() {
         description: form.description.trim() || null,
         file_path: filePath,
         external_url: externalUrl,
+        file_size_bytes: form.sourceType === "supabase" ? selectedFile?.size ?? null : null,
         uploaded_by: currentProfile?.email || user.email || null,
       });
 
@@ -540,10 +541,13 @@ export default function DashboardStudyMaterialPage() {
 
       let filePath = material.file_path;
       let externalUrl = material.external_url;
+      let fileSizeBytes = material.file_size_bytes ?? null;
 
       if (editForm.sourceType === "drive") {
         externalUrl = editForm.driveUrl.trim();
         filePath = null;
+        fileSizeBytes = null;
+        fileSizeBytes = null;
       } else {
         const oldStoragePath = material.file_path;
         if (!oldStoragePath) throw new Error("This material does not have an associated Supabase Storage file.");
@@ -592,6 +596,7 @@ export default function DashboardStudyMaterialPage() {
           description: editForm.description.trim() || null,
           file_path: filePath,
           external_url: externalUrl,
+          file_size_bytes: fileSizeBytes,
           updated_at: new Date().toISOString(),
         })
         .eq("id", material.id);
