@@ -249,12 +249,12 @@ export default function Navbar() {
     }
 
     const { error } = await supabase.auth.signInWithOtp({
-      email: formattedEmail,
-      options: {
-        emailRedirectTo:
-          "https://vgb-student-council-portal.vercel.app",
-      },
-    });
+  email: formattedEmail,
+  options: {
+    emailRedirectTo: "https://vgb-student-council-portal.vercel.app",
+    shouldCreateUser: false,
+  },
+});
 
     if (error) {
       console.error("Magic-link sign-in failed:", error);
