@@ -1413,8 +1413,7 @@ export default function Home() {
               {profile ? (
                 <>
                   <h3 className="mt-4 text-xl font-bold text-blue-950">
-                    {profile.name ||
-                      "Campus account"}
+                    {profile.name}
                   </h3>
 
                   <p className="mt-1 text-xs text-slate-500">
