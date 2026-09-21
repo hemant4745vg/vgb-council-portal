@@ -27,7 +27,42 @@ interface StudyMaterial {
   updated_at: string;
 }
 
-const CLASSES = ["All", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+const CLASSES = [
+  "All",
+  "VI",
+  "VII",
+  "VIII",
+  "IX",
+  "X",
+  "XI",
+  "XII",
+];
+
+const SUBJECTS = [
+  "English",
+  "Hindi",
+  "Mathematics",
+  "Applied Mathematics",
+  "Science",
+  "Social Science",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Economics",
+  "Political Science",
+  "History",
+  "Geography",
+  "Accountancy",
+  "Business Studies",
+  "Informatics Practices",
+  "Information Technology",
+  "Artificial Intelligence",
+  "Sanskrit",
+  "Psychology",
+  "Sociology",
+  "Physical Education",
+  "Painting",
+];
 
 const MATERIAL_TYPES: {
   value: MaterialType;
@@ -140,16 +175,8 @@ export default function StudyMaterialPage() {
   }
 
   const subjects = useMemo(() => {
-    const uniqueSubjects = Array.from(
-      new Set(
-        materials
-          .map((material) => material.subject)
-          .filter(Boolean)
-      )
-    );
-
-    return ["All", ...uniqueSubjects.sort()];
-  }, [materials]);
+    return ["All", ...SUBJECTS];
+  }, []);
 
   const filteredMaterials = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -881,4 +908,3 @@ function PreviewModal({
     </div>
   );
 }
-
