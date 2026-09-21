@@ -1,16 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-/*
-  Use the same Supabase project configuration already used by
-  the existing Home page.
-*/
-const supabase = createClient(
-  "https://lllmgmfofwczpqbmigey.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
-);
+import { supabase } from "@/lib/supabase";
 
 type MaterialType =
   | "Notes"
@@ -640,7 +631,11 @@ function FilterSelect({
         {options.map((option) => (
           <option key={option} value={option}>
             {option === "All"
-              ? `All ${label === "Exam" ? "Exams" : `${label}s`}`
+              ? `All ${
+                  label === "Exam"
+                    ? "Exams"
+                    : `${label}s`
+                }`
               : option}
           </option>
         ))}
