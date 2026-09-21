@@ -18,6 +18,7 @@ interface StudyMaterial {
   description: string | null;
   file_path: string | null;
   external_url: string | null;
+  file_size_bytes: number | null;
   uploaded_by: string | null;
   created_at: string;
   updated_at: string;
