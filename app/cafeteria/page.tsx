@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Meal = {
   title: string;
@@ -399,6 +399,16 @@ const DAY_SHORT: Record<number, string> = {
   6: "SAT",
 };
 
+const DAY_NUMBER: Record<string, number> = {
+  SUN: 0,
+  MON: 1,
+  TUE: 2,
+  WED: 3,
+  THU: 4,
+  FRI: 5,
+  SAT: 6,
+};
+
 const CAFETERIA_COMMITTEE = [
   "Col. Abhishake Rai",
   "Bhupal Giri Goswami",
@@ -460,21 +470,21 @@ const MEAL_STYLES: Record<
     accent: "from-amber-400 to-orange-400",
     soft: "bg-amber-50",
     icon: "bg-amber-100 text-amber-700",
-    label: "Start strong",
+    label: "Morning",
   },
 
   "Morning Snack": {
     accent: "from-cyan-400 to-sky-500",
     soft: "bg-cyan-50",
     icon: "bg-cyan-100 text-cyan-700",
-    label: "Between meals",
+    label: "Mid-morning",
   },
 
   Lunch: {
     accent: "from-emerald-400 to-green-500",
     soft: "bg-emerald-50",
     icon: "bg-emerald-100 text-emerald-700",
-    label: "Main meal",
+    label: "Midday",
   },
 
   "Evening Snack": {
@@ -488,24 +498,24 @@ const MEAL_STYLES: Record<
     accent: "from-indigo-500 to-violet-500",
     soft: "bg-indigo-50",
     icon: "bg-indigo-100 text-indigo-700",
-    label: "End the day",
+    label: "Night",
   },
 };
 
 function formatIndiaDate(date: Date) {
-  return date.toLocaleDateString("en-IN", {
+  return new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
     day: "numeric",
     month: "long",
     year: "numeric",
-  });
+  }).format(date);
 }
 
 /*
  * Returns the current India Standard Time.
  *
- * The cafeteria schedule always follows Asia/Kolkata,
- * regardless of the timezone configured on the user's device.
+ * The cafeteria follows Asia/Kolkata regardless of the
+ * timezone configured on the student's device.
  */
 function getIndiaTimeParts() {
   const formatter = new Intl.DateTimeFormat("en-IN", {
@@ -535,19 +545,23 @@ function getIndiaTimeParts() {
 /*
  * Returns the current day in India.
  *
- * We deliberately do NOT use:
+ * We intentionally do not use:
  *
- *   new Date().getDay()
+ * new Date().getDay()
  *
- * because that uses the browser/device timezone.
+ * because that uses the browser's local timezone.
  */
 function getIndiaDayShort() {
-  const weekday = new Intl.DateTimeFormat("en-US", {
+  const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Kolkata",
     weekday: "short",
-  }).format(new Date());
+  });
 
-  return weekday.toUpperCase();
+  const weekday = formatter
+    .format(new Date())
+    .toUpperCase();
+
+  return weekday.slice(0, 3);
 }
 
 /*
@@ -748,9 +762,11 @@ function DaySelector({
   return (
     <div className="overflow-x-auto pb-2">
       <div className="flex min-w-max gap-2.5">
-        {WEEK_MENU.map((day, index) => {
+        {WEEK_MENU.map((day) => {
           const selected = day.day === selectedDay;
           const isToday = day.day === today;
+
+          const dayNumber = DAY_NUMBER[day.day];
 
           return (
             <button
@@ -774,7 +790,7 @@ function DaySelector({
                     : "text-slate-400"
                 }`}
               >
-                {String(index + 1).padStart(2, "0")}
+                {String(dayNumber + 1).padStart(2, "0")}
               </p>
 
               <p className="mt-1 text-xs font-black">
@@ -920,14 +936,10 @@ function StudentLeadershipCard({
 }
 
 export default function CafeteriaPage() {
-  /*
-   * These start as null so the server/browser cannot disagree
-   * about which day it is during the initial render.
-   */
   const [today, setToday] = useState<string | null>(null);
-  const [selectedDay, setSelectedDay] = useState<string | null>(
-    null,
-  );
+
+  const [selectedDay, setSelectedDay] =
+    useState<string | null>(null);
 
   const [currentDate, setCurrentDate] =
     useState<Date | null>(null);
@@ -944,13 +956,10 @@ export default function CafeteriaPage() {
       setCurrentMealIndex(getCurrentMealIndex());
 
       /*
-       * Set the default selection only when the page first
-       * determines today's day.
+       * Only set the initial selection.
        *
-       * This means:
-       * - Refresh → today's day is selected.
-       * - User selects another day → it stays selected.
-       * - The 30-second clock refresh does NOT override the user.
+       * Once the user manually chooses another day,
+       * the 30-second updater will not overwrite it.
        */
       setSelectedDay((previousDay) => {
         return previousDay ?? currentDay;
@@ -970,8 +979,28 @@ export default function CafeteriaPage() {
   }, []);
 
   /*
-   * Until India time has been resolved on the client,
-   * avoid rendering a potentially incorrect default day.
+   * These are deliberately calculated on every render.
+   * WEEK_MENU is static and tiny, so useMemo would add
+   * complexity without any meaningful performance benefit.
+   */
+  const selectedMenu =
+    WEEK_MENU.find((day) => day.day === selectedDay) ??
+    WEEK_MENU[0];
+
+  const todayMenu =
+    WEEK_MENU.find((day) => day.day === today) ??
+    WEEK_MENU[0];
+
+  const isToday =
+    selectedDay !== null &&
+    today !== null &&
+    selectedDay === today;
+
+  const todayMealCount = todayMenu.meals.length;
+
+  /*
+   * During the first client render, India time has not yet
+   * been resolved. Do not temporarily show Monday.
    */
   if (!today || !selectedDay || !currentDate) {
     return (
@@ -986,21 +1015,6 @@ export default function CafeteriaPage() {
       </main>
     );
   }
-
-  const selectedMenu = useMemo(
-    () =>
-      WEEK_MENU.find((day) => day.day === selectedDay) ??
-      WEEK_MENU[0],
-    [selectedDay],
-  );
-
-  const isToday = selectedDay === today;
-
-  const todayMenu =
-    WEEK_MENU.find((day) => day.day === today) ??
-    WEEK_MENU[0];
-
-  const todayMealCount = todayMenu.meals.length;
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f5f7f2] text-slate-900">
