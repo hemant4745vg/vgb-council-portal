@@ -121,9 +121,7 @@ function SignInPanel({
               id="navbar-school-password"
               type="password"
               value={password}
-              onChange={(event) =>
-                setPassword(event.target.value)
-              }
+              onChange={(event) => setPassword(event.target.value)}
               placeholder="Enter your password"
               required
               autoComplete="current-password"
@@ -325,8 +323,7 @@ function AccountMenu({
 export default function Navbar() {
   const pathname = usePathname();
 
-  const [session, setSession] =
-    useState<Session | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   const [profile, setProfile] =
     useState<UserProfile | null>(null);
@@ -337,11 +334,9 @@ export default function Navbar() {
   const [profileError, setProfileError] =
     useState(false);
 
-  const [accountOpen, setAccountOpen] =
-    useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
-  const [signInOpen, setSignInOpen] =
-    useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
 
   const [mobileNavOpen, setMobileNavOpen] =
     useState(false);
@@ -463,8 +458,7 @@ export default function Navbar() {
 
       const profileData: RpcProfile | null =
         Array.isArray(data)
-          ? ((data[0] as RpcProfile | undefined) ??
-            null)
+          ? ((data[0] as RpcProfile | undefined) ?? null)
           : (data as RpcProfile | null);
 
       if (!profileData) {
@@ -582,6 +576,47 @@ export default function Navbar() {
   }, [pathname]);
 
   /* =========================================================
+     RESOLVE CANONICAL EMAIL
+     
+     Allows users to enter either:
+     - canonical email
+     - alternate email
+     
+     Example:
+     Meera.Pandey@vidyagyan.in
+     -> mp337@vidyagyan.in
+  ========================================================= */
+
+  async function resolveCanonicalEmail(
+    inputEmail: string
+  ): Promise<string | null> {
+    const normalizedEmail =
+      inputEmail.trim().toLowerCase();
+
+    const { data, error } = await supabase.rpc(
+      "resolve_portal_email",
+      {
+        input_email: normalizedEmail,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "NAV: Email resolution failed:",
+        error
+      );
+
+      return null;
+    }
+
+    if (typeof data !== "string" || !data.trim()) {
+      return null;
+    }
+
+    return data.trim().toLowerCase();
+  }
+
+  /* =========================================================
      SIGN IN
   ========================================================= */
 
@@ -613,9 +648,30 @@ export default function Navbar() {
       return;
     }
 
+    /*
+     * Resolve either the canonical or alternate school
+     * email to the canonical Auth email before signing in.
+     */
+    const canonicalEmail =
+      await resolveCanonicalEmail(formattedEmail);
+
+    if (!canonicalEmail) {
+      setMessage(
+        "Sign in failed. Check your school email and password."
+      );
+
+      setLoading(false);
+      return;
+    }
+
+    console.log(
+      "NAV: Signing in with canonical email:",
+      canonicalEmail
+    );
+
     const { error } =
       await supabase.auth.signInWithPassword({
-        email: formattedEmail,
+        email: canonicalEmail,
         password: formattedPassword,
       });
 
