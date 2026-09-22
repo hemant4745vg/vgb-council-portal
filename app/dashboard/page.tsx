@@ -105,6 +105,14 @@ export default function Dashboard() {
   const [profileError, setProfileError] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // First-time user provisioning state
+  const [provisionEmail, setProvisionEmail] = useState("");
+  const [provisioning, setProvisioning] = useState(false);
+  const [provisionMessage, setProvisionMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
   /**
    * Load the authenticated user's portal profile.
    *
@@ -174,6 +182,116 @@ export default function Dashboard() {
     setProfile(normalizedProfile);
     setProfileError(false);
     setProfileLoading(false);
+  }
+
+  /**
+   * Provision a first-time portal user.
+   *
+   * The actual account creation and invitation are handled by
+   * the secure Supabase Edge Function:
+   *   provision-portal-user
+   *
+   * The Edge Function independently verifies that the caller
+   * is an administrator and that the target email exists in
+   * allowed_users.
+   */
+  async function handleProvisionUser() {
+    const email = provisionEmail.trim().toLowerCase();
+
+    setProvisionMessage(null);
+
+    if (!email) {
+      setProvisionMessage({
+        type: "error",
+        text: "Enter the student's VidyaGyan email address.",
+      });
+      return;
+    }
+
+    if (!email.endsWith("@vidyagyan.in")) {
+      setProvisionMessage({
+        type: "error",
+        text: "Only @vidyagyan.in email addresses can be provisioned.",
+      });
+      return;
+    }
+
+    if (!isAdmin) {
+      setProvisionMessage({
+        type: "error",
+        text: "Administrator access is required.",
+      });
+      return;
+    }
+
+    setProvisioning(true);
+
+    try {
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+
+      if (!currentSession?.access_token) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      const { data, error } = await supabase.functions.invoke(
+        "provision-portal-user",
+        {
+          body: {
+            email,
+          },
+        }
+      );
+
+      if (error) {
+        console.error("Provisioning function error:", error);
+        throw new Error(
+          error.message || "Could not provision this user."
+        );
+      }
+
+      if (!data) {
+        throw new Error(
+          "The provisioning service returned no response."
+        );
+      }
+
+      if (data.status === "already_provisioned") {
+        setProvisionMessage({
+          type: "success",
+          text:
+            data.message ||
+            "This user already has an Auth account. They should use Forgot password.",
+        });
+      } else if (data.status === "invited") {
+        setProvisionMessage({
+          type: "success",
+          text:
+            data.message ||
+            "Invitation sent successfully. The student can now set up their password.",
+        });
+
+        setProvisionEmail("");
+      } else {
+        setProvisionMessage({
+          type: "success",
+          text: data.message || "Provisioning completed.",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to provision user:", error);
+
+      setProvisionMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Could not provision this user.",
+      });
+    } finally {
+      setProvisioning(false);
+    }
   }
 
   useEffect(() => {
@@ -537,6 +655,75 @@ export default function Dashboard() {
                   Open management →
                 </span>
               </Link>
+            </div>
+
+            {/* First-time user provisioning */}
+            <div className="border-t border-slate-100 p-6">
+              <div className="max-w-3xl">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
+                  Account provisioning
+                </p>
+
+                <h3 className="mt-1 text-lg font-bold tracking-tight text-slate-950">
+                  Invite a first-time portal user
+                </h3>
+
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Use this for a student who is already present in{" "}
+                  <span className="font-semibold text-slate-700">
+                    allowed_users
+                  </span>{" "}
+                  but does not yet have a Supabase Auth account.
+                </p>
+
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                  <input
+                    type="email"
+                    value={provisionEmail}
+                    onChange={(event) => {
+                      setProvisionEmail(event.target.value);
+                      setProvisionMessage(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !provisioning) {
+                        event.preventDefault();
+                        handleProvisionUser();
+                      }
+                    }}
+                    placeholder="student@vidyagyan.in"
+                    disabled={provisioning}
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleProvisionUser}
+                    disabled={provisioning}
+                    className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {provisioning
+                      ? "Sending invitation…"
+                      : "Invite user"}
+                  </button>
+                </div>
+
+                {provisionMessage && (
+                  <div
+                    className={`mt-4 rounded-xl border px-4 py-3 text-xs leading-5 ${
+                      provisionMessage.type === "success"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : "border-red-200 bg-red-50 text-red-800"
+                    }`}
+                  >
+                    {provisionMessage.text}
+                  </div>
+                )}
+
+                <p className="mt-3 text-[11px] leading-5 text-slate-400">
+                  The student receives an invitation email and creates their
+                  own password. No shared or default password is created.
+                </p>
+              </div>
             </div>
           </section>
         )}
