@@ -481,7 +481,7 @@ const MEAL_STYLES: Record<
     accent: "from-orange-400 to-rose-400",
     soft: "bg-orange-50",
     icon: "bg-orange-100 text-orange-700",
-    label: "Afternoon",
+    label: "Evening",
   },
 
   Dinner: {
