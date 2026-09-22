@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient, type Session } from "@supabase/supabase-js";
+import {
+  createClient,
+  FunctionsFetchError,
+  FunctionsHttpError,
+  FunctionsRelayError,
+  type Session,
+} from "@supabase/supabase-js";
 
 const supabase = createClient(
   "https://lllmgmfofwczpqbmigey.supabase.co",
@@ -232,7 +238,9 @@ export default function Dashboard() {
       } = await supabase.auth.getSession();
 
       if (!currentSession?.access_token) {
-        throw new Error("Your session has expired. Please sign in again.");
+        throw new Error(
+          "Your session has expired. Please sign in again."
+        );
       }
 
       const { data, error } = await supabase.functions.invoke(
@@ -244,8 +252,57 @@ export default function Dashboard() {
         }
       );
 
+      /*
+       * Supabase returns FunctionsHttpError when the Edge Function
+       * itself responds with a 4xx/5xx status. Its response body
+       * contains the actual error returned by the function.
+       */
       if (error) {
         console.error("Provisioning function error:", error);
+
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const errorBody = await error.context.json();
+
+            console.error(
+              "Provisioning function response body:",
+              errorBody
+            );
+
+            const detailedMessage =
+              errorBody?.details ||
+              errorBody?.error ||
+              errorBody?.message ||
+              `The provisioning service returned HTTP ${error.context.status}.`;
+
+            throw new Error(detailedMessage);
+          } catch (bodyError) {
+            /*
+             * If parsing the response body itself fails, preserve
+             * the HTTP status rather than hiding the useful part.
+             */
+            if (bodyError instanceof Error) {
+              throw bodyError;
+            }
+
+            throw new Error(
+              `The provisioning service returned HTTP ${error.context.status}.`
+            );
+          }
+        }
+
+        if (error instanceof FunctionsRelayError) {
+          throw new Error(
+            `The request reached Supabase but the function could not complete: ${error.message}`
+          );
+        }
+
+        if (error instanceof FunctionsFetchError) {
+          throw new Error(
+            `Could not reach the provisioning service: ${error.message}`
+          );
+        }
+
         throw new Error(
           error.message || "Could not provision this user."
         );
