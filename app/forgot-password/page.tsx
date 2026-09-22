@@ -15,6 +15,43 @@ export default function ForgotPasswordPage() {
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
 
+  /*
+   * Resolve either the canonical or alternate school email
+   * to the canonical email stored in Supabase Auth.
+   *
+   * Example:
+   * Meera.Pandey@vidyagyan.in
+   * -> mp337@vidyagyan.in
+   */
+  async function resolveCanonicalEmail(
+    inputEmail: string
+  ): Promise<string | null> {
+    const normalizedEmail =
+      inputEmail.trim().toLowerCase();
+
+    const { data, error } = await supabase.rpc(
+      "resolve_portal_email",
+      {
+        input_email: normalizedEmail,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "Password reset email resolution failed:",
+        error
+      );
+
+      return null;
+    }
+
+    if (typeof data !== "string" || !data.trim()) {
+      return null;
+    }
+
+    return data.trim().toLowerCase();
+  }
+
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -24,7 +61,8 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setSuccess(false);
 
-    const formattedEmail = email.trim().toLowerCase();
+    const formattedEmail =
+      email.trim().toLowerCase();
 
     if (!formattedEmail.endsWith("@vidyagyan.in")) {
       setMessage(
@@ -34,9 +72,39 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    /*
+     * Resolve the entered email before requesting recovery.
+     *
+     * This allows users to enter either their canonical
+     * email or their alternate VidyaGyan email.
+     */
+    const canonicalEmail =
+      await resolveCanonicalEmail(formattedEmail);
+
+    /*
+     * Keep the response generic.
+     *
+     * We do not reveal whether the supplied email belongs
+     * to a portal account.
+     */
+    if (!canonicalEmail) {
+      setSuccess(true);
+      setMessage(
+        "If this school email has a portal account, a password reset link has been sent to its inbox."
+      );
+
+      setLoading(false);
+      return;
+    }
+
+    console.log(
+      "Password reset requested for canonical email:",
+      canonicalEmail
+    );
+
     const { error } =
       await supabase.auth.resetPasswordForEmail(
-        formattedEmail,
+        canonicalEmail,
         {
           redirectTo:
             "https://vgb-student-council-portal.vercel.app/update-password",
@@ -57,10 +125,10 @@ export default function ForgotPasswordPage() {
     }
 
     /*
-     * Supabase deliberately does not reveal whether a particular
-     * email exists in Auth, helping prevent account enumeration.
+     * Supabase does not expose whether the supplied email
+     * exists in Auth through the reset request.
      *
-     * Therefore this message is intentionally generic.
+     * The message therefore remains intentionally generic.
      */
     setSuccess(true);
     setMessage(
