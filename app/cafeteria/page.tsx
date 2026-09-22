@@ -492,8 +492,9 @@ const MEAL_STYLES: Record<
   },
 };
 
-function formatDate(date: Date) {
+function formatIndiaDate(date: Date) {
   return date.toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -503,8 +504,8 @@ function formatDate(date: Date) {
 /*
  * Returns the current India Standard Time.
  *
- * We deliberately use Asia/Kolkata instead of the browser's local
- * timezone so the cafeteria schedule follows campus time.
+ * The cafeteria schedule always follows Asia/Kolkata,
+ * regardless of the timezone configured on the user's device.
  */
 function getIndiaTimeParts() {
   const formatter = new Intl.DateTimeFormat("en-IN", {
@@ -529,6 +530,24 @@ function getIndiaTimeParts() {
     minute,
     totalMinutes: hour * 60 + minute,
   };
+}
+
+/*
+ * Returns the current day in India.
+ *
+ * We deliberately do NOT use:
+ *
+ *   new Date().getDay()
+ *
+ * because that uses the browser/device timezone.
+ */
+function getIndiaDayShort() {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    weekday: "short",
+  }).format(new Date());
+
+  return weekday.toUpperCase();
 }
 
 /*
@@ -736,6 +755,7 @@ function DaySelector({
           return (
             <button
               key={day.day}
+              type="button"
               onClick={() => onSelect(day.day)}
               className={`group relative min-w-[88px] overflow-hidden rounded-2xl border px-4 py-3.5 text-center transition-all duration-200 ${
                 selected
@@ -900,8 +920,15 @@ function StudentLeadershipCard({
 }
 
 export default function CafeteriaPage() {
-  const [today, setToday] = useState("MON");
-  const [selectedDay, setSelectedDay] = useState("MON");
+  /*
+   * These start as null so the server/browser cannot disagree
+   * about which day it is during the initial render.
+   */
+  const [today, setToday] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(
+    null,
+  );
+
   const [currentDate, setCurrentDate] =
     useState<Date | null>(null);
 
@@ -910,12 +937,24 @@ export default function CafeteriaPage() {
 
   useEffect(() => {
     function updateCampusTime() {
-      const now = new Date();
-      const currentDay = DAY_SHORT[now.getDay()];
+      const currentDay = getIndiaDayShort();
 
       setToday(currentDay);
-      setCurrentDate(now);
+      setCurrentDate(new Date());
       setCurrentMealIndex(getCurrentMealIndex());
+
+      /*
+       * Set the default selection only when the page first
+       * determines today's day.
+       *
+       * This means:
+       * - Refresh → today's day is selected.
+       * - User selects another day → it stays selected.
+       * - The 30-second clock refresh does NOT override the user.
+       */
+      setSelectedDay((previousDay) => {
+        return previousDay ?? currentDay;
+      });
     }
 
     updateCampusTime();
@@ -929,6 +968,24 @@ export default function CafeteriaPage() {
       window.clearInterval(interval);
     };
   }, []);
+
+  /*
+   * Until India time has been resolved on the client,
+   * avoid rendering a potentially incorrect default day.
+   */
+  if (!today || !selectedDay || !currentDate) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f7f2] text-slate-900">
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+
+          <span className="text-sm font-semibold text-slate-600">
+            Loading today&apos;s menu...
+          </span>
+        </div>
+      </main>
+    );
+  }
 
   const selectedMenu = useMemo(
     () =>
@@ -970,7 +1027,7 @@ export default function CafeteriaPage() {
                 </div>
 
                 <h1 className="mt-7 max-w-2xl text-5xl font-black leading-[0.92] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">
-                  What's
+                  What&apos;s
                   <br />
                   <span className="bg-gradient-to-r from-amber-300 via-orange-300 to-emerald-300 bg-clip-text text-transparent">
                     cooking?
@@ -982,29 +1039,27 @@ export default function CafeteriaPage() {
                   spreadsheet archaeology required.
                 </p>
 
-                {currentDate && (
-                  <div className="mt-8 flex flex-wrap items-center gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-md">
-                      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/45">
-                        Today
-                      </p>
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-md">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/45">
+                      Today
+                    </p>
 
-                      <p className="mt-1 text-sm font-bold text-white">
-                        {DAY_NAMES[today]}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-md">
-                      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/45">
-                        Date
-                      </p>
-
-                      <p className="mt-1 text-sm font-bold text-white">
-                        {formatDate(currentDate)}
-                      </p>
-                    </div>
+                    <p className="mt-1 text-sm font-bold text-white">
+                      {DAY_NAMES[today]}
+                    </p>
                   </div>
-                )}
+
+                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-md">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/45">
+                      Date
+                    </p>
+
+                    <p className="mt-1 text-sm font-bold text-white">
+                      {formatIndiaDate(currentDate)}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="relative hidden min-h-[420px] items-center justify-center lg:flex">
@@ -1130,6 +1185,7 @@ export default function CafeteriaPage() {
 
             {!isToday && (
               <button
+                type="button"
                 onClick={() => setSelectedDay(today)}
                 className="w-fit rounded-full bg-slate-950 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-slate-800"
               >
