@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 
 const supabase = createClient(
   "https://lllmgmfofwczpqbmigey.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzIiwicmVmIjoibGxsbWdtZm9md2N6cHFibWlnZXkiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4OTU1MjE3NiwiZXhwIjoyMTA1MTI4MTc2fQ.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
 );
 
 type UserProfile = {
@@ -50,6 +50,8 @@ export default function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -391,9 +393,12 @@ export default function Navbar() {
     setLoading(true);
     setMessage("");
 
-    const formattedEmail =
-      email.trim().toLowerCase();
+    const formattedEmail = email.trim().toLowerCase();
+    const formattedPassword = password;
 
+    /*
+     * Restrict the login form to official VidyaGyan accounts.
+     */
     if (!formattedEmail.endsWith("@vidyagyan.in")) {
       setMessage(
         "Access denied. Use an official @vidyagyan.in school email."
@@ -402,37 +407,48 @@ export default function Navbar() {
       return;
     }
 
+    if (!formattedPassword) {
+      setMessage("Enter your password.");
+      setLoading(false);
+      return;
+    }
+
     /*
-     * Do not allow Supabase Auth to automatically create
-     * new users.
+     * Authenticate with email + password.
      *
-     * Only already-provisioned Auth accounts can request
-     * a magic link.
+     * Public signup remains disabled in Supabase.
+     * Therefore only existing Auth accounts can sign in.
      */
-    const { error } =
-      await supabase.auth.signInWithOtp({
-        email: formattedEmail,
-        options: {
-          emailRedirectTo:
-            "https://vgb-student-council-portal.vercel.app",
-          shouldCreateUser: false,
-        },
-      });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: formattedEmail,
+      password: formattedPassword,
+    });
 
     if (error) {
       console.error(
-        "Magic-link sign-in failed:",
+        "Password sign-in failed:",
         error
       );
 
       setMessage(
-        "Access denied. This email is not authorised for the Student Council Portal."
+        "Sign in failed. Check your school email and password."
       );
-    } else {
-      setMessage(
-        "Magic link sent. Check your Outlook inbox, then open the link to continue."
-      );
+
+      setLoading(false);
+      return;
     }
+
+    /*
+     * Successful authentication.
+     *
+     * The auth listener will update the session and the
+     * separate profile effect will verify the account
+     * against allowed_users through get_my_portal_profile().
+     */
+    setEmail("");
+    setPassword("");
+    setMessage("");
+    setSignInOpen(false);
 
     setLoading(false);
   }
@@ -448,6 +464,11 @@ export default function Navbar() {
     setProfile(null);
     setProfileError(false);
     setProfileLoading(false);
+
+    setEmail("");
+    setPassword("");
+    setMessage("");
+
     setAccountOpen(false);
   }
 
@@ -512,8 +533,7 @@ export default function Navbar() {
           </h3>
 
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Use your registered VidyaGyan school email.
-            No password required.
+            Use your registered VidyaGyan school email and password.
           </p>
         </div>
 
@@ -539,7 +559,29 @@ export default function Navbar() {
                 }
                 placeholder="username@vidyagyan.in"
                 required
-                autoComplete="email"
+                autoComplete="username"
+                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="navbar-school-password"
+                className="mb-1.5 block text-xs font-semibold text-slate-600"
+              >
+                Password
+              </label>
+
+              <input
+                id="navbar-school-password"
+                type="password"
+                value={password}
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
+                placeholder="Enter your password"
+                required
+                autoComplete="current-password"
                 className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
               />
             </div>
@@ -550,19 +592,35 @@ export default function Navbar() {
               className="w-full rounded-xl bg-blue-950 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading
-                ? "Checking..."
-                : "Send Magic Link"}
+                ? "Signing in..."
+                : "Sign In"}
             </button>
           </form>
+
+          <div className="mt-3 text-center">
+            <Link
+              href="/forgot-password"
+              onClick={closeMenus}
+              className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
 
           {message && (
             <div
               className={`mt-4 rounded-xl border p-3 text-center text-xs ${
                 message
                   .toLowerCase()
-                  .includes("sent")
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-red-200 bg-red-50 text-red-700"
+                  .includes("failed") ||
+                message
+                  .toLowerCase()
+                  .includes("denied") ||
+                message
+                  .toLowerCase()
+                  .includes("enter")
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
               }`}
             >
               {message}
