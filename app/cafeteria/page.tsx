@@ -13,6 +13,12 @@ type DayMenu = {
   meals: Meal[];
 };
 
+type MealStatus =
+  | "current"
+  | "next"
+  | "served"
+  | "upcoming";
+
 const WEEK_MENU: DayMenu[] = [
   {
     day: "MON",
@@ -456,24 +462,28 @@ const MEAL_STYLES: Record<
     icon: "bg-amber-100 text-amber-700",
     label: "Start strong",
   },
+
   "Morning Snack": {
     accent: "from-cyan-400 to-sky-500",
     soft: "bg-cyan-50",
     icon: "bg-cyan-100 text-cyan-700",
     label: "Between meals",
   },
+
   Lunch: {
     accent: "from-emerald-400 to-green-500",
     soft: "bg-emerald-50",
     icon: "bg-emerald-100 text-emerald-700",
     label: "Main meal",
   },
+
   "Evening Snack": {
     accent: "from-orange-400 to-rose-400",
     soft: "bg-orange-50",
     icon: "bg-orange-100 text-orange-700",
     label: "Afternoon",
   },
+
   Dinner: {
     accent: "from-indigo-500 to-violet-500",
     soft: "bg-indigo-50",
@@ -490,29 +500,174 @@ function formatDate(date: Date) {
   });
 }
 
+/*
+ * Returns the current India Standard Time.
+ *
+ * We deliberately use Asia/Kolkata instead of the browser's local
+ * timezone so the cafeteria schedule follows campus time.
+ */
+function getIndiaTimeParts() {
+  const formatter = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(new Date());
+
+  const hour = Number(
+    parts.find((part) => part.type === "hour")?.value ?? 0,
+  );
+
+  const minute = Number(
+    parts.find((part) => part.type === "minute")?.value ?? 0,
+  );
+
+  return {
+    hour,
+    minute,
+    totalMinutes: hour * 60 + minute,
+  };
+}
+
+/*
+ * Meal schedule:
+ *
+ * Breakfast       < 09:00
+ * Morning Snack   09:00–11:59
+ * Lunch           12:00–14:59
+ * Evening Snack   15:00–17:59
+ * Dinner          18:00–20:59
+ * After 21:00     No active meal
+ */
+function getCurrentMealIndex() {
+  const { totalMinutes } = getIndiaTimeParts();
+
+  if (totalMinutes < 9 * 60) {
+    return 0;
+  }
+
+  if (totalMinutes < 12 * 60) {
+    return 1;
+  }
+
+  if (totalMinutes < 15 * 60) {
+    return 2;
+  }
+
+  if (totalMinutes < 18 * 60) {
+    return 3;
+  }
+
+  if (totalMinutes < 21 * 60) {
+    return 4;
+  }
+
+  return -1;
+}
+
+function getMealStatus(
+  index: number,
+  currentMealIndex: number,
+): MealStatus {
+  if (currentMealIndex === -1) {
+    return "served";
+  }
+
+  if (index === currentMealIndex) {
+    return "current";
+  }
+
+  if (index < currentMealIndex) {
+    return "served";
+  }
+
+  if (index === currentMealIndex + 1) {
+    return "next";
+  }
+
+  return "upcoming";
+}
+
 function MealCard({
   meal,
-  featured = false,
+  status = "upcoming",
 }: {
   meal: Meal;
-  featured?: boolean;
+  status?: MealStatus;
 }) {
   const style =
     MEAL_STYLES[meal.title] ?? MEAL_STYLES.Breakfast;
 
+  const isCurrent = status === "current";
+  const isNext = status === "next";
+  const isServed = status === "served";
+
+  const labelColor = (() => {
+    switch (meal.title) {
+      case "Breakfast":
+        return "text-amber-700";
+
+      case "Morning Snack":
+        return "text-cyan-700";
+
+      case "Lunch":
+        return "text-emerald-700";
+
+      case "Evening Snack":
+        return "text-orange-700";
+
+      case "Dinner":
+        return "text-indigo-700";
+
+      default:
+        return "text-slate-600";
+    }
+  })();
+
   return (
     <article
-      className={`group relative overflow-hidden rounded-[2rem] border bg-white shadow-[0_18px_55px_-34px_rgba(15,23,42,0.4)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_26px_60px_-32px_rgba(15,23,42,0.45)] ${
-        featured
-          ? "border-slate-900 ring-2 ring-slate-900/5"
-          : "border-slate-200"
+      className={`group relative overflow-hidden rounded-[2rem] border bg-white transition-all duration-300 ${
+        isCurrent
+          ? "border-emerald-400 ring-2 ring-emerald-400/20 shadow-[0_24px_70px_-30px_rgba(16,185,129,0.5)]"
+          : isNext
+          ? "border-slate-300 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.4)]"
+          : "border-slate-200 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.25)]"
+      } ${
+        isServed
+          ? "opacity-75"
+          : "hover:-translate-y-1.5 hover:shadow-[0_26px_60px_-32px_rgba(15,23,42,0.45)]"
       }`}
     >
       <div
         className={`h-1.5 bg-gradient-to-r ${style.accent}`}
       />
 
-      <div className="p-6 sm:p-7">
+      {isCurrent && (
+        <div className="absolute right-5 top-5 flex items-center gap-2 rounded-full bg-emerald-500 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-white shadow-lg shadow-emerald-500/20">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+          Now serving
+        </div>
+      )}
+
+      {isNext && (
+        <div className="absolute right-5 top-5 rounded-full bg-slate-950 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-white">
+          Next
+        </div>
+      )}
+
+      {isServed && (
+        <div className="absolute right-5 top-5 rounded-full bg-slate-100 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">
+          Served
+        </div>
+      )}
+
+      <div
+        className={`p-6 sm:p-7 ${
+          isCurrent ? "bg-emerald-50/35" : ""
+        }`}
+      >
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <div
@@ -523,10 +678,7 @@ function MealCard({
 
             <div className="min-w-0">
               <p
-                className={`text-[9px] font-bold uppercase tracking-[0.17em] ${style.soft.replace(
-                  "bg-",
-                  "text-",
-                )}`}
+                className={`text-[9px] font-bold uppercase tracking-[0.17em] ${labelColor}`}
               >
                 {style.label}
               </p>
@@ -536,12 +688,6 @@ function MealCard({
               </h3>
             </div>
           </div>
-
-          {featured && (
-            <span className="shrink-0 rounded-full bg-slate-950 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-white">
-              Today
-            </span>
-          )}
         </div>
 
         <div className="mt-7 space-y-2.5">
@@ -554,7 +700,13 @@ function MealCard({
                 className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gradient-to-r ${style.accent}`}
               />
 
-              <p className="text-sm font-semibold leading-5 text-slate-700">
+              <p
+                className={`text-sm font-semibold leading-5 ${
+                  isServed
+                    ? "text-slate-500"
+                    : "text-slate-700"
+                }`}
+              >
                 {item}
               </p>
             </div>
@@ -597,7 +749,9 @@ function DaySelector({
 
               <p
                 className={`text-[9px] font-black uppercase tracking-[0.16em] ${
-                  selected ? "text-white/60" : "text-slate-400"
+                  selected
+                    ? "text-white/60"
+                    : "text-slate-400"
                 }`}
               >
                 {String(index + 1).padStart(2, "0")}
@@ -751,13 +905,29 @@ export default function CafeteriaPage() {
   const [currentDate, setCurrentDate] =
     useState<Date | null>(null);
 
-  useEffect(() => {
-    const now = new Date();
-    const currentDay = DAY_SHORT[now.getDay()];
+  const [currentMealIndex, setCurrentMealIndex] =
+    useState(-1);
 
-    setToday(currentDay);
-    setSelectedDay(currentDay);
-    setCurrentDate(now);
+  useEffect(() => {
+    function updateCampusTime() {
+      const now = new Date();
+      const currentDay = DAY_SHORT[now.getDay()];
+
+      setToday(currentDay);
+      setCurrentDate(now);
+      setCurrentMealIndex(getCurrentMealIndex());
+    }
+
+    updateCampusTime();
+
+    const interval = window.setInterval(
+      updateCampusTime,
+      30_000,
+    );
+
+    return () => {
+      window.clearInterval(interval);
+    };
   }, []);
 
   const selectedMenu = useMemo(
@@ -951,7 +1121,9 @@ export default function CafeteriaPage() {
 
               <p className="mt-2 text-sm text-slate-500">
                 {isToday
-                  ? "Here is what is being served today."
+                  ? currentMealIndex >= 0
+                    ? `Now serving: ${todayMenu.meals[currentMealIndex]?.title}.`
+                    : "Today's menu. All scheduled meals have been served."
                   : `Menu for ${DAY_NAMES[selectedMenu.day]}.`}
               </p>
             </div>
@@ -974,13 +1146,19 @@ export default function CafeteriaPage() {
         />
 
         <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {selectedMenu.meals.map((meal, index) => (
-            <MealCard
-              key={meal.title}
-              meal={meal}
-              featured={isToday && index === 0}
-            />
-          ))}
+          {selectedMenu.meals.map((meal, index) => {
+            const status = isToday
+              ? getMealStatus(index, currentMealIndex)
+              : "upcoming";
+
+            return (
+              <MealCard
+                key={meal.title}
+                meal={meal}
+                status={status}
+              />
+            );
+          })}
         </div>
       </section>
 
