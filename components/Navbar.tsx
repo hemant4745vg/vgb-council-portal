@@ -36,18 +36,315 @@ const navItems = [
   { name: "Cafeteria", href: "/cafeteria" },
 ];
 
+/* =========================================================
+   SIGN-IN PANEL
+   IMPORTANT:
+   This component is OUTSIDE Navbar so its identity remains
+   stable when email/password state changes.
+========================================================= */
+
+type SignInPanelProps = {
+  email: string;
+  password: string;
+  setEmail: React.Dispatch<React.SetStateAction<string>>;
+  setPassword: React.Dispatch<React.SetStateAction<string>>;
+  loading: boolean;
+  message: string;
+  handleLogin: (
+    event: React.FormEvent<HTMLFormElement>
+  ) => Promise<void>;
+  closeMenus: () => void;
+};
+
+function SignInPanel({
+  email,
+  password,
+  setEmail,
+  setPassword,
+  loading,
+  message,
+  handleLogin,
+  closeMenus,
+}: SignInPanelProps) {
+  const isError =
+    message.toLowerCase().includes("failed") ||
+    message.toLowerCase().includes("denied") ||
+    message.toLowerCase().includes("enter");
+
+  return (
+    <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+          Authorised Access
+        </p>
+
+        <h3 className="mt-1 text-lg font-bold text-blue-950">
+          Sign in to the portal
+        </h3>
+
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          Use your registered VidyaGyan school email and password.
+        </p>
+      </div>
+
+      <div className="p-5">
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label
+              htmlFor="navbar-school-email"
+              className="mb-1.5 block text-xs font-semibold text-slate-600"
+            >
+              School Email
+            </label>
+
+            <input
+              id="navbar-school-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="username@vidyagyan.in"
+              required
+              autoComplete="username"
+              className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="navbar-school-password"
+              className="mb-1.5 block text-xs font-semibold text-slate-600"
+            >
+              Password
+            </label>
+
+            <input
+              id="navbar-school-password"
+              type="password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              placeholder="Enter your password"
+              required
+              autoComplete="current-password"
+              className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-blue-950 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+
+        <div className="mt-3 text-center">
+          <Link
+            href="/forgot-password"
+            onClick={closeMenus}
+            className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
+        {message && (
+          <div
+            className={`mt-4 rounded-xl border p-3 text-center text-xs ${
+              isError
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            {message}
+          </div>
+        )}
+
+        <p className="mt-4 text-center text-[10px] leading-4 text-slate-400">
+          Access is restricted to registered Student Council
+          Portal accounts.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   ACCOUNT MENU
+========================================================= */
+
+type AccountMenuProps = {
+  session: Session | null;
+  profile: UserProfile | null;
+  profileLoading: boolean;
+  profileError: boolean;
+  displayName: string;
+  initials: string;
+  closeMenus: () => void;
+  handleLogout: () => Promise<void>;
+};
+
+function AccountMenu({
+  session,
+  profile,
+  profileLoading,
+  profileError,
+  displayName,
+  initials,
+  closeMenus,
+  handleLogout,
+}: AccountMenuProps) {
+  return (
+    <div
+      role="menu"
+      className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(330px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+    >
+      <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-950 text-xs font-bold text-white">
+            {initials}
+          </div>
+
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-slate-900">
+              {displayName}
+            </p>
+
+            <p className="truncate text-[10px] text-slate-500">
+              {session?.user.email}
+            </p>
+          </div>
+        </div>
+
+        {profile?.role && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-blue-800">
+              {profile.role}
+            </span>
+
+            {profile.admin_status === "yes" && (
+              <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-emerald-800">
+                Admin
+              </span>
+            )}
+          </div>
+        )}
+
+        {profileLoading && (
+          <p className="mt-2 text-[10px] text-slate-400">
+            Loading account details...
+          </p>
+        )}
+
+        {profileError && (
+          <p className="mt-2 text-[10px] leading-4 text-amber-700">
+            Your portal profile could not be loaded.
+            Please refresh the page.
+          </p>
+        )}
+      </div>
+
+      <div className="p-2">
+        <Link
+          href="/dashboard"
+          role="menuitem"
+          onClick={closeMenus}
+          className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-800">
+            D
+          </span>
+
+          <span>
+            <span className="block text-sm font-semibold text-slate-800">
+              Dashboard
+            </span>
+
+            <span className="block text-[10px] text-slate-400">
+              Your authorised workspace
+            </span>
+          </span>
+        </Link>
+
+        {profile?.admin_status === "yes" && (
+          <Link
+            href="/dashboard"
+            role="menuitem"
+            onClick={closeMenus}
+            className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-emerald-50"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-xs font-bold text-emerald-800">
+              A
+            </span>
+
+            <span>
+              <span className="block text-sm font-semibold text-slate-800">
+                Administration
+              </span>
+
+              <span className="block text-[10px] text-slate-400">
+                Manage authorised portal functions
+              </span>
+            </span>
+          </Link>
+        )}
+
+        <div className="my-1 border-t border-slate-100" />
+
+        <button
+          type="button"
+          role="menuitem"
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-red-50"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-xs font-bold text-red-700">
+            ↪
+          </span>
+
+          <span>
+            <span className="block text-sm font-semibold text-slate-800">
+              Sign Out
+            </span>
+
+            <span className="block text-[10px] text-slate-400">
+              End this portal session
+            </span>
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   NAVBAR
+========================================================= */
+
 export default function Navbar() {
   const pathname = usePathname();
 
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [session, setSession] =
+    useState<Session | null>(null);
 
-  const [profileLoading, setProfileLoading] = useState(true);
-  const [profileError, setProfileError] = useState(false);
+  const [profile, setProfile] =
+    useState<UserProfile | null>(null);
 
-  const [accountOpen, setAccountOpen] = useState(false);
-  const [signInOpen, setSignInOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [profileLoading, setProfileLoading] =
+    useState(true);
+
+  const [profileError, setProfileError] =
+    useState(false);
+
+  const [accountOpen, setAccountOpen] =
+    useState(false);
+
+  const [signInOpen, setSignInOpen] =
+    useState(false);
+
+  const [mobileNavOpen, setMobileNavOpen] =
+    useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,90 +352,8 @@ export default function Navbar() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  const accountRef = useRef<HTMLDivElement | null>(null);
-
-  /* =========================================================
-     LOAD PROFILE
-  ========================================================= */
-
-  async function loadProfile(userEmail: string): Promise<boolean> {
-    if (!userEmail.trim()) {
-      setProfile(null);
-      setProfileError(false);
-      setProfileLoading(false);
-      return false;
-    }
-
-    setProfileLoading(true);
-    setProfileError(false);
-
-    console.log("NAV: Loading portal profile for:", userEmail);
-
-    const { data, error } = await supabase.rpc(
-      "get_my_portal_profile"
-    );
-
-    console.log("NAV: Portal profile RPC response:", {
-      data,
-      error,
-    });
-
-    if (error) {
-      console.error("NAV: Portal profile RPC failed:", error);
-
-      setProfile(null);
-      setProfileError(true);
-      setProfileLoading(false);
-
-      return false;
-    }
-
-    const profileData: RpcProfile | null = Array.isArray(data)
-      ? ((data[0] as RpcProfile | undefined) ?? null)
-      : (data as RpcProfile | null);
-
-    if (!profileData) {
-      console.warn(
-        "NAV: Authenticated account has no portal profile:",
-        userEmail
-      );
-
-      setProfile(null);
-      setProfileError(true);
-      setProfileLoading(false);
-
-      /*
-       * Authentication alone does not grant portal access.
-       * A matching allowed_users record is required.
-       */
-      await supabase.auth.signOut();
-
-      setSession(null);
-      setProfile(null);
-
-      return false;
-    }
-
-    const normalizedProfile: UserProfile = {
-      id: Number(profileData.id),
-      name: profileData.name ?? null,
-      email: profileData.email ?? userEmail,
-      role: profileData.role ?? null,
-      admin_status:
-        profileData.admin_status === "yes" ? "yes" : "no",
-    };
-
-    console.log(
-      "NAV: Normalized portal profile:",
-      normalizedProfile
-    );
-
-    setProfile(normalizedProfile);
-    setProfileError(false);
-    setProfileLoading(false);
-
-    return true;
-  }
+  const accountRef =
+    useRef<HTMLDivElement | null>(null);
 
   /* =========================================================
      AUTH INITIALISATION
@@ -170,13 +385,6 @@ export default function Navbar() {
 
     initializeAuth();
 
-    /*
-     * IMPORTANT:
-     * The auth listener only updates the session.
-     *
-     * It does NOT call the profile RPC directly.
-     * Profile loading is handled by the separate effect below.
-     */
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
@@ -219,9 +427,6 @@ export default function Navbar() {
         return;
       }
 
-      /*
-       * Keep the loading state visible while the RPC is running.
-       */
       setProfileLoading(true);
       setProfileError(false);
 
@@ -236,9 +441,6 @@ export default function Navbar() {
         "get_my_portal_profile"
       );
 
-      /*
-       * Ignore results from an obsolete session/profile request.
-       */
       if (cancelled) return;
 
       console.log("NAV: Profile result:", {
@@ -259,9 +461,11 @@ export default function Navbar() {
         return;
       }
 
-      const profileData: RpcProfile | null = Array.isArray(data)
-        ? ((data[0] as RpcProfile | undefined) ?? null)
-        : (data as RpcProfile | null);
+      const profileData: RpcProfile | null =
+        Array.isArray(data)
+          ? ((data[0] as RpcProfile | undefined) ??
+            null)
+          : (data as RpcProfile | null);
 
       if (!profileData) {
         console.warn(
@@ -273,10 +477,6 @@ export default function Navbar() {
         setProfileError(true);
         setProfileLoading(false);
 
-        /*
-         * This is an authorization failure, not a temporary
-         * profile-loading error.
-         */
         await supabase.auth.signOut();
 
         if (!cancelled) {
@@ -393,16 +593,16 @@ export default function Navbar() {
     setLoading(true);
     setMessage("");
 
-    const formattedEmail = email.trim().toLowerCase();
+    const formattedEmail =
+      email.trim().toLowerCase();
+
     const formattedPassword = password;
 
-    /*
-     * Restrict the login form to official VidyaGyan accounts.
-     */
     if (!formattedEmail.endsWith("@vidyagyan.in")) {
       setMessage(
         "Access denied. Use an official @vidyagyan.in school email."
       );
+
       setLoading(false);
       return;
     }
@@ -413,16 +613,11 @@ export default function Navbar() {
       return;
     }
 
-    /*
-     * Authenticate with email + password.
-     *
-     * Public signup remains disabled in Supabase.
-     * Therefore only existing Auth accounts can sign in.
-     */
-    const { error } = await supabase.auth.signInWithPassword({
-      email: formattedEmail,
-      password: formattedPassword,
-    });
+    const { error } =
+      await supabase.auth.signInWithPassword({
+        email: formattedEmail,
+        password: formattedPassword,
+      });
 
     if (error) {
       console.error(
@@ -438,13 +633,6 @@ export default function Navbar() {
       return;
     }
 
-    /*
-     * Successful authentication.
-     *
-     * The auth listener will update the session and the
-     * separate profile effect will verify the account
-     * against allowed_users through get_my_portal_profile().
-     */
     setEmail("");
     setPassword("");
     setMessage("");
@@ -476,18 +664,10 @@ export default function Navbar() {
      DISPLAY HELPERS
   ========================================================= */
 
-  /*
-   * Do NOT fall back to the email prefix here.
-   *
-   * Previously:
-   *   hr4745@vidyagyan.in → hr4745
-   *
-   * That made an unresolved profile look like a real
-   * portal identity.
-   */
   const displayName = profileLoading
     ? "Loading..."
-    : profile?.name?.trim() || "Verified Student";
+    : profile?.name?.trim() ||
+      "Verified Student";
 
   const initials =
     profile?.name
@@ -502,7 +682,8 @@ export default function Navbar() {
 
   const displayRole = profileLoading
     ? "Loading..."
-    : profile?.role?.trim() || "Verified Account";
+    : profile?.role?.trim() ||
+      "Verified Account";
 
   function isActive(href: string) {
     return href === "/"
@@ -517,253 +698,6 @@ export default function Navbar() {
   }
 
   /* =========================================================
-     SIGN-IN PANEL
-  ========================================================= */
-
-  function SignInPanel() {
-    return (
-      <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-            Authorised Access
-          </p>
-
-          <h3 className="mt-1 text-lg font-bold text-blue-950">
-            Sign in to the portal
-          </h3>
-
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            Use your registered VidyaGyan school email and password.
-          </p>
-        </div>
-
-        <div className="p-5">
-          <form
-            onSubmit={handleLogin}
-            className="space-y-4"
-          >
-            <div>
-              <label
-                htmlFor="navbar-school-email"
-                className="mb-1.5 block text-xs font-semibold text-slate-600"
-              >
-                School Email
-              </label>
-
-              <input
-                id="navbar-school-email"
-                type="email"
-                value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
-                placeholder="username@vidyagyan.in"
-                required
-                autoComplete="username"
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="navbar-school-password"
-                className="mb-1.5 block text-xs font-semibold text-slate-600"
-              >
-                Password
-              </label>
-
-              <input
-                id="navbar-school-password"
-                type="password"
-                value={password}
-                onChange={(event) =>
-                  setPassword(event.target.value)
-                }
-                placeholder="Enter your password"
-                required
-                autoComplete="current-password"
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-blue-950 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading
-                ? "Signing in..."
-                : "Sign In"}
-            </button>
-          </form>
-
-          <div className="mt-3 text-center">
-            <Link
-              href="/forgot-password"
-              onClick={closeMenus}
-              className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline"
-            >
-              Forgot password?
-            </Link>
-          </div>
-
-          {message && (
-            <div
-              className={`mt-4 rounded-xl border p-3 text-center text-xs ${
-                message
-                  .toLowerCase()
-                  .includes("failed") ||
-                message
-                  .toLowerCase()
-                  .includes("denied") ||
-                message
-                  .toLowerCase()
-                  .includes("enter")
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
-              }`}
-            >
-              {message}
-            </div>
-          )}
-
-          <p className="mt-4 text-center text-[10px] leading-4 text-slate-400">
-            Access is restricted to registered Student
-            Council Portal accounts.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  /* =========================================================
-     ACCOUNT MENU
-  ========================================================= */
-
-  function AccountMenu() {
-    return (
-      <div
-        role="menu"
-        className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(330px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
-      >
-        <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-950 text-xs font-bold text-white">
-              {initials}
-            </div>
-
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-slate-900">
-                {displayName}
-              </p>
-
-              <p className="truncate text-[10px] text-slate-500">
-                {session?.user.email}
-              </p>
-            </div>
-          </div>
-
-          {profile?.role && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-blue-800">
-                {profile.role}
-              </span>
-
-              {profile.admin_status === "yes" && (
-                <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-emerald-800">
-                  Admin
-                </span>
-              )}
-            </div>
-          )}
-
-          {profileLoading && (
-            <p className="mt-2 text-[10px] text-slate-400">
-              Loading account details...
-            </p>
-          )}
-
-          {profileError && (
-            <p className="mt-2 text-[10px] leading-4 text-amber-700">
-              Your portal profile could not be loaded.
-              Please refresh the page.
-            </p>
-          )}
-        </div>
-
-        <div className="p-2">
-          <Link
-            href="/dashboard"
-            role="menuitem"
-            onClick={closeMenus}
-            className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-800">
-              D
-            </span>
-
-            <span>
-              <span className="block text-sm font-semibold text-slate-800">
-                Dashboard
-              </span>
-
-              <span className="block text-[10px] text-slate-400">
-                Your authorised workspace
-              </span>
-            </span>
-          </Link>
-
-          {profile?.admin_status === "yes" && (
-            <Link
-              href="/dashboard"
-              role="menuitem"
-              onClick={closeMenus}
-              className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-emerald-50"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-xs font-bold text-emerald-800">
-                A
-              </span>
-
-              <span>
-                <span className="block text-sm font-semibold text-slate-800">
-                  Administration
-                </span>
-
-                <span className="block text-[10px] text-slate-400">
-                  Manage authorised portal functions
-                </span>
-              </span>
-            </Link>
-          )}
-
-          <div className="my-1 border-t border-slate-100" />
-
-          <button
-            type="button"
-            role="menuitem"
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-red-50"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-xs font-bold text-red-700">
-              ↪
-            </span>
-
-            <span>
-              <span className="block text-sm font-semibold text-slate-800">
-                Sign Out
-              </span>
-
-              <span className="block text-[10px] text-slate-400">
-                End this portal session
-              </span>
-            </span>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  /* =========================================================
      RENDER
   ========================================================= */
 
@@ -771,6 +705,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
         {/* BRAND */}
+
         <Link
           href="/"
           className="flex shrink-0 items-center gap-3"
@@ -794,6 +729,7 @@ export default function Navbar() {
         </Link>
 
         {/* DESKTOP NAVIGATION */}
+
         <nav className="ml-auto hidden items-center gap-0.5 lg:flex">
           {navItems.map((item) => (
             <Link
@@ -812,6 +748,7 @@ export default function Navbar() {
         </nav>
 
         {/* ACCOUNT AREA */}
+
         <div
           ref={accountRef}
           className="relative ml-2 border-l border-slate-200 pl-2 sm:ml-3 sm:pl-3"
@@ -824,6 +761,7 @@ export default function Navbar() {
                   setSignInOpen(
                     (current) => !current
                   );
+
                   setAccountOpen(false);
                   setMobileNavOpen(false);
                   setMessage("");
@@ -833,7 +771,18 @@ export default function Navbar() {
                 Sign In
               </button>
 
-              {signInOpen && <SignInPanel />}
+              {signInOpen && (
+                <SignInPanel
+                  email={email}
+                  password={password}
+                  setEmail={setEmail}
+                  setPassword={setPassword}
+                  loading={loading}
+                  message={message}
+                  handleLogin={handleLogin}
+                  closeMenus={closeMenus}
+                />
+              )}
             </>
           ) : (
             <div className="relative">
@@ -843,6 +792,7 @@ export default function Navbar() {
                   setAccountOpen(
                     (current) => !current
                   );
+
                   setSignInOpen(false);
                   setMobileNavOpen(false);
                 }}
@@ -876,11 +826,23 @@ export default function Navbar() {
                 </span>
               </button>
 
-              {accountOpen && <AccountMenu />}
+              {accountOpen && (
+                <AccountMenu
+                  session={session}
+                  profile={profile}
+                  profileLoading={profileLoading}
+                  profileError={profileError}
+                  displayName={displayName}
+                  initials={initials}
+                  closeMenus={closeMenus}
+                  handleLogout={handleLogout}
+                />
+              )}
             </div>
           )}
 
           {/* MOBILE NAV TOGGLE */}
+
           <button
             type="button"
             aria-label={
@@ -893,6 +855,7 @@ export default function Navbar() {
               setMobileNavOpen(
                 (current) => !current
               );
+
               setAccountOpen(false);
               setSignInOpen(false);
             }}
@@ -920,6 +883,7 @@ export default function Navbar() {
       </div>
 
       {/* MOBILE NAVIGATION */}
+
       {mobileNavOpen && (
         <div className="border-t border-slate-100 bg-white lg:hidden">
           <nav className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
