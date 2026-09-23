@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-type MaterialType = "Notes" | "Revision Sheet" | "HOTS" | "Previous Paper";
+type MaterialType = "Notes/Reading Material" | "Revision Sheets" | "HOTS" | "Question Paper" | "Previous Year Paper" | "Book" | "Other";
 type ExamType = "PT1" | "Mid-Term" | "PT2" | "Annual";
-type SourceType = "supabase" | "drive";
+type SourceType = "supabase" | "external";
 
 interface StudyMaterial {
   id: number;
@@ -60,10 +60,13 @@ const SUBJECTS = [
 ] as const;
 
 const MATERIAL_TYPES: MaterialType[] = [
-  "Notes",
-  "Revision Sheet",
+  "Notes/Reading Material",
+  "Revision Sheets",
   "HOTS",
-  "Previous Paper",
+  "Question Paper",
+  "Previous Year Paper",
+  "Book",
+  "Other",
 ];
 
 const EXAM_TYPES: ExamType[] = ["PT1", "Mid-Term", "PT2", "Annual"];
@@ -91,55 +94,55 @@ const ALLOWED_EXTENSIONS = [
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const TYPE_STYLES: Record<MaterialType, { icon: string; badge: string }> = {
-  Notes: { icon: "📘", badge: "bg-blue-50 text-blue-700" },
-  "Revision Sheet": { icon: "⚡", badge: "bg-amber-50 text-amber-700" },
+  "Notes/Reading Material": { icon: "📘", badge: "bg-blue-50 text-blue-700" },
+  "Revision Sheets": { icon: "⚡", badge: "bg-amber-50 text-amber-700" },
   HOTS: { icon: "🧠", badge: "bg-purple-50 text-purple-700" },
-  "Previous Paper": { icon: "📝", badge: "bg-emerald-50 text-emerald-700" },
+  "Question Paper": { icon: "📝", badge: "bg-emerald-50 text-emerald-700" },
+  "Previous Year Paper": { icon: "📚", badge: "bg-indigo-50 text-indigo-700" },
+  Book: { icon: "📖", badge: "bg-rose-50 text-rose-700" },
+  Other: { icon: "📎", badge: "bg-slate-100 text-slate-700" },
 };
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50";
 
-function extractGoogleDriveFileId(value: string): string | null {
-  const trimmed = value.trim();
-  const patterns = [
-    /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i,
-    /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/i,
-    /drive\.google\.com\/uc\?.*id=([a-zA-Z0-9_-]+)/i,
-    /docs\.google\.com\/(?:document|spreadsheets|presentation)\/d\/([a-zA-Z0-9_-]+)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = trimmed.match(pattern);
-    if (match?.[1]) return match[1];
-  }
-
+function isValidExternalUrl(value: string): boolean {
   try {
-    const url = new URL(trimmed);
-    const id = url.searchParams.get("id");
-    if (id && /^[a-zA-Z0-9_-]+$/.test(id)) return id;
+    const url = new URL(value.trim());
+    return url.protocol === "https:" && !!url.hostname;
   } catch {
-    return null;
+    return false;
   }
-
-  return null;
 }
 
-function isGoogleDriveUrl(value: string): boolean {
-  if (!value.trim()) return false;
-
+function getExternalProvider(
+  value: string
+): "OneDrive" | "Google Drive" | "External Link" {
   try {
     const url = new URL(value.trim());
     const host = url.hostname.toLowerCase();
-    const googleHost =
+
+    if (
+      host === "shivnadarfoundation-my.sharepoint.com" ||
+      host.endsWith(".sharepoint.com") ||
+      host === "1drv.ms" ||
+      host === "onedrive.live.com"
+    ) {
+      return "OneDrive";
+    }
+
+    if (
       host === "drive.google.com" ||
       host.endsWith(".drive.google.com") ||
       host === "docs.google.com" ||
-      host.endsWith(".docs.google.com");
+      host.endsWith(".docs.google.com")
+    ) {
+      return "Google Drive";
+    }
 
-    return googleHost && !!extractGoogleDriveFileId(value);
+    return "External Link";
   } catch {
-    return false;
+    return "External Link";
   }
 }
 
@@ -222,10 +225,10 @@ export default function DashboardStudyMaterialPage() {
     classLevel: "XI",
     subject: "",
     chapter: "",
-    materialType: "Notes" as MaterialType,
+    materialType: "Notes/Reading Material" as MaterialType,
     examType: "" as ExamType | "",
     description: "",
-    driveUrl: "",
+    resourceUrl: "",
   });
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -233,12 +236,12 @@ export default function DashboardStudyMaterialPage() {
   const [editForm, setEditForm] = useState({
     sourceType: "supabase" as SourceType,
     fileName: "",
-    driveUrl: "",
+    resourceUrl: "",
     title: "",
     classLevel: "XI",
     subject: "",
     chapter: "",
-    materialType: "Notes" as MaterialType,
+    materialType: "Notes/Reading Material" as MaterialType,
     examType: "" as ExamType | "",
     description: "",
   });
@@ -380,8 +383,8 @@ export default function DashboardStudyMaterialPage() {
     return { user, profile: currentProfile as PortalProfile };
   }
 
-  function validateDriveUrl(value: string): boolean {
-    return isGoogleDriveUrl(value);
+  function validateExternalUrl(value: string): boolean {
+    return isValidExternalUrl(value);
   }
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
@@ -396,8 +399,8 @@ export default function DashboardStudyMaterialPage() {
       return setErrorMessage("Please choose a file to upload.");
     }
 
-    if (form.sourceType === "drive" && !validateDriveUrl(form.driveUrl)) {
-      return setErrorMessage("Please paste a valid Google Drive, Google Docs, Sheets, or Slides link.");
+    if (form.sourceType === "external" && !validateExternalUrl(form.resourceUrl)) {
+      return setErrorMessage("Please paste a valid HTTPS resource link.");
     }
 
     setSaving(true);
@@ -440,7 +443,7 @@ export default function DashboardStudyMaterialPage() {
         const { data } = supabase.storage.from("study-materials").getPublicUrl(filePath);
         externalUrl = data?.publicUrl || null;
       } else {
-        externalUrl = form.driveUrl.trim();
+        externalUrl = form.resourceUrl.trim();
       }
 
       const { error: insertError } = await supabase.from("study_materials").insert({
@@ -462,7 +465,7 @@ export default function DashboardStudyMaterialPage() {
         throw new Error(insertError.message || "The material metadata could not be saved.");
       }
 
-      setSuccessMessage(form.sourceType === "supabase" ? "Study material uploaded successfully." : "Google Drive material added successfully.");
+      setSuccessMessage(form.sourceType === "supabase" ? "Study material uploaded successfully." : "External resource added successfully.");
       resetForm();
       await fetchMaterials();
     } catch (error) {
@@ -477,13 +480,13 @@ export default function DashboardStudyMaterialPage() {
     setErrorMessage("");
     setSuccessMessage("");
 
-    const isDrive = !!material.external_url && !material.file_path && isGoogleDriveUrl(material.external_url);
+    const isExternal = !!material.external_url && !material.file_path;
     const fileName = material.file_path ? material.file_path.split("/").pop() || "" : "";
 
     setEditForm({
-      sourceType: isDrive ? "drive" : "supabase",
+      sourceType: isExternal ? "external" : "supabase",
       fileName,
-      driveUrl: isDrive ? material.external_url || "" : "",
+      resourceUrl: isExternal ? material.external_url || "" : "",
       title: material.title,
       classLevel: material.class_level,
       subject: material.subject,
@@ -505,12 +508,12 @@ export default function DashboardStudyMaterialPage() {
     setEditForm({
       sourceType: "supabase",
       fileName: "",
-      driveUrl: "",
+      resourceUrl: "",
       title: "",
       classLevel: "XI",
       subject: "",
       chapter: "",
-      materialType: "Notes",
+      materialType: "Notes/Reading Material",
       examType: "",
       description: "",
     });
@@ -523,12 +526,12 @@ export default function DashboardStudyMaterialPage() {
     if (!editForm.title.trim()) return setErrorMessage("Please enter a title.");
     if (!editForm.subject.trim()) return setErrorMessage("Please select a subject.");
 
-    if (editForm.sourceType === "drive" && !validateDriveUrl(editForm.driveUrl)) {
-      return setErrorMessage("Please paste a valid Google Drive, Google Docs, Sheets, or Slides link.");
+    if (editForm.sourceType === "external" && !validateExternalUrl(editForm.resourceUrl)) {
+      return setErrorMessage("Please paste a valid HTTPS resource link.");
     }
 
     if (editForm.sourceType === "supabase" && !material.file_path) {
-      return setErrorMessage("This Drive material has no Supabase file. To convert it to a Supabase file, use the source selector and upload a replacement file.");
+      return setErrorMessage("This external resource has no Supabase file. To convert it to a Supabase file, use the source selector and upload a replacement file.");
     }
 
     if (editForm.sourceType === "supabase" && !editForm.fileName.trim()) {
@@ -544,10 +547,9 @@ export default function DashboardStudyMaterialPage() {
       let externalUrl = material.external_url;
       let fileSizeBytes = material.file_size_bytes ?? null;
 
-      if (editForm.sourceType === "drive") {
-        externalUrl = editForm.driveUrl.trim();
+      if (editForm.sourceType === "external") {
+        externalUrl = editForm.resourceUrl.trim();
         filePath = null;
-        fileSizeBytes = null;
         fileSizeBytes = null;
       } else {
         const oldStoragePath = material.file_path;
@@ -621,7 +623,7 @@ export default function DashboardStudyMaterialPage() {
   async function handleDelete(material: StudyMaterial) {
     const sourceMessage = material.file_path
       ? "This will remove the database entry and the uploaded Supabase file."
-      : "This will remove the portal entry only. The Google Drive file itself will not be deleted.";
+      : "This will remove the portal entry only. The External resource itself will not be deleted.";
     const confirmed = window.confirm(`Delete "${material.title}"?\n\n${sourceMessage}`);
     if (!confirmed) return;
 
@@ -658,10 +660,10 @@ export default function DashboardStudyMaterialPage() {
       classLevel: "XI",
       subject: "",
       chapter: "",
-      materialType: "Notes",
+      materialType: "Notes/Reading Material",
       examType: "",
       description: "",
-      driveUrl: "",
+      resourceUrl: "",
     });
     setSelectedFile(null);
 
@@ -717,7 +719,7 @@ export default function DashboardStudyMaterialPage() {
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"><span className="h-1.5 w-1.5 rounded-full bg-blue-600" />Dashboard · Administration</div>
               <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Study Material Manager</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">Upload files directly to Supabase or link large resources from Google Drive. Both sources remain editable from this page.</p>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">Upload files directly to Supabase or link resources from any HTTPS website. Both sources remain editable from this page.</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><div className="text-lg font-bold text-slate-950">{materials.length}</div><div className="text-xs font-medium text-slate-500">Total resources</div></div>
@@ -733,7 +735,7 @@ export default function DashboardStudyMaterialPage() {
 
         <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-5 sm:px-7">
-            <div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg">➕</div><div><h2 className="font-bold text-slate-950">Add Study Material</h2><p className="mt-0.5 text-xs text-slate-500">Choose Supabase upload or Google Drive.</p></div></div>
+            <div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg">➕</div><div><h2 className="font-bold text-slate-950">Add Study Material</h2><p className="mt-0.5 text-xs text-slate-500">Choose a Supabase upload or an external web link.</p></div></div>
           </div>
 
           <form onSubmit={handleCreate} className="p-5 sm:p-7">
@@ -741,8 +743,8 @@ export default function DashboardStudyMaterialPage() {
               <button type="button" onClick={() => updateForm("sourceType", "supabase")} className={`rounded-2xl border p-4 text-left transition ${form.sourceType === "supabase" ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
                 <div className="text-sm font-bold text-slate-900">📤 Upload to Supabase</div><p className="mt-1 text-xs leading-5 text-slate-500">Best for files up to 20 MB.</p>
               </button>
-              <button type="button" onClick={() => updateForm("sourceType", "drive")} className={`rounded-2xl border p-4 text-left transition ${form.sourceType === "drive" ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
-                <div className="text-sm font-bold text-slate-900">🔗 Google Drive Link</div><p className="mt-1 text-xs leading-5 text-slate-500">Use for large files without uploading them to the portal.</p>
+              <button type="button" onClick={() => updateForm("sourceType", "external")} className={`rounded-2xl border p-4 text-left transition ${form.sourceType === "external" ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
+                <div className="text-sm font-bold text-slate-900">🔗 External Resource Link</div><p className="mt-1 text-xs leading-5 text-slate-500">Use for resources hosted outside the portal.</p>
               </button>
             </div>
 
@@ -757,7 +759,7 @@ export default function DashboardStudyMaterialPage() {
               {form.sourceType === "supabase" ? (
                 <div className="lg:col-span-2"><FormField label="File" required><label htmlFor="study-material-file" className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-center transition hover:border-blue-300 hover:bg-blue-50/40"><span className="text-2xl">{selectedFile ? "📄" : "📁"}</span><span className="mt-2 text-sm font-semibold text-slate-700">{selectedFile ? selectedFile.name : "Choose a study material file"}</span><span className="mt-1 text-xs text-slate-400">PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX · Max 20 MB</span><input id="study-material-file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx" onChange={handleFileChange} className="sr-only" /></label></FormField></div>
               ) : (
-                <div className="lg:col-span-2"><FormField label="Google Drive Link" required><input type="url" value={form.driveUrl} onChange={(e) => updateForm("driveUrl", e.target.value)} placeholder="https://drive.google.com/..." className={inputClass} /><p className="mt-2 text-xs leading-5 text-slate-400">Use a Google Drive file link, or a Google Docs, Sheets, or Slides link. Make sure students have the required Google permission.</p></FormField></div>
+                <div className="lg:col-span-2"><FormField label="External Resource Link" required><input type="url" value={form.resourceUrl} onChange={(e) => updateForm("driveUrl", e.target.value)} placeholder="https://example.com/resource" className={inputClass} /><p className="mt-2 text-xs leading-5 text-slate-400">Paste any HTTPS resource link. Make sure students have permission to access the resource.</p></FormField></div>
               )}
 
               <div className="lg:col-span-2"><FormField label="Description"><textarea value={form.description} onChange={(e) => updateForm("description", e.target.value)} rows={3} placeholder="Briefly describe what this resource contains..." className={`${inputClass} resize-none`} /></FormField></div>
@@ -765,7 +767,7 @@ export default function DashboardStudyMaterialPage() {
 
             <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
               <button type="button" onClick={resetForm} disabled={saving} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">Clear</button>
-              <button type="submit" disabled={saving} className="rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60">{saving ? "Saving..." : form.sourceType === "supabase" ? "Upload Material" : "Add Drive Material"}</button>
+              <button type="submit" disabled={saving} className="rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60">{saving ? "Saving..." : form.sourceType === "supabase" ? "Upload Material" : "Add External Resource"}</button>
             </div>
           </form>
         </section>
@@ -773,7 +775,7 @@ export default function DashboardStudyMaterialPage() {
         <section className="mt-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Library</p><h2 className="mt-1 text-2xl font-bold text-slate-950">Existing Material</h2></div><p className="text-sm text-slate-500">{filteredMaterials.length} of {materials.length} resources</p></div>
 
-          <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="grid gap-3 md:grid-cols-[1fr_180px_190px]"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, subject, chapter, file name, Drive link..." className={inputClass} /><select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className={inputClass}><option value="All">All Classes</option>{CLASSES.map((item) => <option key={item} value={item}>Class {item}</option>)}</select><select value={filterType} onChange={(e) => setFilterType(e.target.value as MaterialType | "All")} className={inputClass}><option value="All">All Material Types</option>{MATERIAL_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}</select></div></div>
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="grid gap-3 md:grid-cols-[1fr_180px_190px]"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, subject, chapter, file name, or resource link..." className={inputClass} /><select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className={inputClass}><option value="All">All Classes</option>{CLASSES.map((item) => <option key={item} value={item}>Class {item}</option>)}</select><select value={filterType} onChange={(e) => setFilterType(e.target.value as MaterialType | "All")} className={inputClass}><option value="All">All Material Types</option>{MATERIAL_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}</select></div></div>
 
           {loadingMaterials ? (
             <div className="mt-5 grid gap-4 lg:grid-cols-2">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"><div className="h-10 w-10 rounded-xl bg-slate-200" /><div className="mt-4 h-4 w-3/4 rounded bg-slate-200" /><div className="mt-3 h-3 w-1/2 rounded bg-slate-100" /><div className="mt-6 h-10 rounded-xl bg-slate-100" /></div>)}</div>
@@ -784,7 +786,7 @@ export default function DashboardStudyMaterialPage() {
           )}
         </section>
 
-        <div className="mt-8 flex flex-col gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-xs leading-5 text-blue-800 sm:flex-row sm:items-center sm:justify-between"><span><strong>Hybrid storage:</strong> Supabase files + Google Drive links are supported.</span><span>{SUBJECTS.length} subjects · {materials.length} resources</span></div>
+        <div className="mt-8 flex flex-col gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-xs leading-5 text-blue-800 sm:flex-row sm:items-center sm:justify-between"><span><strong>Resource storage:</strong> Supabase files + External HTTPS links are supported.</span><span>{SUBJECTS.length} subjects · {materials.length} resources</span></div>
       </section>
     </main>
   );
@@ -809,7 +811,7 @@ function MaterialAdminCard({
   editForm: {
     sourceType: SourceType;
     fileName: string;
-    driveUrl: string;
+    resourceUrl: string;
     title: string;
     classLevel: string;
     subject: string;
@@ -826,7 +828,7 @@ function MaterialAdminCard({
 }) {
   const style = TYPE_STYLES[material.material_type];
   const currentFileName = material.file_path ? material.file_path.split("/").pop() : null;
-  const isDrive = !material.file_path && !!material.external_url && isGoogleDriveUrl(material.external_url);
+  const isExternal = !material.file_path && !!material.external_url;
 
   return (
     <article id={`edit-material-${material.id}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -844,11 +846,11 @@ function MaterialAdminCard({
 
               <div className="mb-4 grid gap-3 sm:grid-cols-2">
                 <button type="button" onClick={() => onEditFormChange("sourceType", "supabase")} disabled={savingEdit || !material.file_path} className={`rounded-xl border p-3 text-left ${editForm.sourceType === "supabase" ? "border-blue-400 bg-white" : "border-slate-200 bg-white/60"} disabled:cursor-not-allowed disabled:opacity-50`}><div className="text-xs font-bold text-slate-800">📤 Supabase file</div><p className="mt-1 text-[11px] text-slate-500">Rename the existing uploaded file.</p></button>
-                <button type="button" onClick={() => onEditFormChange("sourceType", "drive")} disabled={savingEdit} className={`rounded-xl border p-3 text-left ${editForm.sourceType === "drive" ? "border-blue-400 bg-white" : "border-slate-200 bg-white/60"}`}><div className="text-xs font-bold text-slate-800">🔗 Google Drive</div><p className="mt-1 text-[11px] text-slate-500">Change the linked Drive resource.</p></button>
+                <button type="button" onClick={() => onEditFormChange("sourceType", "external")} disabled={savingEdit} className={`rounded-xl border p-3 text-left ${editForm.sourceType === "external" ? "border-blue-400 bg-white" : "border-slate-200 bg-white/60"}`}><div className="text-xs font-bold text-slate-800">🔗 External Resource</div><p className="mt-1 text-[11px] text-slate-500">Change the linked external resource.</p></button>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                {editForm.sourceType === "supabase" ? <EditField label="File Name" required className="sm:col-span-2"><input value={editForm.fileName} onChange={(e) => onEditFormChange("fileName", e.target.value)} placeholder="e.g. Sets-and-Relations-Notes.pdf" className={inputClass} disabled={savingEdit} /><p className="mt-1.5 text-[11px] text-slate-400">This renames the actual Supabase Storage object. The extension is preserved if omitted.</p></EditField> : <EditField label="Google Drive Link" required className="sm:col-span-2"><input type="url" value={editForm.driveUrl} onChange={(e) => onEditFormChange("driveUrl", e.target.value)} placeholder="https://drive.google.com/..." className={inputClass} disabled={savingEdit} /><p className="mt-1.5 text-[11px] text-slate-400">Changing this changes the portal link, not the actual Google Drive filename.</p></EditField>}
+                {editForm.sourceType === "supabase" ? <EditField label="File Name" required className="sm:col-span-2"><input value={editForm.fileName} onChange={(e) => onEditFormChange("fileName", e.target.value)} placeholder="e.g. Sets-and-Relations-Notes.pdf" className={inputClass} disabled={savingEdit} /><p className="mt-1.5 text-[11px] text-slate-400">This renames the actual Supabase Storage object. The extension is preserved if omitted.</p></EditField> : <EditField label="External Resource Link" required className="sm:col-span-2"><input type="url" value={editForm.resourceUrl} onChange={(e) => onEditFormChange("driveUrl", e.target.value)} placeholder="https://example.com/resource" className={inputClass} disabled={savingEdit} /><p className="mt-1.5 text-[11px] text-slate-400">Changing this changes the portal link, not the external resource itself.</p></EditField>}
 
                 <EditField label="Title" required><input value={editForm.title} onChange={(e) => onEditFormChange("title", e.target.value)} className={inputClass} disabled={savingEdit} /></EditField>
                 <EditField label="Class" required><select value={editForm.classLevel} onChange={(e) => onEditFormChange("classLevel", e.target.value)} className={inputClass} disabled={savingEdit}>{CLASSES.map((item) => <option key={item} value={item}>Class {item}</option>)}</select></EditField>
@@ -863,9 +865,9 @@ function MaterialAdminCard({
             </div>
           ) : (
             <>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">{currentFileName && <span>📄 {currentFileName}</span>}{isDrive && <span>🔗 Google Drive</span>}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">{currentFileName && <span>📄 {currentFileName}</span>}{isExternal && <span>🔗 {getExternalProvider(material.external_url || "")}</span>}</div>
               <div className="mt-4 flex flex-wrap gap-2">
-                {material.external_url && <a href={material.external_url} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-600">{isDrive ? "Open Drive ↗" : "Open File ↗"}</a>}
+                {material.external_url && <a href={material.external_url} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-600">{isExternal ? "Open Resource ↗" : "Open File ↗"}</a>}
                 <button type="button" onClick={onStartEdit} disabled={deleting} className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 disabled:opacity-50">Edit</button>
                 <button type="button" onClick={onDelete} disabled={deleting} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50">{deleting ? "Deleting..." : "Delete"}</button>
               </div>
@@ -876,4 +878,3 @@ function MaterialAdminCard({
     </article>
   );
 }
- 
