@@ -287,8 +287,7 @@ rawPeriods: RawPeriod[]
 const periodsByEvent = new Map<
 string,
 Period[]
-
-();
+>();
 
 for (const period of rawPeriods) {
 const key = String(period.event_id);
@@ -335,60 +334,60 @@ return {
 
 });
 }
-/* -------------------------------------------------------------------------- */*
-*/* ICONS                                                                       */*
-*/* -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* ICONS                                                                       */
+/* -------------------------------------------------------------------------- */
 function ChevronLeft() {
 return (
 <svg
-&#x20;  viewBox="0 0 20 20"
-&#x20;  fill="none"
-&#x20;  className="h-4 w-4"
-&#x20;  aria-hidden="true"
-&#x20;>
+   viewBox="0 0 20 20"
+   fill="none"
+   className="h-4 w-4"
+   aria-hidden="true"
+ >
 <path
-&#x20;    d="M12.5 4.5L7 10l5.5 5.5"
-&#x20;    stroke="currentColor"
-&#x20;    strokeWidth="1.8"
-&#x20;    strokeLinecap="round"
-&#x20;    strokeLinejoin="round"
-&#x20;  />
+     d="M12.5 4.5L7 10l5.5 5.5"
+     stroke="currentColor"
+     strokeWidth="1.8"
+     strokeLinecap="round"
+     strokeLinejoin="round"
+   />
 </svg>
 );
 }
 function ChevronRight() {
 return (
 <svg
-&#x20;  viewBox="0 0 20 20"
-&#x20;  fill="none"
-&#x20;  className="h-4 w-4"
-&#x20;  aria-hidden="true"
-&#x20;>
+   viewBox="0 0 20 20"
+   fill="none"
+   className="h-4 w-4"
+   aria-hidden="true"
+ >
 <path
-&#x20;    d="M7.5 4.5L13 10l-5.5 5.5"
-&#x20;    stroke="currentColor"
-&#x20;    strokeWidth="1.8"
-&#x20;    strokeLinecap="round"
-&#x20;    strokeLinejoin="round"
-&#x20;  />
+     d="M7.5 4.5L13 10l-5.5 5.5"
+     stroke="currentColor"
+     strokeWidth="1.8"
+     strokeLinecap="round"
+     strokeLinejoin="round"
+   />
 </svg>
 );
 }
 function SearchIcon() {
 return (
 <svg
-&#x20;  viewBox="0 0 20 20"
-&#x20;  fill="none"
-&#x20;  className="h-4 w-4"
-&#x20;  aria-hidden="true"
-&#x20;>
+   viewBox="0 0 20 20"
+   fill="none"
+   className="h-4 w-4"
+   aria-hidden="true"
+ >
 <circle
-&#x20;    cx="8.75"
-&#x20;    cy="8.75"
-&#x20;    r="5.25"
-&#x20;    stroke="currentColor"
-&#x20;    strokeWidth="1.6"
-&#x20;  />
+     cx="8.75"
+     cy="8.75"
+     r="5.25"
+     stroke="currentColor"
+     strokeWidth="1.6"
+   />
 
   <path
     d="M12.75 12.75L16.25 16.25"
@@ -403,17 +402,17 @@ return (
 function CloseIcon() {
 return (
 <svg
-&#x20;  viewBox="0 0 20 20"
-&#x20;  fill="none"
-&#x20;  className="h-4 w-4"
-&#x20;  aria-hidden="true"
-&#x20;>
+   viewBox="0 0 20 20"
+   fill="none"
+   className="h-4 w-4"
+   aria-hidden="true"
+ >
 <path
-&#x20;    d="M5 5l10 10M15 5L5 15"
-&#x20;    stroke="currentColor"
-&#x20;    strokeWidth="1.7"
-&#x20;    strokeLinecap="round"
-&#x20;  />
+     d="M5 5l10 10M15 5L5 15"
+     stroke="currentColor"
+     strokeWidth="1.7"
+     strokeLinecap="round"
+   />
 </svg>
 );
 }
@@ -424,20 +423,20 @@ className?: string;
 }) {
 return (
 <svg
-&#x20;  viewBox="0 0 24 24"
-&#x20;  fill="none"
-&#x20;  className={className}
-&#x20;  aria-hidden="true"
-&#x20;>
+   viewBox="0 0 24 24"
+   fill="none"
+   className={className}
+   aria-hidden="true"
+ >
 <rect
-&#x20;    x="3.5"
-&#x20;    y="5"
-&#x20;    width="17"
-&#x20;    height="15"
-&#x20;    rx="2.5"
-&#x20;    stroke="currentColor"
-&#x20;    strokeWidth="1.6"
-&#x20;  />
+     x="3.5"
+     y="5"
+     width="17"
+     height="15"
+     rx="2.5"
+     stroke="currentColor"
+     strokeWidth="1.6"
+   />
 
   <path
     d="M7.5 3.5V7M16.5 3.5V7M3.5 9.5h17"
@@ -459,16 +458,16 @@ return (
 function MapPinIcon() {
 return (
 <svg
-&#x20;  viewBox="0 0 20 20"
-&#x20;  fill="none"
-&#x20;  className="h-3.5 w-3.5"
-&#x20;  aria-hidden="true"
-&#x20;>
+   viewBox="0 0 20 20"
+   fill="none"
+   className="h-3.5 w-3.5"
+   aria-hidden="true"
+ >
 <path
-&#x20;    d="M15.5 8.2c0 4.2-5.5 8.3-5.5 8.3S4.5 12.4 4.5 8.2a5.5 5.5 0 1 1 11 0Z"
-&#x20;    stroke="currentColor"
-&#x20;    strokeWidth="1.5"
-&#x20;  />
+     d="M15.5 8.2c0 4.2-5.5 8.3-5.5 8.3S4.5 12.4 4.5 8.2a5.5 5.5 0 1 1 11 0Z"
+     stroke="currentColor"
+     strokeWidth="1.5"
+   />
 
   <circle
     cx="10"
@@ -484,18 +483,18 @@ return (
 function ClockIcon() {
 return (
 <svg
-&#x20;  viewBox="0 0 20 20"
-&#x20;  fill="none"
-&#x20;  className="h-3.5 w-3.5"
-&#x20;  aria-hidden="true"
-&#x20;>
+   viewBox="0 0 20 20"
+   fill="none"
+   className="h-3.5 w-3.5"
+   aria-hidden="true"
+ >
 <circle
-&#x20;    cx="10"
-&#x20;    cy="10"
-&#x20;    r="6.8"
-&#x20;    stroke="currentColor"
-&#x20;    strokeWidth="1.5"
-&#x20;  />
+     cx="10"
+     cy="10"
+     r="6.8"
+     stroke="currentColor"
+     strokeWidth="1.5"
+   />
 
   <path
     d="M10 6.5v3.8l2.6 1.7"
@@ -511,15 +510,15 @@ return (
 function SparkIcon() {
 return (
 <svg
-&#x20;  viewBox="0 0 20 20"
-&#x20;  fill="none"
-&#x20;  className="h-4 w-4"
-&#x20;  aria-hidden="true"
-&#x20;>
+   viewBox="0 0 20 20"
+   fill="none"
+   className="h-4 w-4"
+   aria-hidden="true"
+ >
 <path
-&#x20;    d="M10 2.8l1.15 4.1L15.2 8l-4.05 1.1L10 13.2 8.85 9.1 4.8 8l4.05-1.1L10 2.8Z"
-&#x20;    fill="currentColor"
-&#x20;  />
+     d="M10 2.8l1.15 4.1L15.2 8l-4.05 1.1L10 13.2 8.85 9.1 4.8 8l4.05-1.1L10 2.8Z"
+     fill="currentColor"
+   />
 
   <path
     d="M15.6 12.8l.55 1.95 1.95.55-1.95.55-.55 1.95-.55-1.95-1.95-.55 1.95-.55.55-1.95Z"
