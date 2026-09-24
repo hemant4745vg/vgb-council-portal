@@ -849,10 +849,10 @@ function MaterialCard({
             </p>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-slate-400">
-              {isDriveResource ? (
-                <span>{getExternalProvider(material.external_url || "")}</span>
-              ) : (
-                <>
+              {material.source_type === "external" && material.external_url ? (
+  <span>{getExternalProvider(material.external_url)}</span>
+) : (
+  <>
                   {fileType && <span>{fileType}</span>}
                   {fileType && formattedFileSize && <span>·</span>}
                   {formattedFileSize && <span>{formattedFileSize}</span>}
