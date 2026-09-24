@@ -1,3 +1,4 @@
+```tsx
 "use client";
 
 import {
@@ -242,43 +243,53 @@ function normalizeMaterial(
       value.class_level ?? ""
     ).trim(),
     subject: String(value.subject ?? "").trim(),
+
     chapter:
       value.chapter === null ||
       value.chapter === undefined
         ? null
         : String(value.chapter).trim() || null,
+
     material_type: normalizeMaterialType(
       value.material_type
     ),
+
     exam_type: normalizeExamType(value.exam_type),
+
     description:
       value.description === null ||
       value.description === undefined
         ? null
         : String(value.description).trim() || null,
+
     file_path:
       value.file_path === null ||
       value.file_path === undefined
         ? null
         : String(value.file_path).trim() || null,
+
     external_url:
       value.external_url === null ||
       value.external_url === undefined
         ? null
         : String(value.external_url).trim() || null,
+
     file_size_bytes:
       value.file_size_bytes === null ||
       value.file_size_bytes === undefined
         ? null
         : Number(value.file_size_bytes),
+
     uploaded_by:
       value.uploaded_by === null ||
       value.uploaded_by === undefined
         ? null
         : String(value.uploaded_by).trim() || null,
+
     created_at: String(
       value.created_at ?? ""
     ),
+
     updated_at: String(
       value.updated_at ?? ""
     ),
@@ -317,11 +328,14 @@ function getExternalProvider(
   }
 }
 
-function isPdfUrl(value: string | null | undefined) {
+function isPdfUrl(
+  value: string | null | undefined
+) {
   if (!value) return false;
 
   try {
     const url = new URL(value);
+
     return url.pathname
       .toLowerCase()
       .endsWith(".pdf");
@@ -966,8 +980,9 @@ function formatFileSize(
   bytes?: number | null
 ) {
   if (
-    !bytes ||
     !Number.isFinite(bytes) ||
+    bytes === null ||
+    bytes === undefined ||
     bytes <= 0
   ) {
     return null;
@@ -1035,11 +1050,26 @@ function MaterialCard({
     );
 
   const fileType =
-    extension && extension !== fileName.toLowerCase()
+    extension &&
+    extension !== fileName.toLowerCase()
       ? extension.toUpperCase()
       : null;
 
+  /*
+   * IMPORTANT:
+   *
+   * A Supabase-uploaded file has a file_path.
+   * Its external_url is simply the public Supabase
+   * Storage URL generated for that file.
+   *
+   * Therefore, external_url alone must NOT be used
+   * to decide whether the resource is external.
+   */
+  const isSupabaseFile =
+    Boolean(material.file_path);
+
   const externalProvider =
+    !isSupabaseFile &&
     material.external_url
       ? getExternalProvider(
           material.external_url
@@ -1101,8 +1131,26 @@ function MaterialCard({
               </p>
             )}
 
+            {/* FILE / RESOURCE METADATA */}
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-slate-400">
-              {externalProvider ? (
+              {isSupabaseFile ? (
+                <>
+                  {fileType && (
+                    <span>{fileType}</span>
+                  )}
+
+                  {fileType &&
+                    formattedFileSize && (
+                      <span>·</span>
+                    )}
+
+                  {formattedFileSize && (
+                    <span>
+                      {formattedFileSize}
+                    </span>
+                  )}
+                </>
+              ) : externalProvider ? (
                 <span>
                   {externalProvider}
                 </span>
@@ -1347,3 +1395,4 @@ function PreviewModal({
     </div>
   );
 }
+```
