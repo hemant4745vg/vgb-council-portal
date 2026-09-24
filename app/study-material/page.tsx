@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabase";
 
 type MaterialType =
@@ -76,37 +81,44 @@ const MATERIAL_TYPES: {
   {
     value: "Notes/Reading Material",
     label: "Notes/Reading Material",
-    description: "Detailed chapter-wise study and reading material",
+    description:
+      "Detailed chapter-wise study and reading material",
   },
   {
     value: "Revision Sheets",
     label: "Revision Sheets",
-    description: "Compact material for quick revision",
+    description:
+      "Compact material for quick revision",
   },
   {
     value: "HOTS",
     label: "HOTS",
-    description: "Higher-order thinking and application questions",
+    description:
+      "Higher-order thinking and application questions",
   },
   {
     value: "Question Paper",
     label: "Question Paper",
-    description: "Practice papers and assessment material",
+    description:
+      "Practice papers and assessment material",
   },
   {
     value: "Previous Year Paper",
     label: "Previous Year Paper",
-    description: "Previous examination papers",
+    description:
+      "Previous examination papers",
   },
   {
     value: "Book",
     label: "Book",
-    description: "Books and longer reference resources",
+    description:
+      "Books and longer reference resources",
   },
   {
     value: "Other",
     label: "Other",
-    description: "Other useful academic resources",
+    description:
+      "Other useful academic resources",
   },
 ];
 
@@ -163,7 +175,114 @@ const TYPE_STYLES: Record<
 };
 
 function getTypeStyle(materialType: string) {
-  return TYPE_STYLES[materialType as MaterialType] ?? TYPE_STYLES.Other;
+  return (
+    TYPE_STYLES[materialType as MaterialType] ??
+    TYPE_STYLES.Other
+  );
+}
+
+function normalizeMaterialType(value: unknown): MaterialType {
+  const normalized = String(value ?? "").trim();
+
+  switch (normalized) {
+    case "Notes":
+    case "Reading Material":
+    case "Notes/Reading Material":
+      return "Notes/Reading Material";
+
+    case "Revision Sheet":
+    case "Revision Sheets":
+      return "Revision Sheets";
+
+    case "HOTS":
+      return "HOTS";
+
+    case "Question Paper":
+      return "Question Paper";
+
+    case "Previous Paper":
+    case "Previous Year Paper":
+      return "Previous Year Paper";
+
+    case "Book":
+      return "Book";
+
+    case "Other":
+      return "Other";
+
+    default:
+      return "Other";
+  }
+}
+
+function normalizeExamType(
+  value: unknown
+): ExamType | null {
+  const normalized = String(value ?? "").trim();
+
+  if (
+    normalized === "PT1" ||
+    normalized === "Mid-Term" ||
+    normalized === "PT2" ||
+    normalized === "Annual"
+  ) {
+    return normalized;
+  }
+
+  return null;
+}
+
+function normalizeMaterial(
+  value: Record<string, unknown>
+): StudyMaterial {
+  return {
+    id: Number(value.id),
+    title: String(value.title ?? "").trim(),
+    class_level: String(
+      value.class_level ?? ""
+    ).trim(),
+    subject: String(value.subject ?? "").trim(),
+    chapter:
+      value.chapter === null ||
+      value.chapter === undefined
+        ? null
+        : String(value.chapter).trim() || null,
+    material_type: normalizeMaterialType(
+      value.material_type
+    ),
+    exam_type: normalizeExamType(value.exam_type),
+    description:
+      value.description === null ||
+      value.description === undefined
+        ? null
+        : String(value.description).trim() || null,
+    file_path:
+      value.file_path === null ||
+      value.file_path === undefined
+        ? null
+        : String(value.file_path).trim() || null,
+    external_url:
+      value.external_url === null ||
+      value.external_url === undefined
+        ? null
+        : String(value.external_url).trim() || null,
+    file_size_bytes:
+      value.file_size_bytes === null ||
+      value.file_size_bytes === undefined
+        ? null
+        : Number(value.file_size_bytes),
+    uploaded_by:
+      value.uploaded_by === null ||
+      value.uploaded_by === undefined
+        ? null
+        : String(value.uploaded_by).trim() || null,
+    created_at: String(
+      value.created_at ?? ""
+    ),
+    updated_at: String(
+      value.updated_at ?? ""
+    ),
+  };
 }
 
 function getExternalProvider(
@@ -175,6 +294,7 @@ function getExternalProvider(
 
     if (
       host === "shivnadarfoundation-my.sharepoint.com" ||
+      host === "sharepoint.com" ||
       host.endsWith(".sharepoint.com") ||
       host === "1drv.ms" ||
       host === "onedrive.live.com"
@@ -197,13 +317,54 @@ function getExternalProvider(
   }
 }
 
+function isPdfUrl(value: string | null | undefined) {
+  if (!value) return false;
+
+  try {
+    const url = new URL(value);
+    return url.pathname
+      .toLowerCase()
+      .endsWith(".pdf");
+  } catch {
+    return value
+      .split("?")[0]
+      .split("#")[0]
+      .toLowerCase()
+      .endsWith(".pdf");
+  }
+}
+
+function appendDownloadParameter(value: string) {
+  if (!value) return value;
+
+  try {
+    const url = new URL(value);
+
+    if (!url.searchParams.has("download")) {
+      url.searchParams.set("download", "");
+    }
+
+    return url.toString();
+  } catch {
+    return value.includes("?")
+      ? `${value}&download`
+      : `${value}?download`;
+  }
+}
+
 export default function StudyMaterialPage() {
-  const [materials, setMaterials] = useState<StudyMaterial[]>([]);
+  const [materials, setMaterials] = useState<
+    StudyMaterial[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [selectedClass, setSelectedClass] = useState("All");
-  const [selectedSubject, setSelectedSubject] = useState("All");
+  const [selectedClass, setSelectedClass] =
+    useState("All");
+
+  const [selectedSubject, setSelectedSubject] =
+    useState("All");
 
   const [selectedType, setSelectedType] = useState<
     MaterialType | "All"
@@ -215,33 +376,49 @@ export default function StudyMaterialPage() {
 
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    fetchMaterials();
-  }, []);
-
-  async function fetchMaterials() {
+  const fetchMaterials = useCallback(async () => {
     setLoading(true);
     setError("");
 
-    const { data, error } = await supabase
+    const { data, error: fetchError } = await supabase
       .from("study_materials")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", {
+        ascending: false,
+      });
 
-    if (error) {
-      console.error("Study material fetch failed:", error);
+    if (fetchError) {
+      console.error(
+        "Study material fetch failed:",
+        fetchError
+      );
 
       setError(
         "We couldn't load the study material right now. Please try again."
       );
 
       setMaterials([]);
-    } else {
-      setMaterials((data || []) as StudyMaterial[]);
+      setLoading(false);
+      return;
     }
 
+    const normalizedMaterials = (
+      (data || []) as Record<string, unknown>[]
+    )
+      .map(normalizeMaterial)
+      .filter(
+        (material) =>
+          Number.isFinite(material.id) &&
+          material.title.length > 0
+      );
+
+    setMaterials(normalizedMaterials);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    void fetchMaterials();
+  }, [fetchMaterials]);
 
   const subjects = useMemo(() => {
     return ["All", ...SUBJECTS];
@@ -267,19 +444,24 @@ export default function StudyMaterialPage() {
         selectedExam === "All" ||
         material.exam_type === selectedExam;
 
+      const searchableValues = [
+        material.title,
+        material.subject,
+        material.chapter,
+        material.description,
+        material.class_level,
+        material.exam_type,
+        material.material_type,
+      ];
+
       const matchesSearch =
         !query ||
-        [
-          material.title,
-          material.subject,
-          material.chapter,
-          material.description,
-          material.class_level,
-          material.exam_type,
-        ]
+        searchableValues
           .filter(Boolean)
           .some((value) =>
-            String(value).toLowerCase().includes(query)
+            String(value)
+              .toLowerCase()
+              .includes(query)
           );
 
       return (
@@ -300,10 +482,14 @@ export default function StudyMaterialPage() {
   ]);
 
   const groupedMaterials = useMemo(() => {
-    const groups: Record<string, StudyMaterial[]> = {};
+    const groups: Record<
+      string,
+      StudyMaterial[]
+    > = {};
 
     for (const material of filteredMaterials) {
-      const key = material.subject || "Other";
+      const key =
+        material.subject || "Other";
 
       if (!groups[key]) {
         groups[key] = [];
@@ -312,8 +498,8 @@ export default function StudyMaterialPage() {
       groups[key].push(material);
     }
 
-    return Object.entries(groups).sort(([a], [b]) =>
-      a.localeCompare(b)
+    return Object.entries(groups).sort(
+      ([a], [b]) => a.localeCompare(b)
     );
   }, [filteredMaterials]);
 
@@ -348,9 +534,11 @@ export default function StudyMaterialPage() {
             </h1>
 
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-              Everything you need to prepare, practise, and revise.
-              Find chapter-wise notes, revision sheets, HOTS questions,
-              and previous VidyaGyan examination papers in one place.
+              Everything you need to prepare, practise,
+              and revise. Find chapter-wise notes,
+              revision sheets, HOTS questions, and
+              previous VidyaGyan examination papers in
+              one place.
             </p>
           </div>
 
@@ -364,7 +552,12 @@ export default function StudyMaterialPage() {
             <StatCard
               value={
                 new Set(
-                  materials.map((material) => material.subject)
+                  materials
+                    .map(
+                      (material) =>
+                        material.subject.trim()
+                    )
+                    .filter(Boolean)
                 ).size
               }
               label="Subjects"
@@ -373,7 +566,12 @@ export default function StudyMaterialPage() {
             <StatCard
               value={
                 new Set(
-                  materials.map((material) => material.class_level)
+                  materials
+                    .map(
+                      (material) =>
+                        material.class_level.trim()
+                    )
+                    .filter(Boolean)
                 ).size
               }
               label="Classes"
@@ -383,7 +581,8 @@ export default function StudyMaterialPage() {
               value={
                 materials.filter(
                   (material) =>
-                    material.material_type === "Previous Year Paper"
+                    material.material_type ===
+                    "Previous Year Paper"
                 ).length
               }
               label="Papers"
@@ -404,6 +603,7 @@ export default function StudyMaterialPage() {
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
+              aria-hidden="true"
             >
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-4-4" />
@@ -412,9 +612,12 @@ export default function StudyMaterialPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
               placeholder="Search notes, chapters, subjects, papers..."
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              aria-label="Search study material"
             />
           </div>
 
@@ -426,13 +629,17 @@ export default function StudyMaterialPage() {
 
             <div className="flex gap-2 overflow-x-auto pb-1">
               {CLASSES.map((className) => {
-                const active = selectedClass === className;
+                const active =
+                  selectedClass === className;
 
                 return (
                   <button
                     key={className}
                     type="button"
-                    onClick={() => setSelectedClass(className)}
+                    onClick={() =>
+                      setSelectedClass(className)
+                    }
+                    aria-pressed={active}
                     className={`shrink-0 rounded-xl px-4 py-2 text-sm font-semibold transition ${
                       active
                         ? "bg-slate-900 text-white shadow-sm"
@@ -499,46 +706,53 @@ export default function StudyMaterialPage() {
 
         {/* MATERIAL TYPE CARDS */}
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {MATERIAL_TYPES.map((type) => (
-            <button
-              key={type.value}
-              type="button"
-              onClick={() =>
-                setSelectedType(
-                  selectedType === type.value
-                    ? "All"
-                    : type.value
-                )
-              }
-              className={`rounded-2xl border bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${
-                selectedType === type.value
-                  ? "border-slate-900 shadow-sm"
-                  : "border-slate-200"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg ${TYPE_STYLES[type.value].badge}`}
-                >
-                  {TYPE_STYLES[type.value].icon}
+          {MATERIAL_TYPES.map((type) => {
+            const typeStyle =
+              TYPE_STYLES[type.value];
+
+            const selected =
+              selectedType === type.value;
+
+            return (
+              <button
+                key={type.value}
+                type="button"
+                onClick={() =>
+                  setSelectedType(
+                    selected ? "All" : type.value
+                  )
+                }
+                aria-pressed={selected}
+                className={`rounded-2xl border bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${
+                  selected
+                    ? "border-slate-900 shadow-sm"
+                    : "border-slate-200"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg ${typeStyle.badge}`}
+                  >
+                    {typeStyle.icon}
+                  </div>
+
+                  {selected && (
+                    <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                      Selected
+                    </span>
+                  )}
                 </div>
 
-                {selectedType === type.value && (
-                  <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-                    Selected
-                  </span>
-                )}
-              </div>
+                <h2 className="mt-3 text-sm font-bold text-slate-900">
+                  {type.label}
+                </h2>
 
-              <h2 className="mt-3 text-sm font-bold text-slate-900">
-                {type.label}
-              </h2>
-
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                {type.description}
-              </p>
-            </button>
-          ))}
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  {type.description}
+                </p>
+              </button>
+            );
+          })}
         </div>
 
         {/* RESULTS HEADER */}
@@ -569,22 +783,24 @@ export default function StudyMaterialPage() {
         {/* LOADING */}
         {loading && (
           <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"
-              >
-                <div className="h-10 w-10 rounded-xl bg-slate-200" />
+            {Array.from({ length: 6 }).map(
+              (_, index) => (
+                <div
+                  key={index}
+                  className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"
+                >
+                  <div className="h-10 w-10 rounded-xl bg-slate-200" />
 
-                <div className="mt-5 h-4 w-3/4 rounded bg-slate-200" />
+                  <div className="mt-5 h-4 w-3/4 rounded bg-slate-200" />
 
-                <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
+                  <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
 
-                <div className="mt-6 h-3 w-full rounded bg-slate-100" />
+                  <div className="mt-6 h-3 w-full rounded bg-slate-100" />
 
-                <div className="mt-2 h-3 w-5/6 rounded bg-slate-100" />
-              </div>
-            ))}
+                  <div className="mt-2 h-3 w-5/6 rounded bg-slate-100" />
+                </div>
+              )
+            )}
           </div>
         )}
 
@@ -601,7 +817,7 @@ export default function StudyMaterialPage() {
 
             <button
               type="button"
-              onClick={fetchMaterials}
+              onClick={() => void fetchMaterials()}
               className="mt-4 rounded-xl bg-red-900 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
             >
               Try Again
@@ -630,12 +846,14 @@ export default function StudyMaterialPage() {
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {subjectMaterials.map((material) => (
-                        <MaterialCard
-                          key={material.id}
-                          material={material}
-                        />
-                      ))}
+                      {subjectMaterials.map(
+                        (material) => (
+                          <MaterialCard
+                            key={material.id}
+                            material={material}
+                          />
+                        )
+                      )}
                     </div>
                   </section>
                 )
@@ -657,9 +875,9 @@ export default function StudyMaterialPage() {
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                There is no material matching the current
-                filters. Try another class, subject, material
-                type, or search term.
+                There is no material matching the
+                current filters. Try another class,
+                subject, material type, or search term.
               </p>
 
               {hasActiveFilters && (
@@ -721,7 +939,9 @@ function FilterSelect({
 
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(e.target.value)
+        }
         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
       >
         {options.map((option) => (
@@ -730,6 +950,8 @@ function FilterSelect({
               ? `All ${
                   label === "Exam"
                     ? "Exams"
+                    : label === "Material Type"
+                    ? "Material Types"
                     : `${label}s`
                 }`
               : option}
@@ -740,19 +962,37 @@ function FilterSelect({
   );
 }
 
-function formatFileSize(bytes?: number | null) {
-  if (!bytes || bytes <= 0) return null;
+function formatFileSize(
+  bytes?: number | null
+) {
+  if (
+    !bytes ||
+    !Number.isFinite(bytes) ||
+    bytes <= 0
+  ) {
+    return null;
+  }
 
   const units = ["B", "KB", "MB", "GB"];
+
   let size = bytes;
   let unitIndex = 0;
 
-  while (size >= 1024 && unitIndex < units.length - 1) {
+  while (
+    size >= 1024 &&
+    unitIndex < units.length - 1
+  ) {
     size /= 1024;
     unitIndex++;
   }
 
-  const decimals = unitIndex === 0 ? 0 : size >= 10 ? 1 : 2;
+  const decimals =
+    unitIndex === 0
+      ? 0
+      : size >= 10
+      ? 1
+      : 2;
+
   return `${size.toFixed(decimals)} ${units[unitIndex]}`;
 }
 
@@ -761,46 +1001,50 @@ function MaterialCard({
 }: {
   material: StudyMaterial;
 }) {
-  const style = getTypeStyle(material.material_type);
+  const style = getTypeStyle(
+    material.material_type
+  );
 
   const resourceUrl =
-    material.external_url || material.file_path || null;
+    material.external_url ||
+    material.file_path ||
+    null;
 
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] =
+    useState(false);
 
   const fileName =
-    material.file_path?.split("/").pop() ||
+    material.file_path
+      ?.split("/")
+      .pop() ||
     material.title;
 
   const extension =
-    fileName.split(".").pop()?.toLowerCase() || "";
+    fileName
+      .split(".")
+      .pop()
+      ?.toLowerCase() || "";
 
-  const isPdf = extension === "pdf";
-  const formattedFileSize = formatFileSize(material.file_size_bytes);
-  const fileType = extension ? extension.toUpperCase() : null;
-  const externalHost = material.external_url
-    ? (() => {
-        try {
-          return new URL(material.external_url).hostname.toLowerCase();
-        } catch {
-          return "";
-        }
-      })()
-    : "";
+  const isPdf =
+    extension === "pdf" ||
+    isPdfUrl(material.external_url);
 
-  const isOneDriveResource =
-    !!material.external_url &&
-    (externalHost === "1drv.ms" ||
-      externalHost === "onedrive.live.com" ||
-      externalHost === "sharepoint.com" ||
-      externalHost.endsWith(".sharepoint.com"));
+  const formattedFileSize =
+    formatFileSize(
+      material.file_size_bytes
+    );
 
-  const isGoogleDriveResource =
-    !!material.external_url &&
-    (externalHost === "drive.google.com" ||
-      externalHost.endsWith(".drive.google.com") ||
-      externalHost === "docs.google.com" ||
-      externalHost.endsWith(".docs.google.com"));
+  const fileType =
+    extension && extension !== fileName.toLowerCase()
+      ? extension.toUpperCase()
+      : null;
+
+  const externalProvider =
+    material.external_url
+      ? getExternalProvider(
+          material.external_url
+        )
+      : null;
 
   const officePreviewUrl = resourceUrl
     ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
@@ -808,12 +1052,17 @@ function MaterialCard({
       )}`
     : null;
 
+  const downloadUrl = resourceUrl
+    ? appendDownloadParameter(resourceUrl)
+    : null;
+
   return (
     <>
       <article className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
         <div className="flex gap-4">
           <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${style.accent}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-xl ${style.accent}`}
+            aria-hidden="true"
           >
             {style.icon}
           </div>
@@ -826,9 +1075,11 @@ function MaterialCard({
                 {material.material_type}
               </span>
 
-              <span className="text-xs font-semibold text-slate-400">
-                Class {material.class_level}
-              </span>
+              {material.class_level && (
+                <span className="text-xs font-semibold text-slate-400">
+                  Class {material.class_level}
+                </span>
+              )}
 
               {material.exam_type && (
                 <span className="text-xs font-semibold text-slate-400">
@@ -841,21 +1092,36 @@ function MaterialCard({
               {material.title}
             </h3>
 
-            <p className="mt-1 text-xs font-semibold text-blue-600">
-              {material.subject}
-              {material.chapter
-                ? ` · ${material.chapter}`
-                : ""}
-            </p>
+            {material.subject && (
+              <p className="mt-1 text-xs font-semibold text-blue-600">
+                {material.subject}
+                {material.chapter
+                  ? ` · ${material.chapter}`
+                  : ""}
+              </p>
+            )}
 
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-slate-400">
-              {material.source_type === "external" && material.external_url ? (
-  <span>{getExternalProvider(material.external_url)}</span>
-) : (
-  <>
-                  {fileType && <span>{fileType}</span>}
-                  {fileType && formattedFileSize && <span>·</span>}
-                  {formattedFileSize && <span>{formattedFileSize}</span>}
+              {externalProvider ? (
+                <span>
+                  {externalProvider}
+                </span>
+              ) : (
+                <>
+                  {fileType && (
+                    <span>{fileType}</span>
+                  )}
+
+                  {fileType &&
+                    formattedFileSize && (
+                      <span>·</span>
+                    )}
+
+                  {formattedFileSize && (
+                    <span>
+                      {formattedFileSize}
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -871,24 +1137,30 @@ function MaterialCard({
                 <>
                   <button
                     type="button"
-                    onClick={() => setPreviewOpen(true)}
+                    onClick={() =>
+                      setPreviewOpen(true)
+                    }
                     className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-600"
                   >
-                    <span>👁</span>
+                    <span aria-hidden="true">
+                      👁
+                    </span>
                     Preview
                   </button>
 
-                  <a
-                    href={`${resourceUrl}${
-                      resourceUrl.includes("?")
-                        ? "&download"
-                        : "?download"
-                    }`}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    <span>↓</span>
-                    Download
-                  </a>
+                  {downloadUrl && (
+                    <a
+                      href={downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      <span aria-hidden="true">
+                        ↓
+                      </span>
+                      Download
+                    </a>
+                  )}
                 </>
               ) : (
                 <span className="text-xs font-medium text-slate-400">
@@ -904,9 +1176,14 @@ function MaterialCard({
         <PreviewModal
           title={material.title}
           resourceUrl={resourceUrl}
-          officePreviewUrl={officePreviewUrl}
+          officePreviewUrl={
+            officePreviewUrl
+          }
           isPdf={isPdf}
-          onClose={() => setPreviewOpen(false)}
+          downloadUrl={downloadUrl}
+          onClose={() =>
+            setPreviewOpen(false)
+          }
         />
       )}
     </>
@@ -918,23 +1195,53 @@ function PreviewModal({
   resourceUrl,
   officePreviewUrl,
   isPdf,
+  downloadUrl,
   onClose,
 }: {
   title: string;
   resourceUrl: string;
   officePreviewUrl: string | null;
   isPdf: boolean;
+  downloadUrl: string | null;
   onClose: () => void;
 }) {
   const previewUrl = isPdf
     ? resourceUrl
     : officePreviewUrl;
 
+  useEffect(() => {
+    const handleKeyDown = (
+      event: KeyboardEvent
+    ) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+    };
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Preview of ${title}`}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
           onClose();
         }
       }}
@@ -953,16 +1260,16 @@ function PreviewModal({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <a
-              href={
-                resourceUrl.includes("?")
-                  ? `${resourceUrl}&download`
-                  : `${resourceUrl}?download`
-              }
-              className="hidden rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
-            >
-              ↓ Download
-            </a>
+            {downloadUrl && (
+              <a
+                href={downloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
+              >
+                ↓ Download
+              </a>
+            )}
 
             <button
               type="button"
@@ -987,23 +1294,33 @@ function PreviewModal({
           ) : (
             <div className="flex h-full items-center justify-center p-6 text-center">
               <div>
-                <div className="text-4xl">📄</div>
+                <div
+                  className="text-4xl"
+                  aria-hidden="true"
+                >
+                  📄
+                </div>
 
                 <h3 className="mt-4 font-bold text-slate-900">
                   Preview unavailable
                 </h3>
 
                 <p className="mt-2 max-w-md text-sm text-slate-500">
-                  This file cannot be previewed in the browser.
-                  You can download it instead.
+                  This file cannot be previewed in
+                  the browser. You can download it
+                  instead.
                 </p>
 
-                <a
-                  href={resourceUrl}
-                  className="mt-5 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
-                >
-                  Download file
-                </a>
+                {downloadUrl && (
+                  <a
+                    href={downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-5 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+                  >
+                    Download file
+                  </a>
+                )}
               </div>
             </div>
           )}
@@ -1015,16 +1332,16 @@ function PreviewModal({
             Preview only
           </span>
 
-          <a
-            href={
-              resourceUrl.includes("?")
-                ? `${resourceUrl}&download`
-                : `${resourceUrl}?download`
-            }
-            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
-          >
-            ↓ Download
-          </a>
+          {downloadUrl && (
+            <a
+              href={downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
+            >
+              ↓ Download
+            </a>
+          )}
         </div>
       </div>
     </div>
