@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type MaterialType =
-  | "Notes"
-  | "Revision Sheet"
+  | "Notes/Reading Material"
+  | "Revision Sheets"
   | "HOTS"
-  | "Previous Paper";
+  | "Question Paper"
+  | "Previous Year Paper"
+  | "Book"
+  | "Other";
 
 type ExamType = "PT1" | "Mid-Term" | "PT2" | "Annual";
 
@@ -71,12 +74,12 @@ const MATERIAL_TYPES: {
   description: string;
 }[] = [
   {
-    value: "Notes",
-    label: "Notes",
-    description: "Detailed chapter-wise study material",
+    value: "Notes/Reading Material",
+    label: "Notes/Reading Material",
+    description: "Detailed chapter-wise study and reading material",
   },
   {
-    value: "Revision Sheet",
+    value: "Revision Sheets",
     label: "Revision Sheets",
     description: "Compact material for quick revision",
   },
@@ -86,9 +89,24 @@ const MATERIAL_TYPES: {
     description: "Higher-order thinking and application questions",
   },
   {
-    value: "Previous Paper",
-    label: "Previous Papers",
-    description: "Actual VidyaGyan examination papers",
+    value: "Question Paper",
+    label: "Question Paper",
+    description: "Practice papers and assessment material",
+  },
+  {
+    value: "Previous Year Paper",
+    label: "Previous Year Paper",
+    description: "Previous examination papers",
+  },
+  {
+    value: "Book",
+    label: "Book",
+    description: "Books and longer reference resources",
+  },
+  {
+    value: "Other",
+    label: "Other",
+    description: "Other useful academic resources",
   },
 ];
 
@@ -107,12 +125,12 @@ const TYPE_STYLES: Record<
     accent: string;
   }
 > = {
-  Notes: {
+  "Notes/Reading Material": {
     icon: "📘",
     badge: "bg-blue-50 text-blue-700",
     accent: "border-blue-200",
   },
-  "Revision Sheet": {
+  "Revision Sheets": {
     icon: "⚡",
     badge: "bg-amber-50 text-amber-700",
     accent: "border-amber-200",
@@ -122,12 +140,62 @@ const TYPE_STYLES: Record<
     badge: "bg-purple-50 text-purple-700",
     accent: "border-purple-200",
   },
-  "Previous Paper": {
+  "Question Paper": {
     icon: "📝",
     badge: "bg-emerald-50 text-emerald-700",
     accent: "border-emerald-200",
   },
+  "Previous Year Paper": {
+    icon: "📚",
+    badge: "bg-indigo-50 text-indigo-700",
+    accent: "border-indigo-200",
+  },
+  Book: {
+    icon: "📖",
+    badge: "bg-rose-50 text-rose-700",
+    accent: "border-rose-200",
+  },
+  Other: {
+    icon: "📎",
+    badge: "bg-slate-100 text-slate-700",
+    accent: "border-slate-200",
+  },
 };
+
+function getTypeStyle(materialType: string) {
+  return TYPE_STYLES[materialType as MaterialType] ?? TYPE_STYLES.Other;
+}
+
+function getExternalProvider(
+  value: string
+): "OneDrive" | "Google Drive" | "External Link" {
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname.toLowerCase();
+
+    if (
+      host === "shivnadarfoundation-my.sharepoint.com" ||
+      host.endsWith(".sharepoint.com") ||
+      host === "1drv.ms" ||
+      host === "onedrive.live.com"
+    ) {
+      return "OneDrive";
+    }
+
+    if (
+      host === "drive.google.com" ||
+      host.endsWith(".drive.google.com") ||
+      host === "docs.google.com" ||
+      host.endsWith(".docs.google.com")
+    ) {
+      return "Google Drive";
+    }
+
+    return "External Link";
+  } catch {
+    return "External Link";
+  }
+}
 
 export default function StudyMaterialPage() {
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
@@ -315,7 +383,7 @@ export default function StudyMaterialPage() {
               value={
                 materials.filter(
                   (material) =>
-                    material.material_type === "Previous Paper"
+                    material.material_type === "Previous Year Paper"
                 ).length
               }
               label="Papers"
@@ -693,7 +761,7 @@ function MaterialCard({
 }: {
   material: StudyMaterial;
 }) {
-  const style = TYPE_STYLES[material.material_type];
+  const style = getTypeStyle(material.material_type);
 
   const resourceUrl =
     material.external_url || material.file_path || null;
@@ -710,7 +778,29 @@ function MaterialCard({
   const isPdf = extension === "pdf";
   const formattedFileSize = formatFileSize(material.file_size_bytes);
   const fileType = extension ? extension.toUpperCase() : null;
-  const isDriveResource = !!material.external_url && !material.file_path;
+  const externalHost = material.external_url
+    ? (() => {
+        try {
+          return new URL(material.external_url).hostname.toLowerCase();
+        } catch {
+          return "";
+        }
+      })()
+    : "";
+
+  const isOneDriveResource =
+    !!material.external_url &&
+    (externalHost === "1drv.ms" ||
+      externalHost === "onedrive.live.com" ||
+      externalHost === "sharepoint.com" ||
+      externalHost.endsWith(".sharepoint.com"));
+
+  const isGoogleDriveResource =
+    !!material.external_url &&
+    (externalHost === "drive.google.com" ||
+      externalHost.endsWith(".drive.google.com") ||
+      externalHost === "docs.google.com" ||
+      externalHost.endsWith(".docs.google.com"));
 
   const officePreviewUrl = resourceUrl
     ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
@@ -760,7 +850,7 @@ function MaterialCard({
 
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-slate-400">
               {isDriveResource ? (
-                <span>Google Drive</span>
+                <span>{getExternalProvider(material.external_url || "")}</span>
               ) : (
                 <>
                   {fileType && <span>{fileType}</span>}
@@ -940,4 +1030,3 @@ function PreviewModal({
     </div>
   );
 }
- 
