@@ -36,8 +36,9 @@ interface StudyMaterial {
   updated_at: string;
 }
 
-const CLASSES = [
+const LEVELS = [
   "All",
+  "General",
   "VI",
   "VII",
   "VIII",
@@ -238,9 +239,11 @@ function normalizeMaterial(
   return {
     id: Number(value.id),
     title: String(value.title ?? "").trim(),
+
     class_level: String(
       value.class_level ?? ""
     ).trim(),
+
     subject: String(value.subject ?? "").trim(),
 
     chapter:
@@ -303,7 +306,8 @@ function getExternalProvider(
     const host = url.hostname.toLowerCase();
 
     if (
-      host === "shivnadarfoundation-my.sharepoint.com" ||
+      host ===
+        "shivnadarfoundation-my.sharepoint.com" ||
       host === "sharepoint.com" ||
       host.endsWith(".sharepoint.com") ||
       host === "1drv.ms" ||
@@ -365,6 +369,20 @@ function appendDownloadParameter(value: string) {
   }
 }
 
+function formatLevel(level: string) {
+  const normalized = level.trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized === "General") {
+    return "General / All Levels";
+  }
+
+  return `Class ${normalized}`;
+}
+
 export default function StudyMaterialPage() {
   const [materials, setMaterials] = useState<
     StudyMaterial[]
@@ -373,7 +391,7 @@ export default function StudyMaterialPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [selectedClass, setSelectedClass] =
+  const [selectedLevel, setSelectedLevel] =
     useState("All");
 
   const [selectedSubject, setSelectedSubject] =
@@ -441,9 +459,9 @@ export default function StudyMaterialPage() {
     const query = search.trim().toLowerCase();
 
     return materials.filter((material) => {
-      const matchesClass =
-        selectedClass === "All" ||
-        material.class_level === selectedClass;
+      const matchesLevel =
+        selectedLevel === "All" ||
+        material.class_level === selectedLevel;
 
       const matchesSubject =
         selectedSubject === "All" ||
@@ -478,7 +496,7 @@ export default function StudyMaterialPage() {
           );
 
       return (
-        matchesClass &&
+        matchesLevel &&
         matchesSubject &&
         matchesType &&
         matchesExam &&
@@ -487,7 +505,7 @@ export default function StudyMaterialPage() {
     });
   }, [
     materials,
-    selectedClass,
+    selectedLevel,
     selectedSubject,
     selectedType,
     selectedExam,
@@ -517,7 +535,7 @@ export default function StudyMaterialPage() {
   }, [filteredMaterials]);
 
   const resetFilters = () => {
-    setSelectedClass("All");
+    setSelectedLevel("All");
     setSelectedSubject("All");
     setSelectedType("All");
     setSelectedExam("All");
@@ -525,11 +543,39 @@ export default function StudyMaterialPage() {
   };
 
   const hasActiveFilters =
-    selectedClass !== "All" ||
+    selectedLevel !== "All" ||
     selectedSubject !== "All" ||
     selectedType !== "All" ||
     selectedExam !== "All" ||
     search.trim() !== "";
+
+  /*
+   * Count only actual school classes.
+   * "General" / "All Levels" resources should not
+   * artificially increase the Classes statistic.
+   */
+  const classCount = useMemo(() => {
+    return new Set(
+      materials
+        .map((material) =>
+          material.class_level.trim()
+        )
+        .filter(
+          (level) =>
+            level &&
+            level !== "General" &&
+            [
+              "VI",
+              "VII",
+              "VIII",
+              "IX",
+              "X",
+              "XI",
+              "XII",
+            ].includes(level)
+        )
+    ).size;
+  }, [materials]);
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -547,11 +593,11 @@ export default function StudyMaterialPage() {
             </h1>
 
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-              Everything you need to prepare, practise,
-              and revise. Find chapter-wise notes,
-              revision sheets, HOTS questions, and
-              previous VidyaGyan examination papers in
-              one place.
+              Everything you need to prepare,
+              practise, and revise. Find
+              chapter-wise notes, revision sheets,
+              HOTS questions, and previous VidyaGyan
+              examination papers in one place.
             </p>
           </div>
 
@@ -577,16 +623,7 @@ export default function StudyMaterialPage() {
             />
 
             <StatCard
-              value={
-                new Set(
-                  materials
-                    .map(
-                      (material) =>
-                        material.class_level.trim()
-                    )
-                    .filter(Boolean)
-                ).size
-              }
+              value={classCount}
               label="Classes"
             />
 
@@ -634,23 +671,23 @@ export default function StudyMaterialPage() {
             />
           </div>
 
-          {/* CLASS */}
+          {/* LEVEL */}
           <div className="mt-5">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Class
+              Level
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {CLASSES.map((className) => {
+              {LEVELS.map((level) => {
                 const active =
-                  selectedClass === className;
+                  selectedLevel === level;
 
                 return (
                   <button
-                    key={className}
+                    key={level}
                     type="button"
                     onClick={() =>
-                      setSelectedClass(className)
+                      setSelectedLevel(level)
                     }
                     aria-pressed={active}
                     className={`shrink-0 rounded-xl px-4 py-2 text-sm font-semibold transition ${
@@ -659,9 +696,9 @@ export default function StudyMaterialPage() {
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                     }`}
                   >
-                    {className === "All"
-                      ? "All Classes"
-                      : `Class ${className}`}
+                    {level === "All"
+                      ? "All Levels"
+                      : formatLevel(level)}
                   </button>
                 );
               })}
@@ -776,9 +813,11 @@ export default function StudyMaterialPage() {
             </p>
 
             <h2 className="mt-1 text-2xl font-bold text-slate-950">
-              {selectedClass === "All"
+              {selectedLevel === "All"
                 ? "All Study Material"
-                : `Class ${selectedClass} Material`}
+                : `${formatLevel(
+                    selectedLevel
+                  )} Material`}
             </h2>
           </div>
 
@@ -889,7 +928,7 @@ export default function StudyMaterialPage() {
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
                 There is no material matching the
-                current filters. Try another class,
+                current filters. Try another level,
                 subject, material type, or search term.
               </p>
 
@@ -1106,7 +1145,9 @@ function MaterialCard({
 
               {material.class_level && (
                 <span className="text-xs font-semibold text-slate-400">
-                  Class {material.class_level}
+                  {formatLevel(
+                    material.class_level
+                  )}
                 </span>
               )}
 
