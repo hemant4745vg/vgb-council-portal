@@ -1,4 +1,3 @@
-```tsx
 "use client";
 
 import {
@@ -1395,4 +1394,3 @@ function PreviewModal({
     </div>
   );
 }
-```
