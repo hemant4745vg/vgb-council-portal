@@ -2,13 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { createClient, type Session } from "@supabase/supabase-js";
+import { type Session } from "@supabase/supabase-js";
 import { usePathname } from "next/navigation";
-
-const supabase = createClient(
-  "https://lllmgmfofwczpqbmigey.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
-);
+import { supabase } from "@/lib/supabase";
 
 type UserProfile = {
   id: number;
@@ -30,7 +26,7 @@ const navItems = [
   { name: "Home", href: "/" },
   { name: "Leadership", href: "/leadership" },
   { name: "Council", href: "/council" },
-  { name: "Activities", href: "/activities" },
+  { name: "Editorial", href: "/editorial" },
   { name: "Calendar", href: "/calendar" },
   { name: "Study Materials", href: "/study-material" },
   { name: "Cafeteria", href: "/cafeteria" },
@@ -38,10 +34,7 @@ const navItems = [
 
 /* =========================================================
    SIGN-IN PANEL
-   IMPORTANT:
-   This component is OUTSIDE Navbar so its identity remains
-   stable when email/password state changes.
-========================================================= */
+   ========================================================= */
 
 type SignInPanelProps = {
   email: string;
@@ -171,7 +164,7 @@ function SignInPanel({
 
 /* =========================================================
    ACCOUNT MENU
-========================================================= */
+   ========================================================= */
 
 type AccountMenuProps = {
   session: Session | null;
@@ -318,7 +311,7 @@ function AccountMenu({
 
 /* =========================================================
    NAVBAR
-========================================================= */
+   ========================================================= */
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -334,25 +327,33 @@ export default function Navbar() {
   const [profileError, setProfileError] =
     useState(false);
 
-  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountOpen, setAccountOpen] =
+    useState(false);
 
-  const [signInOpen, setSignInOpen] = useState(false);
+  const [signInOpen, setSignInOpen] =
+    useState(false);
 
   const [mobileNavOpen, setMobileNavOpen] =
     useState(false);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] =
+    useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [password, setPassword] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState("");
 
   const accountRef =
     useRef<HTMLDivElement | null>(null);
 
   /* =========================================================
      AUTH INITIALISATION
-  ========================================================= */
+     ========================================================= */
 
   useEffect(() => {
     let mounted = true;
@@ -409,7 +410,7 @@ export default function Navbar() {
 
   /* =========================================================
      LOAD PROFILE WHEN SESSION CHANGES
-  ========================================================= */
+     ========================================================= */
 
   useEffect(() => {
     let cancelled = false;
@@ -432,9 +433,8 @@ export default function Navbar() {
         userEmail
       );
 
-      const { data, error } = await supabase.rpc(
-        "get_my_portal_profile"
-      );
+      const { data, error } =
+        await supabase.rpc("get_my_portal_profile");
 
       if (cancelled) return;
 
@@ -511,7 +511,7 @@ export default function Navbar() {
 
   /* =========================================================
      CLOSE MENUS ON OUTSIDE CLICK
-  ========================================================= */
+     ========================================================= */
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -541,7 +541,7 @@ export default function Navbar() {
 
   /* =========================================================
      CLOSE MENUS ON ESCAPE
-  ========================================================= */
+     ========================================================= */
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -567,7 +567,7 @@ export default function Navbar() {
 
   /* =========================================================
      CLOSE MOBILE NAV WHEN ROUTE CHANGES
-  ========================================================= */
+     ========================================================= */
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -577,15 +577,7 @@ export default function Navbar() {
 
   /* =========================================================
      RESOLVE CANONICAL EMAIL
-     
-     Allows users to enter either:
-     - canonical email
-     - alternate email
-     
-     Example:
-     Meera.Pandey@vidyagyan.in
-     -> mp337@vidyagyan.in
-  ========================================================= */
+     ========================================================= */
 
   async function resolveCanonicalEmail(
     inputEmail: string
@@ -593,12 +585,13 @@ export default function Navbar() {
     const normalizedEmail =
       inputEmail.trim().toLowerCase();
 
-    const { data, error } = await supabase.rpc(
-      "resolve_portal_email",
-      {
-        input_email: normalizedEmail,
-      }
-    );
+    const { data, error } =
+      await supabase.rpc(
+        "resolve_portal_email",
+        {
+          input_email: normalizedEmail,
+        }
+      );
 
     if (error) {
       console.error(
@@ -609,7 +602,10 @@ export default function Navbar() {
       return null;
     }
 
-    if (typeof data !== "string" || !data.trim()) {
+    if (
+      typeof data !== "string" ||
+      !data.trim()
+    ) {
       return null;
     }
 
@@ -618,7 +614,7 @@ export default function Navbar() {
 
   /* =========================================================
      SIGN IN
-  ========================================================= */
+     ========================================================= */
 
   async function handleLogin(
     event: React.FormEvent<HTMLFormElement>
@@ -631,9 +627,14 @@ export default function Navbar() {
     const formattedEmail =
       email.trim().toLowerCase();
 
-    const formattedPassword = password;
+    const formattedPassword =
+      password;
 
-    if (!formattedEmail.endsWith("@vidyagyan.in")) {
+    if (
+      !formattedEmail.endsWith(
+        "@vidyagyan.in"
+      )
+    ) {
       setMessage(
         "Access denied. Use an official @vidyagyan.in school email."
       );
@@ -648,12 +649,10 @@ export default function Navbar() {
       return;
     }
 
-    /*
-     * Resolve either the canonical or alternate school
-     * email to the canonical Auth email before signing in.
-     */
     const canonicalEmail =
-      await resolveCanonicalEmail(formattedEmail);
+      await resolveCanonicalEmail(
+        formattedEmail
+      );
 
     if (!canonicalEmail) {
       setMessage(
@@ -670,10 +669,12 @@ export default function Navbar() {
     );
 
     const { error } =
-      await supabase.auth.signInWithPassword({
-        email: canonicalEmail,
-        password: formattedPassword,
-      });
+      await supabase.auth.signInWithPassword(
+        {
+          email: canonicalEmail,
+          password: formattedPassword,
+        }
+      );
 
     if (error) {
       console.error(
@@ -699,7 +700,7 @@ export default function Navbar() {
 
   /* =========================================================
      SIGN OUT
-  ========================================================= */
+     ========================================================= */
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -718,12 +719,13 @@ export default function Navbar() {
 
   /* =========================================================
      DISPLAY HELPERS
-  ========================================================= */
+     ========================================================= */
 
-  const displayName = profileLoading
-    ? "Loading..."
-    : profile?.name?.trim() ||
-      "Verified Student";
+  const displayName =
+    profileLoading
+      ? "Loading..."
+      : profile?.name?.trim() ||
+        "Verified Student";
 
   const initials =
     profile?.name
@@ -736,10 +738,11 @@ export default function Navbar() {
       )
       .join("") || "VG";
 
-  const displayRole = profileLoading
-    ? "Loading..."
-    : profile?.role?.trim() ||
-      "Verified Account";
+  const displayRole =
+    profileLoading
+      ? "Loading..."
+      : profile?.role?.trim() ||
+        "Verified Account";
 
   function isActive(href: string) {
     return href === "/"
@@ -755,7 +758,7 @@ export default function Navbar() {
 
   /* =========================================================
      RENDER
-  ========================================================= */
+     ========================================================= */
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
