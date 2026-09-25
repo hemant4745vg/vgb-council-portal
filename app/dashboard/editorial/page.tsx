@@ -74,12 +74,16 @@ export default function EditorialAdminPage() {
 
   async function load() {
     setBusy(true);
-    const { data: profile } = await supabase.rpc("get_my_portal_profile");
-    if (!profile?.admin_status || profile.admin_status !== "yes") {
-      setAuthorized(false);
-      setBusy(false);
-      return;
-    }
+    const { data: profileRows, error: profileError } =
+  await supabase.rpc("get_my_portal_profile");
+
+const profile = profileRows?.[0];
+
+if (profileError || !profile || profile.admin_status !== "yes") {
+  setAuthorized(false);
+  setBusy(false);
+  return;
+}
     setAuthorized(true);
 
     const [{ data: postData }, { data: eventData }] = await Promise.all([
