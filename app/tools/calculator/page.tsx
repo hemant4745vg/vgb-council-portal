@@ -1,17 +1,86 @@
-"use client";
+ "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "katex/dist/katex.min.css";
 import katex from "katex";
 import { all, create, MathJsInstance } from "mathjs";
 
 const math: MathJsInstance = create(all, {});
-const COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2"];
 
-type Expr = { id: number; raw: string; visible: boolean; color: string };
-type Viewport = { xMin: number; xMax: number; yMin: number; yMax: number };
+const COLORS = [
+  "#2563eb",
+  "#dc2626",
+  "#16a34a",
+  "#9333ea",
+  "#ea580c",
+  "#0891b2",
+  "#db2777",
+  "#65a30d",
+];
 
-function Latex({ value, className = "" }: { value: string; className?: string }) {
+const STORAGE_KEY = "vgb-calculator-workspace-v2";
+
+type Expr = {
+  id: number;
+  raw: string;
+  visible: boolean;
+  color: string;
+};
+
+type Viewport = {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+};
+
+type Workspace = {
+  expressions: Expr[];
+  activeId: number;
+  viewport: Viewport;
+  scientificOn: boolean;
+  mode: "Graph" | "Calculate" | "Table";
+  calc: string;
+  answer: string;
+  start: number;
+  step: number;
+};
+
+type HistoryState = {
+  expressions: Expr[];
+  activeId: number;
+  viewport: Viewport;
+  calc: string;
+  answer: string;
+};
+
+const DEFAULT_VIEWPORT: Viewport = {
+  xMin: -10,
+  xMax: 10,
+  yMin: -10,
+  yMax: 10,
+};
+
+const DEFAULT_EXPRESSIONS: Expr[] = [
+  {
+    id: 1,
+    raw: "x^2",
+    visible: true,
+    color: COLORS[0],
+  },
+];
+
+function cloneExpressions(expressions: Expr[]) {
+  return expressions.map((expression) => ({ ...expression }));
+}
+
+function Latex({
+  value,
+  className = "",
+}: {
+  value: string;
+  className?: string;
+}) {
   const ref = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -66,6 +135,10 @@ function fmt(n: number) {
   return Math.abs(n - r) < 1e-12
     ? String(r)
     : Number(n.toPrecision(10)).toString();
+}
+
+function makeId() {
+  return Date.now() + Math.floor(Math.random() * 1000);
 }
 
 function Graph({
@@ -162,7 +235,6 @@ function Graph({
 
     const hx =
       ((viewport.xMax - viewport.xMin) * factor) / 2;
-
     const hy =
       ((viewport.yMax - viewport.yMin) * factor) / 2;
 
@@ -182,11 +254,7 @@ function Graph({
         aria-label="Interactive graph"
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
-
-          setDrag({
-            x: e.clientX,
-            y: e.clientY,
-          });
+          setDrag({ x: e.clientX, y: e.clientY });
         }}
         onPointerMove={(e) => {
           if (!drag) return;
@@ -196,7 +264,6 @@ function Graph({
 
           const sx =
             (viewport.xMax - viewport.xMin) / (W - 2 * P);
-
           const sy =
             (viewport.yMax - viewport.yMin) / (H - 2 * P);
 
@@ -207,10 +274,7 @@ function Graph({
             yMax: v.yMax + dy * sy,
           }));
 
-          setDrag({
-            x: e.clientX,
-            y: e.clientY,
-          });
+          setDrag({ x: e.clientX, y: e.clientY });
         }}
         onPointerUp={() => setDrag(null)}
         onPointerCancel={() => setDrag(null)}
@@ -230,7 +294,6 @@ function Graph({
               y2={H - P}
               stroke="#e2e8f0"
             />
-
             {Math.abs(x) > 1e-12 && (
               <text
                 x={mapX(x)}
@@ -254,7 +317,6 @@ function Graph({
               y2={mapY(y)}
               stroke="#e2e8f0"
             />
-
             {Math.abs(y) > 1e-12 && (
               <text
                 x="22"
@@ -310,6 +372,7 @@ function Graph({
           type="button"
           onClick={() => zoom(0.8)}
           className="h-9 w-9 rounded-lg text-lg hover:bg-slate-100"
+          aria-label="Zoom in"
         >
           +
         </button>
@@ -318,20 +381,14 @@ function Graph({
           type="button"
           onClick={() => zoom(1.25)}
           className="h-9 w-9 rounded-lg text-lg hover:bg-slate-100"
+          aria-label="Zoom out"
         >
           −
         </button>
 
         <button
           type="button"
-          onClick={() =>
-            setViewport({
-              xMin: -10,
-              xMax: 10,
-              yMin: -10,
-              yMax: 10,
-            })
-          }
+          onClick={() => setViewport(DEFAULT_VIEWPORT)}
           className="rounded-lg px-2 text-xs font-semibold hover:bg-slate-100"
         >
           Reset
@@ -363,125 +420,269 @@ export default function CalculatorPage() {
   const [mode, setMode] =
     useState<"Graph" | "Calculate" | "Table">("Graph");
 
-  const [expressions, setExpressions] = useState<Expr[]>([
-    {
-      id: 1,
-      raw: "x^2",
-      visible: true,
-      color: COLORS[0],
-    },
-  ]);
+  const [expressions, setExpressions] = useState<Expr[]>(
+    cloneExpressions(DEFAULT_EXPRESSIONS)
+  );
 
   const [activeId, setActiveId] = useState(1);
 
-  const [viewport, setViewport] = useState<Viewport>({
-    xMin: -10,
-    xMax: 10,
-    yMin: -10,
-    yMax: 10,
-  });
+  const [viewport, setViewport] =
+    useState<Viewport>(DEFAULT_VIEWPORT);
 
   const [scientificOn, setScientificOn] = useState(false);
-
   const [calc, setCalc] = useState("");
   const [answer, setAnswer] = useState("");
-
   const [start, setStart] = useState(-5);
   const [step, setStep] = useState(1);
+  const [hydrated, setHydrated] = useState(false);
+
+  const [undoStack, setUndoStack] = useState<HistoryState[]>([]);
+  const [redoStack, setRedoStack] = useState<HistoryState[]>([]);
 
   const active =
     expressions.find((e) => e.id === activeId) ??
     expressions[0];
 
-  const update = (raw: string) =>
-    setExpressions((items) =>
-      items.map((e) =>
-        e.id === activeId
-          ? {
-              ...e,
-              raw,
-            }
-          : e
-      )
-    );
+  const historySnapshot = useCallback(
+    (): HistoryState => ({
+      expressions: cloneExpressions(expressions),
+      activeId,
+      viewport: { ...viewport },
+      calc,
+      answer,
+    }),
+    [expressions, activeId, viewport, calc, answer]
+  );
 
-  const add = () => {
-    const id = Date.now();
+  const restore = useCallback((state: HistoryState) => {
+    setExpressions(cloneExpressions(state.expressions));
+    setActiveId(state.activeId);
+    setViewport({ ...state.viewport });
+    setCalc(state.calc);
+    setAnswer(state.answer);
+  }, []);
 
-    setExpressions((items) => [
-      ...items,
-      {
-        id,
-        raw: "",
-        visible: true,
-        color: COLORS[items.length % COLORS.length],
-      },
-    ]);
+  const commit = useCallback(
+    (mutator: () => void) => {
+      setUndoStack((stack) => [
+        ...stack.slice(-49),
+        historySnapshot(),
+      ]);
+      setRedoStack([]);
+      mutator();
+    },
+    [historySnapshot]
+  );
 
-    setActiveId(id);
-  };
+  const updateActive = useCallback(
+    (raw: string) => {
+      commit(() => {
+        setExpressions((items) =>
+          items.map((e) =>
+            e.id === activeId ? { ...e, raw } : e
+          )
+        );
+      });
+    },
+    [activeId, commit]
+  );
 
-  const calculate = () => {
+  const addExpression = useCallback(() => {
+    const id = makeId();
+
+    commit(() => {
+      setExpressions((items) => [
+        ...items,
+        {
+          id,
+          raw: "",
+          visible: true,
+          color: COLORS[items.length % COLORS.length],
+        },
+      ]);
+      setActiveId(id);
+    });
+  }, [commit]);
+
+  const duplicateExpression = useCallback(
+    (expression: Expr) => {
+      const id = makeId();
+
+      commit(() => {
+        setExpressions((items) => {
+          const index = items.findIndex(
+            (item) => item.id === expression.id
+          );
+
+          const copy = {
+            ...expression,
+            id,
+            color: COLORS[(index + 1) % COLORS.length],
+          };
+
+          return [
+            ...items.slice(0, index + 1),
+            copy,
+            ...items.slice(index + 1),
+          ];
+        });
+
+        setActiveId(id);
+      });
+    },
+    [commit]
+  );
+
+  const deleteExpression = useCallback(
+    (id: number) => {
+      commit(() => {
+        setExpressions((items) => {
+          if (items.length === 1) {
+            return [{ ...items[0], raw: "" }];
+          }
+
+          const index = items.findIndex(
+            (item) => item.id === id
+          );
+          const next = items.filter((item) => item.id !== id);
+
+          if (id === activeId && next.length) {
+            setActiveId(
+              next[Math.max(0, index - 1)].id
+            );
+          }
+
+          return next;
+        });
+      });
+    },
+    [activeId, commit]
+  );
+
+  const toggleVisibility = useCallback(
+    (id: number) => {
+      commit(() => {
+        setExpressions((items) =>
+          items.map((item) =>
+            item.id === id
+              ? { ...item, visible: !item.visible }
+              : item
+          )
+        );
+      });
+    },
+    [commit]
+  );
+
+  const moveExpression = useCallback(
+    (fromId: number, toId: number) => {
+      if (fromId === toId) return;
+
+      commit(() => {
+        setExpressions((items) => {
+          const from = items.findIndex(
+            (item) => item.id === fromId
+          );
+          const to = items.findIndex(
+            (item) => item.id === toId
+          );
+
+          if (from < 0 || to < 0) return items;
+
+          const next = [...items];
+          const [moved] = next.splice(from, 1);
+          next.splice(to, 0, moved);
+
+          return next;
+        });
+      });
+    },
+    [commit]
+  );
+
+  const undo = useCallback(() => {
+    setUndoStack((stack) => {
+      if (!stack.length) return stack;
+
+      const previous = stack[stack.length - 1];
+      setRedoStack((redo) => [
+        ...redo.slice(-49),
+        historySnapshot(),
+      ]);
+      restore(previous);
+
+      return stack.slice(0, -1);
+    });
+  }, [historySnapshot, restore]);
+
+  const redo = useCallback(() => {
+    setRedoStack((stack) => {
+      if (!stack.length) return stack;
+
+      const next = stack[stack.length - 1];
+      setUndoStack((undoItems) => [
+        ...undoItems.slice(-49),
+        historySnapshot(),
+      ]);
+      restore(next);
+
+      return stack.slice(0, -1);
+    });
+  }, [historySnapshot, restore]);
+
+  const calculate = useCallback(() => {
+    if (!calc.trim()) return;
+
     try {
       const v = math.evaluate(calc, {
         ans: Number(answer) || 0,
       });
 
       setAnswer(
-        typeof v === "number"
-          ? fmt(v)
-          : String(v)
+        typeof v === "number" ? fmt(v) : String(v)
       );
     } catch {
       setAnswer("Check expression");
     }
-  };
+  }, [calc, answer]);
 
-  const press = (key: string) => {
-    const target =
-      mode === "Graph"
-        ? active.raw
-        : calc;
-
-    const put = (v: string) =>
-      mode === "Graph"
-        ? update(target + v)
-        : setCalc(target + v);
-
-    if (key === "÷") return put("/");
-    if (key === "×") return put("*");
-    if (key === "−") return put("-");
-    if (key === "π") return put("pi");
-    if (key === "√") return put("sqrt(");
-
-    if (key === "x²") {
-      return mode === "Graph"
-        ? update(`(${target})^2`)
-        : setCalc(`(${target})^2`);
-    }
-
-    if (key === "xʸ") return put("^");
-    if (key === "n!") return put("!");
-
-    if (key === "1/x") {
-      return mode === "Graph"
-        ? update(`1/(${target})`)
-        : setCalc(`1/(${target})`);
-    }
-
-    if (key === "AC") {
-      if (mode === "Graph") {
-        update("");
-      } else {
-        setCalc("");
-        setAnswer("");
+  const press = useCallback(
+    (key: string) => {
+      if (key === "AC") {
+        commit(() => {
+          setCalc("");
+          setAnswer("");
+        });
+        return;
       }
 
-      return;
-    }
+      if (key === "DEL") {
+        commit(() => {
+          setCalc((s) => s.slice(0, -1));
+        });
+        return;
+      }
 
-    if (
-      [
+      if (key === "±") {
+        commit(() => {
+          setCalc((s) => (s ? `-(${s})` : "-("));
+        });
+        return;
+      }
+
+      const map: Record<string, string> = {
+        "÷": "/",
+        "×": "*",
+        "−": "-",
+        "π": "pi",
+        "√": "sqrt(",
+        "xʸ": "^",
+        "n!": "!",
+        "x²": "^2",
+        "1/x": "1/(",
+      };
+
+      const functions = [
         "sin",
         "cos",
         "tan",
@@ -491,13 +692,18 @@ export default function CalculatorPage() {
         "log",
         "ln",
         "abs",
-      ].includes(key)
-    ) {
-      return put(`${key}(`);
-    }
+      ];
 
-    return put(key);
-  };
+      const value =
+        map[key] ??
+        (functions.includes(key) ? `${key}(` : key);
+
+      commit(() => {
+        setCalc((s) => s + value);
+      });
+    },
+    [commit]
+  );
 
   const rows = useMemo(
     () =>
@@ -513,43 +719,165 @@ export default function CalculatorPage() {
   );
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<Workspace>;
+
+        if (
+          Array.isArray(parsed.expressions) &&
+          parsed.expressions.length
+        ) {
+          setExpressions(parsed.expressions);
+          setActiveId(
+            typeof parsed.activeId === "number"
+              ? parsed.activeId
+              : parsed.expressions[0].id
+          );
+        }
+
+        if (parsed.viewport) setViewport(parsed.viewport);
+        if (typeof parsed.scientificOn === "boolean") {
+          setScientificOn(parsed.scientificOn);
+        }
+        if (
+          parsed.mode === "Graph" ||
+          parsed.mode === "Calculate" ||
+          parsed.mode === "Table"
+        ) {
+          setMode(parsed.mode);
+        }
+        if (typeof parsed.calc === "string") setCalc(parsed.calc);
+        if (typeof parsed.answer === "string") {
+          setAnswer(parsed.answer);
+        }
+        if (typeof parsed.start === "number") {
+          setStart(parsed.start);
+        }
+        if (typeof parsed.step === "number") {
+          setStep(parsed.step);
+        }
+      }
+    } catch {
+      // Ignore malformed local workspace data.
+    } finally {
+      setHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const workspace: Workspace = {
+      expressions,
+      activeId,
+      viewport,
+      scientificOn,
+      mode,
+      calc,
+      answer,
+      start,
+      step,
+    };
+
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(workspace)
+      );
+    } catch {
+      // Local persistence is best-effort.
+    }
+  }, [
+    hydrated,
+    expressions,
+    activeId,
+    viewport,
+    scientificOn,
+    mode,
+    calc,
+    answer,
+    start,
+    step,
+  ]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
       ) {
+        if (
+          (e.ctrlKey || e.metaKey) &&
+          e.key.toLowerCase() === "z"
+        ) {
+          e.preventDefault();
+          undo();
+        }
         return;
       }
 
-      if (/^[0-9.+\-*/^()]$/.test(e.key)) {
-        if (mode === "Graph") {
-          update(active.raw + e.key);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+
+        if (e.shiftKey) {
+          redo();
         } else {
-          setCalc((s) => s + e.key);
+          undo();
         }
+
+        return;
       }
 
       if (
-        e.key === "Enter" &&
-        mode === "Calculate"
+        (e.ctrlKey || e.metaKey) &&
+        e.key.toLowerCase() === "y"
       ) {
-        calculate();
+        e.preventDefault();
+        redo();
+        return;
       }
 
-      if (e.key === "Backspace") {
-        if (mode === "Graph") {
-          update(active.raw.slice(0, -1));
-        } else {
-          setCalc((s) => s.slice(0, -1));
+      if (mode === "Calculate") {
+        if (/^[0-9.+\-*/^()]$/.test(e.key)) {
+          press(e.key);
+          return;
         }
+
+        if (e.key === "Enter") {
+          e.preventDefault();
+          calculate();
+          return;
+        }
+
+        if (e.key === "Backspace") {
+          e.preventDefault();
+          press("DEL");
+          return;
+        }
+
+        if (e.key === "Escape") {
+          e.preventDefault();
+          press("AC");
+        }
+
+        return;
       }
 
-      if (e.key === "Escape") {
-        if (mode === "Graph") {
-          update("");
-        } else {
-          setCalc("");
-          setAnswer("");
+      if (mode === "Graph") {
+        if (/^[0-9.+\-*/^()]$/.test(e.key)) {
+          updateActive(active.raw + e.key);
+          return;
+        }
+
+        if (e.key === "Backspace") {
+          updateActive(active.raw.slice(0, -1));
+          return;
+        }
+
+        if (e.key === "Escape") {
+          updateActive("");
         }
       }
     };
@@ -558,7 +886,15 @@ export default function CalculatorPage() {
 
     return () =>
       window.removeEventListener("keydown", onKey);
-  });
+  }, [
+    active.raw,
+    calculate,
+    mode,
+    press,
+    redo,
+    undo,
+    updateActive,
+  ]);
 
   return (
     <main className="min-h-screen bg-[#f5f6f8] text-slate-950">
@@ -570,43 +906,63 @@ export default function CalculatorPage() {
             </div>
 
             <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Calculator
+              Graphing Calculator
             </h1>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(
-              ["Graph", "Calculate", "Table"] as const
-            ).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-                  mode === m
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {m}
-              </button>
-            ))}
+            {(["Graph", "Calculate", "Table"] as const).map(
+              (m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                    mode === m
+                      ? "bg-slate-950 text-white"
+                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {m}
+                </button>
+              )
+            )}
 
             <button
               type="button"
-              onClick={() =>
-                setScientificOn((v) => !v)
-              }
+              onClick={() => setScientificOn((v) => !v)}
               className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              {scientificOn
-                ? "Scientific on"
-                : "Scientific"}
+              {scientificOn ? "Scientific on" : "Scientific"}
             </button>
+
+            <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!undoStack.length}
+                className="px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label="Undo"
+                title="Undo (Ctrl/Cmd + Z)"
+              >
+                ↶
+              </button>
+
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!redoStack.length}
+                className="border-l border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label="Redo"
+                title="Redo (Ctrl/Cmd + Shift + Z)"
+              >
+                ↷
+              </button>
+            </div>
           </div>
         </header>
 
-        <div className="grid gap-3 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="grid gap-3 lg:grid-cols-[360px_minmax(0,1fr)]">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <div>
@@ -615,99 +971,33 @@ export default function CalculatorPage() {
                 </h2>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  One expression per line. Graph them together.
+                  Add, reorder, hide, and edit mathematical expressions.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={add}
+                onClick={addExpression}
                 className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-200"
               >
                 + Add
               </button>
             </div>
 
-            <div className="max-h-[540px] space-y-2 overflow-auto p-3">
+            <div className="max-h-[600px] space-y-2 overflow-auto p-3">
               {expressions.map((e, i) => (
-                <div
+                <ExpressionRow
                   key={e.id}
-                  className={`rounded-xl border p-2.5 ${
-                    activeId === e.id
-                      ? "border-slate-400 bg-slate-50"
-                      : "border-slate-200"
-                  }`}
-                >
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpressions((xs) =>
-                          xs.map((x) =>
-                            x.id === e.id
-                              ? {
-                                  ...x,
-                                  visible: !x.visible,
-                                }
-                              : x
-                          )
-                        )
-                      }
-                      className="h-3 w-3 rounded-full border-2"
-                      style={{
-                        borderColor: e.color,
-                        background: e.visible
-                          ? e.color
-                          : "transparent",
-                      }}
-                      aria-label="Toggle graph"
-                    />
-
-                    <span className="text-[11px] font-semibold text-slate-400">
-                      {i + 1}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpressions((xs) =>
-                          xs.length === 1
-                            ? [{ ...e, raw: "" }]
-                            : xs.filter(
-                                (x) => x.id !== e.id
-                              )
-                        )
-                      }
-                      className="ml-auto text-xs text-slate-400 hover:text-red-600"
-                    >
-                      Delete
-                    </button>
-                  </div>
-
-                  <input
-                    value={e.raw}
-                    onFocus={() =>
-                      setActiveId(e.id)
-                    }
-                    onChange={(ev) =>
-                      update(ev.target.value)
-                    }
-                    placeholder="x^2 - 4x + 3"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
-                  />
-
-                  <div className="mt-2 min-h-7 overflow-x-auto px-1">
-                    {e.raw ? (
-                      <Latex
-                        value={toLatex(e.raw)}
-                      />
-                    ) : (
-                      <span className="text-xs text-slate-400">
-                        Mathematical preview
-                      </span>
-                    )}
-                  </div>
-                </div>
+                  expression={e}
+                  index={i}
+                  active={activeId === e.id}
+                  onActivate={() => setActiveId(e.id)}
+                  onChange={updateActive}
+                  onToggle={() => toggleVisibility(e.id)}
+                  onDelete={() => deleteExpression(e.id)}
+                  onDuplicate={() => duplicateExpression(e)}
+                  onMove={moveExpression}
+                />
               ))}
             </div>
           </section>
@@ -741,9 +1031,7 @@ export default function CalculatorPage() {
                         type="number"
                         value={start}
                         onChange={(e) =>
-                          setStart(
-                            Number(e.target.value)
-                          )
+                          setStart(Number(e.target.value))
                         }
                         className="mt-1 block w-20 rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-900"
                       />
@@ -755,9 +1043,7 @@ export default function CalculatorPage() {
                         type="number"
                         value={step}
                         onChange={(e) =>
-                          setStep(
-                            Number(e.target.value) || 1
-                          )
+                          setStep(Number(e.target.value) || 1)
                         }
                         className="mt-1 block w-20 rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-900"
                       />
@@ -769,13 +1055,8 @@ export default function CalculatorPage() {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                       <tr>
-                        <th className="px-4 py-3">
-                          x
-                        </th>
-
-                        <th className="px-4 py-3">
-                          f(x)
-                        </th>
+                        <th className="px-4 py-3">x</th>
+                        <th className="px-4 py-3">f(x)</th>
                       </tr>
                     </thead>
 
@@ -808,9 +1089,7 @@ export default function CalculatorPage() {
                   <div className="rounded-2xl bg-slate-950 p-5 text-right text-white">
                     <div className="min-h-10 overflow-x-auto text-sm text-slate-400">
                       {calc ? (
-                        <Latex
-                          value={toLatex(calc)}
-                        />
+                        <Latex value={toLatex(calc)} />
                       ) : (
                         "\\,"
                       )}
@@ -823,102 +1102,83 @@ export default function CalculatorPage() {
 
                   {scientificOn && (
                     <div className="mt-3 grid grid-cols-4 gap-2">
-                      {scientific
-                        .flat()
-                        .map((k) => (
-                          <button
-                            key={k}
-                            type="button"
-                            onClick={() =>
-                              press(k)
-                            }
-                            className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold hover:bg-slate-100"
-                          >
-                            {k}
-                          </button>
-                        ))}
+                      {scientific.flat().map((k) => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => press(k)}
+                          className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold hover:bg-slate-100"
+                        >
+                          {k}
+                        </button>
+                      ))}
                     </div>
                   )}
 
                   <div className="mt-2 grid grid-cols-4 gap-2">
-  {basic.flat().map((k) => (
-    <button
-      key={k}
-      type="button"
-      onClick={() => press(k)}
-      className="min-h-14 rounded-xl border border-slate-200 bg-white text-lg font-semibold hover:bg-slate-50"
-    >
-      {k}
-    </button>
-  ))}
+                    {basic.flat().map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => press(k)}
+                        className="min-h-14 rounded-xl border border-slate-200 bg-white text-lg font-semibold hover:bg-slate-50"
+                      >
+                        {k}
+                      </button>
+                    ))}
 
-  <button
-    type="button"
-    onClick={() => press("AC")}
-    className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
-  >
-    AC
-  </button>
+                    <button
+                      type="button"
+                      onClick={() => press("AC")}
+                      className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
+                    >
+                      AC
+                    </button>
 
-  <button
-    type="button"
-    onClick={() =>
-      setCalc((s) => s.slice(0, -1))
-    }
-    className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
-  >
-    DEL
-  </button>
+                    <button
+                      type="button"
+                      onClick={() => press("DEL")}
+                      className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
+                    >
+                      DEL
+                    </button>
 
-  <button
-    type="button"
-    onClick={() =>
-      setCalc((s) => `-(${s})`)
-    }
-    className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-lg font-semibold"
-  >
-    ±
-  </button>
+                    <button
+                      type="button"
+                      onClick={() => press("±")}
+                      className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-lg font-semibold"
+                    >
+                      ±
+                    </button>
 
-  <button
-    type="button"
-    onClick={calculate}
-    className="min-h-14 rounded-xl bg-slate-950 text-lg font-semibold text-white hover:bg-slate-800"
-  >
-    =
-  </button>
-</div>
+                    <button
+                      type="button"
+                      onClick={calculate}
+                      className="min-h-14 rounded-xl bg-slate-950 text-lg font-semibold text-white hover:bg-slate-800"
+                    >
+                      =
+                    </button>
+                  </div>
                 </div>
 
                 <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h2 className="font-semibold">
-                    Math input
-                  </h2>
+                  <h2 className="font-semibold">Math input</h2>
 
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Expressions render as mathematics instead of plain programmer text.
+                    Mathematical notation is rendered while the calculator
+                    keeps a machine-readable expression underneath.
                   </p>
 
                   <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-3">
-                    <Latex
-                      value={
-                        "\\frac{1}{2}+\\frac{3}{4}=\\frac{5}{4}"
-                      }
-                    />
+                    <Latex value={"\\frac{1}{2}+\\frac{3}{4}=\\frac{5}{4}"} />
                   </div>
 
                   <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
-                    <Latex
-                      value={"\\sqrt{x^2+1}"}
-                    />
+                    <Latex value={"\\sqrt{x^2+1}"} />
                   </div>
 
                   <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
-                    <Latex
-                      value={
-                        "\\sin(30^\\circ)=\\frac{1}{2}"
-                      }
-                    />
+                    <Latex value={"\\sin(30^\\circ)=\\frac{1}{2}"} />
                   </div>
                 </aside>
               </div>
@@ -927,5 +1187,144 @@ export default function CalculatorPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function ExpressionRow({
+  expression,
+  index,
+  active,
+  onActivate,
+  onChange,
+  onToggle,
+  onDelete,
+  onDuplicate,
+  onMove,
+}: {
+  expression: Expr;
+  index: number;
+  active: boolean;
+  onActivate: () => void;
+  onChange: (raw: string) => void;
+  onToggle: () => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onMove: (fromId: number, toId: number) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => {
+        setDragging(true);
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData(
+          "text/plain",
+          String(expression.id)
+        );
+      }}
+      onDragEnd={() => setDragging(false)}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+
+        const fromId = Number(
+          e.dataTransfer.getData("text/plain")
+        );
+
+        onMove(fromId, expression.id);
+      }}
+      onClick={onActivate}
+      className={`rounded-xl border p-2.5 transition ${
+        active
+          ? "border-slate-400 bg-slate-50"
+          : "border-slate-200 bg-white"
+      } ${dragging ? "opacity-45" : ""}`}
+    >
+      <div className="mb-1.5 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          className="h-3 w-3 shrink-0 rounded-full border-2"
+          style={{
+            borderColor: expression.color,
+            background: expression.visible
+              ? expression.color
+              : "transparent",
+          }}
+          aria-label={
+            expression.visible
+              ? "Hide expression"
+              : "Show expression"
+          }
+          title={
+            expression.visible
+              ? "Hide expression"
+              : "Show expression"
+          }
+        />
+
+        <span
+          className="cursor-grab select-none text-slate-300"
+          title="Drag to reorder"
+          aria-label="Drag to reorder"
+        >
+          ⋮⋮
+        </span>
+
+        <span className="text-[11px] font-semibold text-slate-400">
+          {index + 1}
+        </span>
+
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDuplicate();
+            }}
+            className="rounded-md px-1.5 py-1 text-[11px] text-slate-400 hover:bg-white hover:text-slate-700"
+            title="Duplicate expression"
+          >
+            Copy
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="rounded-md px-1.5 py-1 text-[11px] text-slate-400 hover:bg-white hover:text-red-600"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <input
+        value={expression.raw}
+        onFocus={onActivate}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="x^2 - 4x + 3"
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+        aria-label={`Expression ${index + 1}`}
+      />
+
+      <div className="mt-2 min-h-7 overflow-x-auto px-1">
+        {expression.raw ? (
+          <Latex value={toLatex(expression.raw)} />
+        ) : (
+          <span className="text-xs text-slate-400">
+            Mathematical preview
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
