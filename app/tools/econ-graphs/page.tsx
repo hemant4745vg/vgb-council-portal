@@ -1998,7 +1998,7 @@ function StatGraph({
     yMax =
       mode === "percentage-bar"
         ? 100
-        : multipleMax * 1.2;
+        : Math.max(...multiple.flatMap(group => group.values)) * 1.2;
   }
 
   if (
