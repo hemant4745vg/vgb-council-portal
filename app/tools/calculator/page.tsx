@@ -863,14 +863,10 @@ export default function CalculatorPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        mode === "Graph"
-                          ? update(
-                              active.raw.slice(0, -1)
-                            )
-                          : setCalc((s) =>
-                              s.slice(0, -1)
-                            )
-                      }
+                        onClick={() =>
+  onClick={() =>
+  update(active.raw.slice(0, -1))
+}
                       className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
                     >
                       DEL
