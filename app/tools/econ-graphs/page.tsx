@@ -1635,7 +1635,7 @@ function median(values: number[]) {
     : (a[mid - 1] + a[mid]) / 2;
 }
 
-function mode(values: number[]) {
+function statisticalModes(values: number[]) {
   if (!values.length) return [];
 
   const freq = new Map<
@@ -2107,7 +2107,7 @@ function StatGraph({
 
   const rawMean = mean(rawData);
   const rawMedian = median(rawData);
-  const rawModes = mode(rawData);
+  const rawModes = statisticalModes(rawData);
 
   const drawLine = (
     points: Point[]
@@ -3112,7 +3112,7 @@ function StatisticsLab() {
   const rawMedian = median(
     rawData
   );
-  const rawModes = mode(rawData);
+  const rawModes = statisticalModes(rawData);
   const q1 = quantile(
     rawData,
     0.25
