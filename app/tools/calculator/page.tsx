@@ -841,61 +841,53 @@ export default function CalculatorPage() {
                   )}
 
                   <div className="mt-2 grid grid-cols-4 gap-2">
-                    {basic.flat().map((k) => (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => press(k)}
-                        className="min-h-14 rounded-xl border border-slate-200 bg-white text-lg font-semibold hover:bg-slate-50"
-                      >
-                        {k}
-                      </button>
-                    ))}
+  {basic.flat().map((k) => (
+    <button
+      key={k}
+      type="button"
+      onClick={() => press(k)}
+      className="min-h-14 rounded-xl border border-slate-200 bg-white text-lg font-semibold hover:bg-slate-50"
+    >
+      {k}
+    </button>
+  ))}
 
-                    <button
-                      type="button"
-                      onClick={() => press("AC")}
-                      className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
-                    >
-                      AC
-                    </button>
+  <button
+    type="button"
+    onClick={() => press("AC")}
+    className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
+  >
+    AC
+  </button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onClick={() =>
-  onClick={() =>
-  update(active.raw.slice(0, -1))
-}
-                      className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
-                    >
-                      DEL
-                    </button>
+  <button
+    type="button"
+    onClick={() =>
+      setCalc((s) => s.slice(0, -1))
+    }
+    className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-sm font-bold"
+  >
+    DEL
+  </button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        mode === "Graph"
-                          ? update(
-                              `-(${active.raw})`
-                            )
-                          : setCalc(
-                              (s) => `-(${s})`
-                            )
-                      }
-                      className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-lg font-semibold"
-                    >
-                      ±
-                    </button>
+  <button
+    type="button"
+    onClick={() =>
+      setCalc((s) => `-(${s})`)
+    }
+    className="min-h-14 rounded-xl border border-slate-200 bg-slate-100 text-lg font-semibold"
+  >
+    ±
+  </button>
 
-                    <button
-                      type="button"
-                      onClick={calculate}
-                      className="min-h-14 rounded-xl bg-slate-950 text-lg font-semibold text-white hover:bg-slate-800"
-                    >
-                      =
-                    </button>
-                  </div>
+  <button
+    type="button"
+    onClick={calculate}
+    className="min-h-14 rounded-xl bg-slate-950 text-lg font-semibold text-white hover:bg-slate-800"
+  >
+    =
+  </button>
+</div>
                 </div>
 
                 <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
