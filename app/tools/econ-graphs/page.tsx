@@ -1182,30 +1182,25 @@ function fmt(n: number) {
 
 function sampleCurve(
   curve: Curve,
-  p: Preset
+  p: Pick<Preset, "xMin" | "xMax" | "yMin" | "yMax">
 ): Point[] {
   const pts: Point[] = [];
+  let previousY: number | null = null;
+  const ySpan = Math.max(p.yMax - p.yMin, 1e-9);
 
-  for (let i = 0; i <= 700; i++) {
-    const x =
-      p.xMin +
-      (i / 700) *
-        (p.xMax - p.xMin);
-
+  for (let i = 0; i <= 900; i++) {
+    const x = p.xMin + (i / 900) * (p.xMax - p.xMin);
     const y = curve.fn(x);
+    const finite = Number.isFinite(y);
+    const outside = finite && (y < p.yMin - ySpan * 0.05 || y > p.yMax + ySpan * 0.05);
+    const jump = finite && previousY !== null && Math.abs(y - previousY) > ySpan * 0.35;
 
-    if (
-      !Number.isFinite(y) ||
-      y <
-        p.yMin -
-          (p.yMax - p.yMin) ||
-      y >
-        p.yMax +
-          (p.yMax - p.yMin)
-    ) {
+    if (!finite || outside || jump) {
       pts.push({ x: NaN, y: NaN });
+      previousY = null;
     } else {
       pts.push({ x, y });
+      previousY = y;
     }
   }
 
@@ -1214,77 +1209,46 @@ function sampleCurve(
 
 function intersections(
   curves: Curve[],
-  p: Preset
+  bounds: Pick<Preset, "xMin" | "xMax" | "yMin" | "yMax">
 ): Point[] {
   const out: Point[] = [];
+  const steps = 900;
+  const xSpan = bounds.xMax - bounds.xMin;
+  const ySpan = bounds.yMax - bounds.yMin;
 
   for (let a = 0; a < curves.length; a++) {
     for (let b = a + 1; b < curves.length; b++) {
-      let prevX = p.xMin;
-      let prevD =
-        curves[a].fn(prevX) -
-        curves[b].fn(prevX);
+      let prevX = bounds.xMin;
+      let prevA = curves[a].fn(prevX);
+      let prevB = curves[b].fn(prevX);
+      let prevD = prevA - prevB;
 
-      for (let i = 1; i <= 500; i++) {
-        const x =
-          p.xMin +
-          (i / 500) *
-            (p.xMax - p.xMin);
+      for (let i = 1; i <= steps; i++) {
+        const x = bounds.xMin + (i / steps) * xSpan;
+        const aY = curves[a].fn(x);
+        const bY = curves[b].fn(x);
+        const d = aY - bY;
 
-        const d =
-          curves[a].fn(x) -
-          curves[b].fn(x);
-
-        if (
-          Number.isFinite(prevD) &&
-          Number.isFinite(d) &&
-          prevD * d <= 0
-        ) {
-          const t =
-            Math.abs(prevD) /
-            (Math.abs(prevD) +
-              Math.abs(d) ||
-              1);
-
-          const ix =
-            prevX +
-            (x - prevX) * t;
-
+        if (Number.isFinite(prevD) && Number.isFinite(d) && Number.isFinite(prevA) && Number.isFinite(prevB) && prevD * d <= 0) {
+          const denominator = Math.abs(prevD) + Math.abs(d);
+          const t = denominator > 0 ? Math.abs(prevD) / denominator : 0;
+          const ix = prevX + (x - prevX) * t;
           const y = curves[a].fn(ix);
 
-          if (
-            Number.isFinite(y) &&
-            y >= p.yMin &&
-            y <= p.yMax
-          ) {
-            if (
-              !out.some(
-                (q) =>
-                  Math.abs(q.x - ix) <
-                    (p.xMax -
-                      p.xMin) /
-                      80 &&
-                  Math.abs(q.y - y) <
-                    (p.yMax -
-                      p.yMin) /
-                      80
-              )
-            ) {
-              out.push({
-                x: ix,
-                y,
-              });
-            }
+          if (Number.isFinite(y) && y >= bounds.yMin && y <= bounds.yMax && !out.some((q) => Math.abs(q.x - ix) < xSpan / 120 && Math.abs(q.y - y) < ySpan / 120)) {
+            out.push({ x: ix, y });
           }
         }
 
         prevX = x;
+        prevA = aY;
+        prevB = bY;
         prevD = d;
       }
     }
   }
 
-  return out.slice(0, 8);
+  return out.slice(0, 12);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1438,21 +1402,12 @@ function EconomicsGraph({
   );
 
   const points = useMemo(
-    () => intersections(curves, preset),
-    [curves, preset]
+    () => intersections(curves, view),
+    [curves, view.xMin, view.xMax, view.yMin, view.yMax]
   );
 
   const pathFor = (curve: Curve) => {
-    const sampled = sampleCurve(
-      curve,
-      {
-        ...preset,
-        xMin: view.xMin,
-        xMax: view.xMax,
-        yMin: view.yMin,
-        yMax: view.yMax,
-      }
-    );
+    const sampled = sampleCurve(curve, view);
 
     const d: string[] = [];
     let drawing = false;
@@ -1515,31 +1470,41 @@ function EconomicsGraph({
             };
           }}
           onPointerMove={(e) => {
-            if (!drag.current) return;
+            if (drag.current) {
+              const dx = e.clientX - drag.current.x;
+              const dy = e.clientY - drag.current.y;
+              const unitX = (view.xMax - view.xMin) / (W - 2 * P);
+              const unitY = (view.yMax - view.yMin) / (H - 2 * P);
 
-            const dx =
-              e.clientX - drag.current.x;
+              setPan((v) => ({
+                x: v.x - dx * unitX,
+                y: v.y + dy * unitY,
+              }));
 
-            const dy =
-              e.clientY - drag.current.y;
+              drag.current = { x: e.clientX, y: e.clientY };
+              return;
+            }
 
-            const unitX =
-              (view.xMax - view.xMin) /
-              (W - 2 * P);
+            if ((e.target as Element).getAttribute?.("data-intersection") === "true") return;
 
-            const unitY =
-              (view.yMax - view.yMin) /
-              (H - 2 * P);
+            const rect = e.currentTarget.getBoundingClientRect();
+            const sx = ((e.clientX - rect.left) * W) / rect.width;
+            const sy = ((e.clientY - rect.top) * H) / rect.height;
+            const x = unmapX(sx);
 
-            setPan((v) => ({
-              x: v.x - dx * unitX,
-              y: v.y + dy * unitY,
-            }));
+            let nearest: { curve: Curve; y: number; d: number } | null = null;
+            curves.forEach((curve) => {
+              const cy = curve.fn(x);
+              if (!Number.isFinite(cy)) return;
+              const d = Math.abs(mapY(cy) - sy);
+              if (!nearest || d < nearest.d) nearest = { curve, y: cy, d };
+            });
 
-            drag.current = {
-              x: e.clientX,
-              y: e.clientY,
-            };
+            if (nearest && nearest.d < 18) {
+              setHover({ x, y: nearest.y, label: nearest.curve.label });
+            } else {
+              setHover(null);
+            }
           }}
           onPointerUp={() => {
             drag.current = null;
@@ -1570,73 +1535,37 @@ function EconomicsGraph({
             fill="white"
           />
 
-          {xs.map((x) => (
-            <g key={`x-${x}`}>
-              <line
-                x1={mapX(x)}
-                x2={mapX(x)}
-                y1={P}
-                y2={H - P}
-                stroke="#e2e8f0"
-              />
+          {(() => {
+            const axisX = view.xMin <= 0 && view.xMax >= 0 ? mapX(0) : P;
+            const axisY = view.yMin <= 0 && view.yMax >= 0 ? mapY(0) : H - P;
 
-              <text
-                x={mapX(x)}
-                y={H - P + 20}
-                textAnchor="middle"
-                fontSize="12"
-                fill="#64748b"
-              >
-                {fmt(x)}
-              </text>
-            </g>
-          ))}
+            return (
+              <>
+                {xs.map((x) => (
+                  <g key={`x-${x}`}>
+                    <line x1={mapX(x)} x2={mapX(x)} y1={P} y2={H - P} stroke="#e2e8f0" />
+                    <line x1={mapX(x)} x2={mapX(x)} y1={axisY - 4} y2={axisY + 4} stroke="#334155" strokeWidth="1.5" />
+                    <text x={mapX(x)} y={Math.min(H - 28, Math.max(P + 16, axisY + 20))} textAnchor="middle" fontSize="12" fill="#475569">{fmt(x)}</text>
+                  </g>
+                ))}
 
-          {ys.map((y) => (
-            <g key={`y-${y}`}>
-              <line
-                x1={P}
-                x2={W - P}
-                y1={mapY(y)}
-                y2={mapY(y)}
-                stroke="#e2e8f0"
-              />
+                {ys.map((y) => (
+                  <g key={`y-${y}`}>
+                    <line x1={P} x2={W - P} y1={mapY(y)} y2={mapY(y)} stroke="#e2e8f0" />
+                    <line x1={axisX - 4} x2={axisX + 4} y1={mapY(y)} y2={mapY(y)} stroke="#334155" strokeWidth="1.5" />
+                    <text x={Math.max(28, Math.min(W - 8, axisX - 10))} y={mapY(y) + 4} textAnchor="end" fontSize="12" fill="#475569">{fmt(y)}</text>
+                  </g>
+                ))}
 
-              <text
-                x={P - 12}
-                y={mapY(y) + 4}
-                textAnchor="end"
-                fontSize="12"
-                fill="#64748b"
-              >
-                {fmt(y)}
-              </text>
-            </g>
-          ))}
-
-          {view.xMin <= 0 &&
-            view.xMax >= 0 && (
-              <line
-                x1={mapX(0)}
-                x2={mapX(0)}
-                y1={P}
-                y2={H - P}
-                stroke="#334155"
-                strokeWidth="2"
-              />
-            )}
-
-          {view.yMin <= 0 &&
-            view.yMax >= 0 && (
-              <line
-                x1={P}
-                x2={W - P}
-                y1={mapY(0)}
-                y2={mapY(0)}
-                stroke="#334155"
-                strokeWidth="2"
-              />
-            )}
+                {view.xMin <= 0 && view.xMax >= 0 && (
+                  <line x1={axisX} x2={axisX} y1={P} y2={H - P} stroke="#334155" strokeWidth="2" />
+                )}
+                {view.yMin <= 0 && view.yMax >= 0 && (
+                  <line x1={P} x2={W - P} y1={axisY} y2={axisY} stroke="#334155" strokeWidth="2" />
+                )}
+              </>
+            );
+          })()}
 
           <text
             x={W / 2}
@@ -1702,7 +1631,26 @@ function EconomicsGraph({
               <circle
                 cx={mapX(pt.x)}
                 cy={mapY(pt.y)}
+                r="12"
+                fill="transparent"
+                stroke="transparent"
+                data-intersection="true"
+                pointerEvents="all"
+                onPointerEnter={() =>
+                  setHover({
+                    x: pt.x,
+                    y: pt.y,
+                    label: "Intersection / equilibrium",
+                  })
+                }
+                onPointerLeave={() => setHover(null)}
+              />
+
+              <circle
+                cx={mapX(pt.x)}
+                cy={mapY(pt.y)}
                 r="6"
+                data-intersection="true"
                 fill="#0f172a"
                 stroke="white"
                 strokeWidth="2"
@@ -1727,6 +1675,7 @@ function EconomicsGraph({
             width={W - 2 * P}
             height={H - 2 * P}
             fill="transparent"
+            pointerEvents="none"
             onPointerMove={(e) => {
               const rect =
                 e.currentTarget.ownerSVGElement!.getBoundingClientRect();
