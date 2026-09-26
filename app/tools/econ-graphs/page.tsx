@@ -34,6 +34,7 @@ type Preset = {
     value: number;
   }[];
   interpretation: string[];
+  diagram?: "circular-flow";
 };
 
 const curveColors = [
@@ -95,6 +96,349 @@ const presets: Preset[] = [
       "A rightward supply shift lowers equilibrium price and raises equilibrium quantity.",
       "The intersection of demand and supply gives market equilibrium.",
     ],
+  },
+
+
+  {
+    id: "producer-equilibrium",
+    title: "Producer Equilibrium · MR = MC",
+    className: "XI",
+    unit: "Producer Behaviour",
+    description:
+      "Adjust market price and cost conditions to identify the profit-maximising output where MR equals MC.",
+    xLabel: "Output",
+    yLabel: "Cost / Revenue",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "price", label: "Price / MR", min: 25, max: 80, step: 1, value: 50 },
+      { key: "cost", label: "Cost pressure", min: 0.7, max: 1.5, step: 0.01, value: 1 },
+    ],
+    curves: (c) => [
+      { id: "mc", label: "MC", color: curveColors[0], fn: (x) => 12 + c.cost * 0.018 * (x - 32) ** 2 },
+      { id: "avc", label: "AVC", color: curveColors[1], fn: (x) => 18 + c.cost * 0.008 * (x - 45) ** 2 },
+      { id: "mr", label: "MR = AR = P", color: curveColors[2], fn: () => c.price, dashed: true },
+    ],
+    interpretation: [
+      "A competitive firm takes market price as given, so MR = AR = P.",
+      "The profit-maximising output is identified where MC intersects MR from below.",
+      "Changing price shifts the MR/AR/P line and changes the equilibrium output.",
+    ],
+  },
+
+  {
+    id: "demand-movement-shift",
+    title: "Movement Along Demand vs Shift in Demand",
+    className: "XI",
+    unit: "Demand",
+    description:
+      "Separate a change in quantity demanded caused by price from a change in demand caused by a non-price determinant.",
+    xLabel: "Quantity demanded",
+    yLabel: "Price",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "price", label: "Price", min: 20, max: 75, step: 1, value: 55 },
+      { key: "shift", label: "Demand shift", min: -25, max: 25, step: 1, value: 0 },
+    ],
+    curves: (c) => [
+      { id: "d", label: "D", color: curveColors[0], fn: (x) => 90 - 0.72 * x },
+      { id: "d2", label: "D₁ / D₂", color: curveColors[1], fn: (x) => 90 - 0.72 * x + c.shift, dashed: true },
+      { id: "price", label: "Chosen price", color: curveColors[2], fn: () => c.price, dashed: true },
+    ],
+    interpretation: [
+      "Changing price while staying on the same demand curve causes movement along the curve.",
+      "A change in income, tastes, prices of related goods or other determinants shifts the entire demand curve.",
+      "The horizontal intersections at the chosen price make the two concepts visually distinct.",
+    ],
+  },
+
+  {
+    id: "supply-movement-shift",
+    title: "Movement Along Supply vs Shift in Supply",
+    className: "XI",
+    unit: "Supply",
+    description:
+      "Distinguish a change in quantity supplied caused by price from a change in supply caused by non-price determinants.",
+    xLabel: "Quantity supplied",
+    yLabel: "Price",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "price", label: "Price", min: 20, max: 75, step: 1, value: 50 },
+      { key: "shift", label: "Supply shift", min: -25, max: 25, step: 1, value: 0 },
+    ],
+    curves: (c) => [
+      { id: "s", label: "S", color: curveColors[0], fn: (x) => 8 + 0.72 * x },
+      { id: "s2", label: "S₁ / S₂", color: curveColors[1], fn: (x) => 8 + 0.72 * x + c.shift, dashed: true },
+      { id: "price", label: "Chosen price", color: curveColors[2], fn: () => c.price, dashed: true },
+    ],
+    interpretation: [
+      "Changing price causes movement along the same supply curve.",
+      "Technology, input prices, taxes, subsidies and other non-price determinants shift the supply curve.",
+      "The two intersections at the chosen price show the corresponding quantities supplied.",
+    ],
+  },
+
+  {
+    id: "price-elasticity-demand",
+    title: "Price Elasticity of Demand",
+    className: "XI",
+    unit: "Elasticity of Demand",
+    description:
+      "Move the point of observation along a linear demand curve and inspect how percentage responsiveness changes.",
+    xLabel: "Quantity demanded",
+    yLabel: "Price",
+    xMin: 1,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "slope", label: "Demand slope", min: 0.35, max: 1.2, step: 0.01, value: 0.75 },
+      { key: "quantity", label: "Quantity point", min: 8, max: 92, step: 1, value: 40 },
+    ],
+    curves: (c) => [
+      { id: "d", label: "Demand", color: curveColors[0], fn: (x) => Math.max(0, 92 - c.slope * x) },
+      { id: "point", label: "Selected price", color: curveColors[2], fn: () => Math.max(0, 92 - c.slope * c.quantity), dashed: true },
+    ],
+    interpretation: [
+      "PED measures the percentage change in quantity demanded relative to the percentage change in price.",
+      "For a straight-line demand curve, elasticity varies along the curve even though its slope is constant.",
+      "The selected point lets you connect the graph to the point-elasticity expression |dQ/dP × P/Q|.",
+    ],
+  },
+
+  {
+    id: "total-expenditure",
+    title: "Total Expenditure Method of PED",
+    className: "XI",
+    unit: "Elasticity of Demand",
+    description:
+      "Compare price and total expenditure to classify demand as elastic, inelastic or unitary.",
+    xLabel: "Quantity demanded",
+    yLabel: "Price / Expenditure",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 120,
+    controls: [
+      { key: "slope", label: "Demand slope", min: 0.45, max: 1.1, step: 0.01, value: 0.75 },
+    ],
+    curves: (c) => [
+      { id: "d", label: "Demand", color: curveColors[0], fn: (x) => Math.max(0, 95 - c.slope * x) },
+      { id: "te", label: "Total expenditure = P × Q", color: curveColors[1], fn: (x) => Math.min(120, Math.max(0, x * (95 - c.slope * x)) / 35), dashed: true },
+    ],
+    interpretation: [
+      "When price falls and total expenditure rises, demand is elastic over that movement.",
+      "When price falls and total expenditure falls, demand is inelastic over that movement.",
+      "When total expenditure is unchanged after a price change, demand is unit elastic.",
+    ],
+  },
+
+  {
+    id: "price-elasticity-supply",
+    title: "Price Elasticity of Supply",
+    className: "XI",
+    unit: "Elasticity of Supply",
+    description:
+      "Change the responsiveness of supply and inspect how quantity supplied reacts to price.",
+    xLabel: "Quantity supplied",
+    yLabel: "Price",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "slope", label: "Supply slope", min: 0.25, max: 1.4, step: 0.01, value: 0.7 },
+      { key: "price", label: "Price point", min: 10, max: 85, step: 1, value: 50 },
+    ],
+    curves: (c) => [
+      { id: "s", label: "Supply", color: curveColors[0], fn: (x) => 8 + c.slope * x },
+      { id: "p", label: "Selected price", color: curveColors[2], fn: () => c.price, dashed: true },
+    ],
+    interpretation: [
+      "PES measures the percentage change in quantity supplied relative to the percentage change in price.",
+      "A flatter supply curve represents greater responsiveness of quantity supplied to price in this coordinate setup.",
+      "Use the selected point to connect the graph with the percentage-change definition of PES.",
+    ],
+  },
+
+  {
+    id: "marginal-utility",
+    title: "Marginal Utility & Consumer Equilibrium",
+    className: "XI",
+    unit: "Consumer Behaviour",
+    description:
+      "Observe diminishing marginal utility and the point at which MU becomes zero, then connect it to consumer equilibrium.",
+    xLabel: "Units consumed",
+    yLabel: "Utility",
+    xMin: 0,
+    xMax: 20,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "initial", label: "Initial MU", min: 35, max: 85, step: 1, value: 70 },
+      { key: "decline", label: "Rate of decline", min: 1, max: 5, step: 0.1, value: 3 },
+    ],
+    curves: (c) => [
+      { id: "tu", label: "Total utility", color: curveColors[0], fn: (x) => Math.min(100, c.initial * x - c.decline * x * x) },
+      { id: "mu", label: "Marginal utility", color: curveColors[1], fn: (x) => Math.max(0, c.initial - 2 * c.decline * x) },
+      { id: "zero", label: "MU = 0", color: "#64748b", fn: () => 0, dashed: true },
+    ],
+    interpretation: [
+      "Marginal utility is the additional utility obtained from one more unit of consumption.",
+      "Under diminishing MU, marginal utility falls as consumption increases.",
+      "For a single good, utility is maximised when MU reaches zero. For many goods, the consumer-equilibrium condition also uses MU per unit of price.",
+    ],
+  },
+
+  {
+    id: "indifference-map",
+    title: "Indifference Map",
+    className: "XI",
+    unit: "Consumer Behaviour",
+    description:
+      "Compare several indifference curves and see how higher curves represent higher levels of satisfaction.",
+    xLabel: "Good X",
+    yLabel: "Good Y",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "curvature", label: "Curvature", min: 0.55, max: 1.8, step: 0.05, value: 1 },
+      { key: "spread", label: "Curve spacing", min: 8, max: 25, step: 1, value: 16 },
+    ],
+    curves: (c) => [
+      { id: "ic1", label: "IC₁", color: curveColors[0], fn: (x) => 86 - 0.48 * Math.pow(Math.max(x, 0.5), c.curvature) },
+      { id: "ic2", label: "IC₂", color: curveColors[1], fn: (x) => 86 + c.spread * 0.5 - 0.48 * Math.pow(Math.max(x, 0.5), c.curvature) },
+      { id: "ic3", label: "IC₃", color: curveColors[2], fn: (x) => 86 + c.spread - 0.48 * Math.pow(Math.max(x, 0.5), c.curvature) },
+    ],
+    interpretation: [
+      "An indifference curve represents combinations of two goods giving the consumer the same satisfaction.",
+      "An indifference map contains multiple indifference curves, with higher curves representing higher satisfaction under the usual assumptions.",
+      "Indifference curves are normally downward sloping and convex to the origin because of diminishing MRS.",
+    ],
+  },
+
+  {
+    id: "perfect-competition-firm",
+    title: "Firm Equilibrium under Perfect Competition",
+    className: "XI",
+    unit: "Market Forms",
+    description:
+      "See the individual firm's horizontal demand, AR and MR line together with cost curves and the equilibrium output.",
+    xLabel: "Output",
+    yLabel: "Cost / Revenue",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "price", label: "Market price", min: 25, max: 75, step: 1, value: 50 },
+      { key: "cost", label: "Cost pressure", min: 0.7, max: 1.5, step: 0.01, value: 1 },
+    ],
+    curves: (c) => [
+      { id: "mc", label: "MC", color: curveColors[0], fn: (x) => 10 + c.cost * 0.02 * (x - 28) ** 2 },
+      { id: "ac", label: "AC", color: curveColors[1], fn: (x) => 24 + c.cost * 0.008 * (x - 48) ** 2 },
+      { id: "mr", label: "AR = MR = P", color: curveColors[2], fn: () => c.price, dashed: true },
+    ],
+    interpretation: [
+      "A perfectly competitive firm is a price taker, so its AR and MR are equal to the market price.",
+      "The firm's equilibrium output is where MC = MR and MC is rising through MR.",
+      "The position of price relative to AC at the equilibrium output indicates profit or loss in the short run.",
+    ],
+  },
+
+  {
+    id: "excess-deficient-demand",
+    title: "Excess Demand & Deficient Demand",
+    className: "XII",
+    unit: "Determination of Income and Employment",
+    description:
+      "Move aggregate demand relative to the full-employment output to visualise inflationary and deflationary gaps.",
+    xLabel: "Real income / output",
+    yLabel: "Aggregate demand / expenditure",
+    xMin: 0,
+    xMax: 120,
+    yMin: 0,
+    yMax: 120,
+    controls: [
+      { key: "autonomous", label: "Autonomous expenditure", min: 10, max: 70, step: 1, value: 35 },
+      { key: "mpc", label: "MPC", min: 0.5, max: 0.9, step: 0.01, value: 0.75 },
+      { key: "fullEmployment", label: "Full-employment output", min: 45, max: 100, step: 1, value: 70 },
+    ],
+    curves: (c) => [
+      { id: "ad", label: "AD / AE", color: curveColors[0], fn: (x) => c.autonomous + c.mpc * x },
+      { id: "45", label: "45° line", color: "#64748b", fn: (x) => x, dashed: true },
+      { id: "fe", label: "Full-employment output", color: curveColors[2], fn: () => c.fullEmployment, dashed: true },
+    ],
+    interpretation: [
+      "Excess demand occurs when planned aggregate expenditure at full-employment output exceeds the level consistent with stable prices.",
+      "Deficient demand occurs when planned aggregate expenditure falls short of the full-employment level.",
+      "Fiscal and monetary policy can be used to reduce an inflationary gap or close a deflationary gap, depending on the policy direction.",
+    ],
+  },
+
+  {
+    id: "exchange-rate-regimes",
+    title: "Fixed, Flexible & Managed Exchange Rates",
+    className: "XII",
+    unit: "Balance of Payments",
+    description:
+      "Compare market-determined exchange rates with an administratively maintained rate and a managed intervention band.",
+    xLabel: "Quantity of foreign exchange",
+    yLabel: "Exchange rate",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      { key: "dShift", label: "Demand shift", min: -18, max: 18, step: 1, value: 0 },
+      { key: "fixedRate", label: "Fixed exchange rate", min: 35, max: 75, step: 1, value: 55 },
+      { key: "band", label: "Management band", min: 3, max: 15, step: 1, value: 7 },
+    ],
+    curves: (c) => [
+      { id: "d", label: "Demand for FX", color: curveColors[0], fn: (x) => 90 - 0.72 * x + c.dShift },
+      { id: "s", label: "Supply of FX", color: curveColors[1], fn: (x) => 10 + 0.68 * x },
+      { id: "fixed", label: "Fixed rate", color: curveColors[2], fn: () => c.fixedRate, dashed: true },
+      { id: "upper", label: "Managed band upper", color: "#9333ea", fn: () => c.fixedRate + c.band, dashed: true },
+      { id: "lower", label: "Managed band lower", color: "#ea580c", fn: () => c.fixedRate - c.band, dashed: true },
+    ],
+    interpretation: [
+      "Under a flexible exchange rate, market demand and supply determine the equilibrium exchange rate.",
+      "Under a fixed rate, the monetary authority maintains a chosen exchange rate through intervention in the foreign-exchange market.",
+      "Managed floating allows market forces to operate while the authority intervenes when it wants to influence excessive movements.",
+    ],
+  },
+
+  {
+    id: "circular-flow",
+    title: "Two-Sector Circular Flow of Income",
+    className: "XII",
+    unit: "National Income",
+    description:
+      "Visualise the real and monetary flows between households and firms in the basic two-sector model.",
+    xLabel: "",
+    yLabel: "",
+    xMin: 0,
+    xMax: 100,
+    yMin: 0,
+    yMax: 100,
+    controls: [],
+    curves: () => [],
+    interpretation: [
+      "Households supply factors of production to firms and receive factor income in return.",
+      "Firms supply goods and services to households, while households make consumption expenditure.",
+      "The real flow and money flow move in opposite directions around the circular-flow system.",
+    ],
+    diagram: "circular-flow",
   },
 
   {
@@ -947,6 +1291,53 @@ function intersections(
 /* Economics graph                                                            */
 /* -------------------------------------------------------------------------- */
 
+function CircularFlowDiagram() {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <svg viewBox="0 0 900 560" className="h-auto w-full" role="img" aria-label="Two-sector circular flow of income">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#334155" />
+          </marker>
+        </defs>
+        <rect width="900" height="560" fill="white" />
+        <rect x="85" y="205" width="250" height="120" rx="22" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="2" />
+        <rect x="565" y="205" width="250" height="120" rx="22" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="2" />
+        <text x="210" y="260" textAnchor="middle" fontSize="22" fontWeight="700" fill="#0f172a">Households</text>
+        <text x="690" y="260" textAnchor="middle" fontSize="22" fontWeight="700" fill="#0f172a">Firms</text>
+        <text x="210" y="289" textAnchor="middle" fontSize="14" fill="#64748b">Consumers & factor owners</text>
+        <text x="690" y="289" textAnchor="middle" fontSize="14" fill="#64748b">Producers</text>
+        <path d="M335 225 C420 150 480 150 565 225" fill="none" stroke="#2563eb" strokeWidth="4" markerEnd="url(#arrowhead)" />
+        <text x="450" y="145" textAnchor="middle" fontSize="16" fontWeight="600" fill="#1d4ed8">Factors of production</text>
+        <text x="450" y="166" textAnchor="middle" fontSize="13" fill="#64748b">Real flow →</text>
+        <path d="M565 305 C480 380 420 380 335 305" fill="none" stroke="#2563eb" strokeWidth="4" markerEnd="url(#arrowhead)" />
+        <text x="450" y="421" textAnchor="middle" fontSize="16" fontWeight="600" fill="#1d4ed8">Goods & services</text>
+        <text x="450" y="442" textAnchor="middle" fontSize="13" fill="#64748b">Real flow ←</text>
+        <path d="M565 245 C480 170 420 170 335 245" fill="none" stroke="#16a34a" strokeWidth="4" strokeDasharray="10 7" markerEnd="url(#arrowhead)" />
+        <text x="450" y="190" textAnchor="middle" fontSize="15" fontWeight="600" fill="#15803d">Factor payments</text>
+        <path d="M335 285 C420 360 480 360 565 285" fill="none" stroke="#16a34a" strokeWidth="4" strokeDasharray="10 7" markerEnd="url(#arrowhead)" />
+        <text x="450" y="350" textAnchor="middle" fontSize="15" fontWeight="600" fill="#15803d">Consumption expenditure</text>
+        <rect x="325" y="25" width="250" height="58" rx="16" fill="#eff6ff" stroke="#bfdbfe" />
+        <text x="450" y="50" textAnchor="middle" fontSize="13" fontWeight="700" fill="#1e40af">REAL FLOW</text>
+        <text x="450" y="69" textAnchor="middle" fontSize="12" fill="#475569">Factors ↔ goods and services</text>
+        <rect x="325" y="477" width="250" height="58" rx="16" fill="#f0fdf4" stroke="#bbf7d0" />
+        <text x="450" y="502" textAnchor="middle" fontSize="13" fontWeight="700" fill="#166534">MONEY FLOW</text>
+        <text x="450" y="521" textAnchor="middle" fontSize="12" fill="#475569">Income ↔ consumption expenditure</text>
+      </svg>
+      <div className="grid gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:grid-cols-2">
+        <div className="rounded-xl bg-white p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-blue-700">Real flow</div>
+          <div className="mt-1 text-sm text-slate-600">Factors move from households to firms; goods and services move from firms to households.</div>
+        </div>
+        <div className="rounded-xl bg-white p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-green-700">Money flow</div>
+          <div className="mt-1 text-sm text-slate-600">Factor payments move to households; consumption expenditure moves to firms.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EconomicsGraph({
   preset,
   controls,
@@ -974,6 +1365,10 @@ function EconomicsGraph({
     x: number;
     y: number;
   } | null>(null);
+
+  if (preset.diagram === "circular-flow") {
+    return <CircularFlowDiagram />;
+  }
 
   const W = 900;
   const H = 560;
@@ -1559,7 +1954,8 @@ type StatMode =
   | "less-ogive"
   | "more-ogive"
   | "both-ogive"
-  | "scatter";
+  | "scatter"
+  | "time-series";
 
 type FrequencyRow = {
   lower: number;
@@ -2052,6 +2448,11 @@ function StatGraph({
   if (mode === "scatter") {
     xMax = pairXMax * 1.1;
     yMax = pairYMax * 1.1;
+  }
+
+  if (mode === "time-series") {
+    xMax = Math.max(categories.length, 1) + 1;
+    yMax = categoryMax * 1.15;
   }
 
   const mapX = (x: number) =>
@@ -2637,6 +3038,48 @@ function StatGraph({
             );
           })}
 
+        {/* TIME SERIES */}
+        {mode === "time-series" &&
+          (() => {
+            const points = categories.map((d, i) => ({
+              x: i + 1,
+              y: d.value,
+              label: d.label,
+            }));
+
+            return (
+              <g>
+                <polyline
+                  fill="none"
+                  stroke="#2563eb"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  points={points.map((p) => String(mapX(p.x)) + "," + String(mapY(p.y))).join(" ")}
+                />
+                {points.map((p, i) => (
+                  <circle
+                    key={i}
+                    cx={mapX(p.x)}
+                    cy={mapY(p.y)}
+                    r="6"
+                    fill="#2563eb"
+                    stroke="white"
+                    strokeWidth="2"
+                    onPointerEnter={() =>
+                      setHover({
+                        x: p.x,
+                        y: p.y,
+                        label: p.label,
+                      })
+                    }
+                    onPointerLeave={() => setHover(null)}
+                  />
+                ))}
+              </g>
+            );
+          })()}
+
         {/* HISTOGRAM */}
         {mode === "histogram" &&
           freq.rows.map((r, i) => {
@@ -2975,6 +3418,8 @@ function StatGraph({
         >
           {mode === "scatter"
             ? "Variable X"
+            : mode === "time-series"
+            ? "Time period"
             : mode.includes(
                 "ogive"
               )
@@ -2999,6 +3444,8 @@ function StatGraph({
         >
           {mode === "scatter"
             ? "Variable Y"
+            : mode === "time-series"
+            ? "Value"
             : mode === "histogram"
             ? "Frequency density"
             : mode.includes(
@@ -3270,8 +3717,9 @@ function StatisticsLab() {
       ][],
     },
     {
-      title: "Correlation",
+      title: "Time Series & Correlation",
       items: [
+        ["time-series", "Time-series graph"],
         ["scatter", "Scatter plot"],
       ] as [
         StatMode,
@@ -3441,7 +3889,8 @@ function StatisticsLab() {
         <section className="min-w-0">
           {/* BAR DATA */}
           {(mode === "bar" ||
-            mode === "pie") && (
+            mode === "pie" ||
+            mode === "time-series") && (
             <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -3450,7 +3899,9 @@ function StatisticsLab() {
                   </h3>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Use this for discrete categories, not continuous class intervals.
+                    {mode === "time-series"
+                      ? "Enter periods in chronological order. The line joins observations to show movement over time."
+                      : "Use this for discrete categories, not continuous class intervals."}
                   </p>
                 </div>
               </div>
