@@ -3886,7 +3886,7 @@ function StatisticsLab() {
 
                             <td className="px-2 py-2 font-mono text-xs text-slate-500">
                               {fmt(
-                                freq
+                                grouped
                                   .rows[
                                     i
                                   ]
