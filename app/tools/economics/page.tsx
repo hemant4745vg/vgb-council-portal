@@ -123,7 +123,7 @@ function findIntersection(
 
 // --- CURRICULUM PRESETS DATA ---
 
-export const PRESETS: Preset[] = [
+const PRESETS: Preset[] = [
   // 1. Demand, Supply & Market Equilibrium
   {
     id: 'market-equilibrium',
