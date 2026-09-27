@@ -8,876 +8,269 @@ import {
   Graticule,
   Marker,
   Sphere,
-  ZoomableGroup,
 } from "react-simple-maps";
 
 type MapScope = "India" | "World";
-type ClassLevel = "XI" | "XII" | "Both";
-type Layer =
-  | "Political"
-  | "Physiography"
-  | "Drainage"
-  | "Climate"
-  | "Resources"
-  | "Transport"
-  | "Population";
-
-type ExplorerMode = "Explore" | "Practice";
+type Layer = "Political" | "Physical" | "Rivers" | "Climate" | "Resources";
+type Mode = "Explore" | "Practice";
 type PracticeMode = "Locate" | "Identify" | "Mark" | "Quiz";
-
+type PracticeLevel = "Class 11" | "Class 12" | "All";
 type Coordinates = [number, number];
-type GeometryType = "Point" | "LineString" | "Polygon";
+type GeometryType = "point" | "line" | "polygon";
 
 type GeoFeature = {
   id: string;
   name: string;
-  geometry: {
-    type: GeometryType;
-    coordinates: Coordinates | Coordinates[] | Coordinates[][];
-  };
+  type: string;
+  coordinates: Coordinates | Coordinates[] | Coordinates[][];
   geometryType: GeometryType;
-  scope: MapScope;
-  classes: ClassLevel[];
-  layers: Layer[];
-  category: string;
-  chapter: string;
   description: string;
-  coordinates: Coordinates;
-  color?: string;
+  layers: Layer[];
+  scope: MapScope;
+  classes: ("Class 11" | "Class 12")[];
+  chapter: string;
 };
 
 type PracticeQuestion = {
   id: string;
   prompt: string;
   answer: string;
+  coordinates: Coordinates;
   scope: MapScope;
-  level: "XI" | "XII";
-  category: string;
+  level: "Class 11" | "Class 12";
+  type: string;
   options: string[];
   explanation: string;
-  coordinates: Coordinates;
-  tolerance?: number;
 };
 
-/* -------------------------------------------------------------------------- */
-/* MAP SOURCES                                                                */
-/* -------------------------------------------------------------------------- */
-
-const WORLD_GEO =
-  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
-
-const INDIA_GEO =
-  "https://raw.githubusercontent.com/geohacker/india/master/state/india_telengana.geojson";
-
-/* -------------------------------------------------------------------------- */
-/* SMALL GEOJSON HELPERS                                                      */
-/* -------------------------------------------------------------------------- */
+const WORLD_GEO = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const INDIA_GEO = "https://raw.githubusercontent.com/geohacker/india/master/state/india_telengana.geojson";
 
 const point = (
   id: string,
   name: string,
+  type: string,
   coordinates: Coordinates,
-  scope: MapScope,
-  classes: ClassLevel[],
+  description: string,
   layers: Layer[],
-  category: string,
+  scope: MapScope,
+  classes: ("Class 11" | "Class 12")[],
   chapter: string,
-  description: string
-): GeoFeature => ({
-  id,
-  name,
-  coordinates,
-  geometry: { type: "Point", coordinates },
-  geometryType: "Point",
-  scope,
-  classes,
-  layers,
-  category,
-  chapter,
-  description,
-});
+): GeoFeature => ({ id, name, type, coordinates, geometryType: "point", description, layers, scope, classes, chapter });
 
 const line = (
   id: string,
   name: string,
   coordinates: Coordinates[],
-  scope: MapScope,
-  classes: ClassLevel[],
-  layers: Layer[],
-  category: string,
-  chapter: string,
   description: string,
-  color?: string
-): GeoFeature => ({
-  id,
-  name,
-  coordinates: coordinates[0],
-  geometry: { type: "LineString", coordinates },
-  geometryType: "LineString",
-  scope,
-  classes,
-  layers,
-  category,
-  chapter,
-  description,
-  color,
-});
+  layers: Layer[],
+  scope: MapScope,
+  classes: ("Class 11" | "Class 12")[],
+  chapter: string,
+): GeoFeature => ({ id, name, type: "Line feature", coordinates, geometryType: "line", description, layers, scope, classes, chapter });
 
 const polygon = (
   id: string,
   name: string,
   coordinates: Coordinates[][],
-  scope: MapScope,
-  classes: ClassLevel[],
-  layers: Layer[],
-  category: string,
-  chapter: string,
   description: string,
-  color?: string
-): GeoFeature => ({
-  id,
-  name,
-  coordinates: coordinates[0][0],
-  geometry: { type: "Polygon", coordinates },
-  geometryType: "Polygon",
-  scope,
-  classes,
-  layers,
-  category,
-  chapter,
-  description,
-  color,
-});
+  layers: Layer[],
+  scope: MapScope,
+  classes: ("Class 11" | "Class 12")[],
+  chapter: string,
+): GeoFeature => ({ id, name, type: "Region", coordinates, geometryType: "polygon", description, layers, scope, classes, chapter });
 
 /* -------------------------------------------------------------------------- */
-/* INDIA CLASS XI: PHYSICAL ENVIRONMENT + MAP WORK                           */
+/* INDIA: CLASS XI + SELECTED CLASS XII MAP FEATURES                         */
 /* -------------------------------------------------------------------------- */
 
 const indiaFeatures: GeoFeature[] = [
-  // Physiographic regions
-  polygon(
-    "india-himalayas",
-    "Himalayas",
-    [[
-      [73, 35], [78, 35.8], [84, 35.5], [90, 34.8], [96, 32.8],
-      [95, 29.5], [89, 28.5], [83, 29.2], [77, 30], [73, 31.2], [73, 35],
-    ]],
-    "India", ["XI"], ["Physiography", "Climate"], "Mountain system",
-    "XI · India Physical Environment · Structure & Physiography",
-    "The northern mountain system of India, represented here as a spatial region rather than a single point."
-  ),
-  polygon(
-    "india-deccan",
-    "Deccan Plateau",
-    [[
-      [73, 21.5], [77, 22.5], [82, 22], [86, 20], [85, 15],
-      [82, 12], [76, 13], [73, 16], [73, 21.5],
-    ]],
-    "India", ["XI"], ["Physiography", "Resources"], "Plateau",
-    "XI · India Physical Environment · Structure & Physiography",
-    "A broad plateau region of peninsular India, bounded broadly by the Western and Eastern Ghats."
-  ),
-  polygon(
-    "india-thar",
-    "Thar Desert",
-    [[
-      [68.5, 30], [73.5, 30], [76, 28], [74, 24], [69, 24],
-      [68.5, 30],
-    ]],
-    "India", ["XI"], ["Physiography", "Climate"], "Desert",
-    "XI · India Physical Environment · Structure & Physiography",
-    "The arid region of northwestern India, centred mainly on Rajasthan."
-  ),
-  polygon(
-    "india-northern-plain",
-    "Northern Plain",
-    [[
-      [74, 30], [79, 31], [86, 29], [92, 29], [95, 27],
-      [91, 24], [84, 24], [77, 26], [74, 30],
-    ]],
-    "India", ["XI"], ["Physiography", "Drainage"], "Plain",
-    "XI · India Physical Environment · Structure & Physiography",
-    "The extensive alluvial plain associated with the Himalayan river systems."
-  ),
-  polygon(
-    "india-meghalaya-plateau",
-    "Meghalaya Plateau",
-    [[
-      [89, 26.5], [93, 26.8], [93, 24], [90, 24], [89, 26.5],
-    ]],
-    "India", ["XI"], ["Physiography"], "Plateau",
-    "XI · India Physical Environment · Structure & Physiography",
-    "A plateau region of northeastern India."
-  ),
-  polygon(
-    "india-malva-plateau",
-    "Malwa Plateau",
-    [[
-      [73.5, 25], [79, 25], [80, 22], [75, 21], [73.5, 25],
-    ]],
-    "India", ["XI"], ["Physiography"], "Plateau",
-    "XI · India Physical Environment · Structure & Physiography",
-    "A plateau region of central-western India."
-  ),
+  point("india-new-delhi", "New Delhi", "Capital", [77.21, 28.61], "National capital of India.", ["Political"], "India", ["Class 11", "Class 12"], "India: Location / People & Economy"),
+  point("india-mumbai", "Mumbai", "Major port", [72.88, 19.08], "Major west-coast port and urban centre.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-kolkata", "Kolkata", "Major port", [88.36, 22.57], "Major eastern port and urban centre.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-chennai", "Chennai", "Major port", [80.27, 13.08], "Major southeastern port city.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-bengaluru", "Bengaluru", "Airport / city", [77.59, 12.97], "Major southern urban and technology centre.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & Communication"),
+  point("india-delhi-airport", "Delhi Airport", "Airport", [77.10, 28.56], "International airport location used in Class XII map work.", ["Resources"], "India", ["Class 12"], "India: Transport & Communication"),
+  point("india-ahmedabad", "Ahmedabad", "Airport / city", [72.57, 23.03], "Major western urban centre.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & Communication"),
+  point("india-hyderabad", "Hyderabad", "Airport / city", [78.47, 17.39], "Major southern urban centre.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & Communication"),
+  point("india-guwahati", "Guwahati", "Airport / city", [91.74, 26.14], "Major urban centre in Assam.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & Communication"),
+  point("india-amritsar", "Amritsar", "Airport / city", [74.87, 31.63], "Major city in Punjab.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & Communication"),
+  point("india-thiruvananthapuram", "Thiruvananthapuram", "Airport / city", [76.95, 8.52], "Major city in Kerala.", ["Political", "Resources"], "India", ["Class 12"], "India: Transport & Communication"),
+  point("india-agra", "Agra", "City", [78.01, 27.18], "Major urban centre in Uttar Pradesh.", ["Political"], "India", ["Class 12"], "India: People & Settlements"),
 
-  // Ranges
-  line(
-    "india-western-ghats",
-    "Western Ghats",
-    [[
-      [74.8, 21], [74, 19], [73.5, 17], [73.2, 15], [73.3, 13],
-      [74, 11], [76, 9],
-    ]],
-    "India", ["XI"], ["Physiography", "Climate"], "Mountain range",
-    "XI · India Physical Environment · Structure & Physiography",
-    "A mountain range running broadly parallel to India's western coast."
-  ),
-  line(
-    "india-eastern-ghats",
-    "Eastern Ghats",
-    [[
-      [78, 20], [80, 18], [80.5, 16], [80, 14], [79, 12],
-    ]],
-    "India", ["XI"], ["Physiography"], "Mountain range",
-    "XI · India Physical Environment · Structure & Physiography",
-    "Discontinuous hill ranges along parts of the eastern side of peninsular India."
-  ),
-  line(
-    "india-aravalli",
-    "Aravalli Range",
-    [[
-      [72.5, 27], [73.5, 25.5], [74.5, 24], [75, 23],
-    ]],
-    "India", ["XI"], ["Physiography"], "Mountain range",
-    "XI · India Physical Environment · Structure & Physiography",
-    "An ancient mountain system extending through northwestern India."
-  ),
-  line(
-    "india-vindhya",
-    "Vindhya Range",
-    [[
-      [74, 24], [78, 24], [82, 24.5], [85, 24],
-    ]],
-    "India", ["XI"], ["Physiography"], "Mountain range",
-    "XI · India Physical Environment · Structure & Physiography",
-    "A major highland system of central India."
-  ),
-  line(
-    "india-satpura",
-    "Satpura Range",
-    [[
-      [74, 22], [78, 21], [82, 21], [85, 21],
-    ]],
-    "India", ["XI"], ["Physiography"], "Mountain range",
-    "XI · India Physical Environment · Structure & Physiography",
-    "A major range of central India lying broadly south of the Narmada."
-  ),
+  point("india-k2", "K2", "Peak", [76.51, 35.88], "Major peak in the Karakoram.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-kanchenjunga", "Kanchenjunga", "Peak", [88.15, 27.70], "Major Himalayan peak.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-nanda-devi", "Nanda Devi", "Peak", [79.97, 30.38], "Major Himalayan peak.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-nanga-parbat", "Nanga Parbat", "Peak", [74.59, 35.24], "Major Himalayan peak.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-namcha-barwa", "Namcha Barwa", "Peak", [95.05, 29.63], "Major peak near the eastern Himalayas.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-anaimudi", "Anaimudi", "Peak", [77.06, 10.17], "Highest peak of the Western Ghats.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
 
-  // Major rivers as lines
-  line(
-    "river-ganga",
-    "Ganga",
-    [[
-      [78.4, 30.1], [80, 28.8], [82, 27], [84, 25.5],
-      [86, 25.2], [88, 24.5], [89.8, 23.8],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major Himalayan river system flowing across the northern plains."
-  ),
-  line(
-    "river-yamuna",
-    "Yamuna",
-    [[
-      [78.4, 31], [78, 30], [77.5, 29], [77.3, 28],
-      [77.7, 27], [79, 26],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major tributary of the Ganga."
-  ),
-  line(
-    "river-brahmaputra",
-    "Brahmaputra",
-    [[
-      [91, 30], [92, 29], [93, 28], [94, 27], [91, 26],
-      [89, 25.5],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major Himalayan river entering India through the northeast."
-  ),
-  line(
-    "river-indus",
-    "Indus",
-    [[
-      [78, 34], [77, 33], [76, 32], [75, 31], [74, 30],
-      [73, 29],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "One of the major Himalayan river systems associated with northwestern India."
-  ),
-  line(
-    "river-narmada",
-    "Narmada",
-    [[
-      [81.8, 22.7], [80, 22.5], [78, 22.4], [76, 22.1], [74, 21.8],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major west-flowing peninsular river associated with a rift valley."
-  ),
-  line(
-    "river-tapti",
-    "Tapti",
-    [[
-      [78.5, 21.8], [77, 21.4], [75.5, 21.1], [73.2, 21],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A west-flowing peninsular river."
-  ),
-  line(
-    "river-godavari",
-    "Godavari",
-    [[
-      [80, 19.8], [81, 19], [82.5, 18.8], [84, 18.5], [86.7, 17],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major east-flowing peninsular river."
-  ),
-  line(
-    "river-krishna",
-    "Krishna",
-    [[
-      [75.7, 16.8], [78, 16.5], [80, 16.2], [82.2, 15.8],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major east-flowing peninsular river."
-  ),
-  line(
-    "river-kaveri",
-    "Kaveri",
-    [[
-      [75.7, 12.4], [77, 12], [78.5, 11.8], [80.3, 11.5],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major peninsular river flowing towards the Bay of Bengal."
-  ),
-  line(
-    "river-mahanadi",
-    "Mahanadi",
-    [[
-      [82.2, 21.2], [83.5, 20.5], [84.5, 20], [85.8, 19],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major east-flowing river of central-eastern India."
-  ),
-  line(
-    "river-damodar",
-    "Damodar",
-    [[
-      [84, 24], [85, 23.5], [86, 23.7], [87, 23.5],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A river of eastern India associated with the Chota Nagpur region."
-  ),
-  line(
-    "river-chambal",
-    "Chambal",
-    [[
-      [76.3, 24], [77.5, 25], [78.5, 26], [79.5, 26.5],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major tributary of the Yamuna."
-  ),
-  line(
-    "river-luni",
-    "Luni",
-    [[
-      [74.5, 26.8], [73.5, 26], [72.5, 25.5], [71.2, 25],
-    ]],
-    "India", ["XI"], ["Drainage"], "River",
-    "XI · India Physical Environment · Drainage",
-    "A major river of the arid region of Rajasthan."
-  ),
+  point("india-shipkila", "Shipkila Pass", "Pass", [78.77, 31.51], "Important Himalayan pass.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-nathula", "Nathula", "Pass", [88.83, 27.39], "Important pass in Sikkim.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-palghat", "Palghat Gap", "Pass / gap", [76.65, 10.78], "Major gap in the Western Ghats.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-bhor", "Bhor Ghat", "Pass / gap", [73.34, 18.95], "Important Western Ghats pass.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-thal", "Thal Ghat", "Pass / gap", [73.53, 19.77], "Important Western Ghats pass.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
 
-  // Lakes
-  polygon(
-    "lake-wular",
-    "Wular Lake",
-    [[[
-      [74.5, 34.3], [75.1, 34.4], [75.3, 34], [74.8, 33.8],
-      [74.5, 34.3],
-    ]]],
-    "India", ["XI"], ["Drainage"], "Lake",
-    "XI · India Physical Environment · Drainage",
-    "A major freshwater lake in Jammu and Kashmir."
-  ),
-  polygon(
-    "lake-sambhar",
-    "Sambhar Lake",
-    [[[
-      [74.8, 26.9], [75.3, 27], [75.5, 26.6], [75, 26.5],
-      [74.8, 26.9],
-    ]]],
-    "India", ["XI"], ["Drainage", "Resources"], "Lake",
-    "XI · India Physical Environment · Drainage",
-    "A large inland saline lake in Rajasthan."
-  ),
-  polygon(
-    "lake-chilika",
-    "Chilika Lake",
-    [[[
-      [85, 19.9], [86, 20], [86.8, 19.7], [86.2, 19.3],
-      [85.2, 19.5], [85, 19.9],
-    ]]],
-    "India", ["XI"], ["Drainage"], "Lake",
-    "XI · India Physical Environment · Drainage",
-    "A major coastal lagoon on the Odisha coast."
-  ),
-  polygon(
-    "lake-pulicat",
-    "Pulicat Lake",
-    [[[
-      [80, 13.9], [80.5, 14.2], [80.7, 13.6], [80.2, 13.3],
-      [80, 13.9],
-    ]]],
-    "India", ["XI"], ["Drainage"], "Lake",
-    "XI · India Physical Environment · Drainage",
-    "A coastal lagoon on the southeastern coast."
-  ),
-  polygon(
-    "lake-vembanad",
-    "Vembanad",
-    [[[
-      [76, 10.2], [76.7, 10.3], [76.8, 9.5], [76.2, 9],
-      [76, 10.2],
-    ]]],
-    "India", ["XI"], ["Drainage"], "Lake",
-    "XI · India Physical Environment · Drainage",
-    "A major backwater-lake system of Kerala."
-  ),
+  point("india-malwa", "Malwa Plateau", "Plateau", [75.70, 23.50], "Plateau region in central-western India.", ["Physical", "Resources"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-chhotanagpur", "Chhotanagpur Plateau", "Plateau", [85.50, 23.50], "Mineral-rich plateau region of eastern India.", ["Physical", "Resources"], "India", ["Class 11", "Class 12"], "India: Structure / Mineral & Energy Resources"),
+  point("india-meghalaya", "Meghalaya Plateau", "Plateau", [91.30, 25.50], "Plateau region of northeastern India.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-deccan", "Deccan Plateau", "Plateau", [77.00, 17.80], "Large plateau occupying much of peninsular India.", ["Physical", "Resources"], "India", ["Class 11"], "India: Structure & Physiography"),
+  point("india-thar", "Thar Desert", "Hot desert", [71.00, 27.50], "Arid region in northwestern India.", ["Physical", "Climate"], "India", ["Class 11"], "India: Structure / Climate"),
 
-  // Points: extent, peaks, passes, islands, bays and climatic extremes
-  point("india-kanyakumari", "Kanyakumari", [77.55, 8.08], "India", ["XI"], ["Political"], "Location", "XI · India Physical Environment · India Location", "The southern extremity of mainland India."),
-  point("india-standard-meridian", "Standard Meridian", [82.5, 25.5], "India", ["XI"], ["Political"], "Longitude", "XI · Practical Geography · Latitude, Longitude & Time", "India's Standard Meridian is 82°30′E."),
-  point("india-tropic-cancer", "Tropic of Cancer", [78, 23.44], "India", ["XI"], ["Climate"], "Latitude", "XI · India Physical Environment · India Location", "The Tropic of Cancer crosses India at about 23°30′N."),
-  point("india-k2", "K2", [76.5, 35.9], "India", ["XI"], ["Physiography"], "Peak", "XI · India Physical Environment · Structure & Physiography", "A major high peak of the Karakoram."),
-  point("india-kanchenjunga", "Kanchenjunga", [88.15, 27.7], "India", ["XI"], ["Physiography"], "Peak", "XI · India Physical Environment · Structure & Physiography", "A major Himalayan peak."),
-  point("india-nanda-devi", "Nanda Devi", [79.97, 30.38], "India", ["XI"], ["Physiography"], "Peak", "XI · India Physical Environment · Structure & Physiography", "A major Himalayan peak in Uttarakhand."),
-  point("india-nanga-parbat", "Nanga Parbat", [74.6, 35.2], "India", ["XI"], ["Physiography"], "Peak", "XI · India Physical Environment · Structure & Physiography", "A major peak of the northwestern Himalaya."),
-  point("india-namcha-barwa", "Namcha Barwa", [95.0, 29.6], "India", ["XI"], ["Physiography"], "Peak", "XI · India Physical Environment · Structure & Physiography", "A major peak near the eastern Himalaya."),
-  point("india-anaimudi", "Anaimudi", [77.06, 10.17], "India", ["XI"], ["Physiography"], "Peak", "XI · India Physical Environment · Structure & Physiography", "A major peak of the southern Western Ghats."),
-  point("india-shipkila", "Shipki La", [78.65, 31.3], "India", ["XI"], ["Physiography"], "Pass", "XI · India Physical Environment · Structure & Physiography", "A mountain pass in Himachal Pradesh."),
-  point("india-nathula", "Nathu La", [88.85, 27.4], "India", ["XI"], ["Physiography"], "Pass", "XI · India Physical Environment · Structure & Physiography", "A mountain pass in Sikkim."),
-  point("india-palghat", "Palghat Gap", [76.7, 10.75], "India", ["XI"], ["Physiography"], "Pass", "XI · India Physical Environment · Structure & Physiography", "A major gap between the Nilgiri and Anaimalai hills."),
-  point("india-bhor", "Bhor Ghat", [73.35, 18.8], "India", ["XI"], ["Physiography"], "Pass", "XI · India Physical Environment · Structure & Physiography", "A mountain pass/gap in the Western Ghats."),
-  point("india-thal", "Thal Ghat", [73.55, 19.9], "India", ["XI"], ["Physiography"], "Pass", "XI · India Physical Environment · Structure & Physiography", "A mountain pass/gap in the Western Ghats."),
-  point("india-andaman", "Andaman & Nicobar Islands", [92.7, 11.7], "India", ["XI"], ["Physiography", "Resources"], "Island group", "XI · India Physical Environment · Structure & Physiography", "An island group in the Bay of Bengal."),
-  point("india-lakshadweep", "Lakshadweep", [72.8, 10.5], "India", ["XI"], ["Physiography"], "Island group", "XI · India Physical Environment · Structure & Physiography", "An island group in the Arabian Sea."),
-  point("india-palk", "Palk Strait", [79.2, 9.3], "India", ["XI"], ["Physiography"], "Strait", "XI · India Physical Environment · Structure & Physiography", "A strait between India and Sri Lanka."),
-  point("india-gulf-kachchh", "Gulf of Kachchh", [69.7, 22.6], "India", ["XI"], ["Physiography"], "Gulf", "XI · India Physical Environment · Structure & Physiography", "A gulf on India's northwestern coast."),
-  point("india-gulf-mannar", "Gulf of Mannar", [78.9, 8.9], "India", ["XI"], ["Physiography"], "Gulf", "XI · India Physical Environment · Structure & Physiography", "A gulf between southeastern India and Sri Lanka."),
-  point("india-gulf-khambat", "Gulf of Khambat", [72.2, 21.8], "India", ["XI"], ["Physiography"], "Gulf", "XI · India Physical Environment · Structure & Physiography", "A gulf on the Gujarat coast."),
-  point("india-rann", "Rann of Kachchh", [69.8, 23.8], "India", ["XI"], ["Physiography"], "Salt marsh", "XI · India Physical Environment · Structure & Physiography", "A salt-marsh region in Gujarat."),
-  point("india-high-rainfall", "Highest Rainfall Area", [91.6, 25.3], "India", ["XI"], ["Climate"], "Climate extreme", "XI · India Physical Environment · Climate", "The Meghalaya region is associated with very high annual rainfall."),
-  point("india-low-rainfall", "Low Rainfall Area", [70.5, 26.8], "India", ["XI"], ["Climate"], "Climate extreme", "XI · India Physical Environment · Climate", "The western Rajasthan region receives very low rainfall."),
+  line("india-western-ghats", "Western Ghats", [[74.8, 21], [74.0, 19], [73.5, 17], [73.2, 15], [73.3, 13], [74.0, 11], [76.0, 9]], "Mountain chain along the western side of peninsular India.", ["Physical", "Climate"], "India", ["Class 11"], "India: Structure & Physiography"),
+  line("india-eastern-ghats", "Eastern Ghats", [[80.0, 18], [80.4, 16], [79.8, 14], [79.0, 12], [78.5, 11]], "Discontinuous hill system along the eastern side of peninsular India.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  line("india-aravalli", "Aravalli Range", [[74.6, 27.5], [73.9, 26.2], [73.3, 24.5], [72.9, 23.0]], "Ancient mountain system of northwestern India.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  line("india-vindhya", "Vindhya Range", [[75.0, 24.5], [77.0, 24.0], [79.0, 24.0], [81.0, 24.2]], "Major range of central India.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  line("india-satpura", "Satpura Range", [[73.8, 21.5], [75.5, 21.3], [77.5, 21.6], [79.5, 22.0]], "Major range south of the Narmada valley.", ["Physical"], "India", ["Class 11"], "India: Structure & Physiography"),
+  line("india-himalayas", "Himalayas", [[74.0, 32.0], [78.0, 31.5], [82.0, 30.8], [86.0, 29.5], [90.0, 28.5], [94.0, 28.5]], "Major mountain system along northern India.", ["Physical", "Climate"], "India", ["Class 11"], "India: Structure & Physiography"),
+
+  line("india-ganga", "Ganga", [[78.5, 30.0], [80.0, 28.5], [82.0, 27.2], [84.0, 25.5], [86.0, 25.0], [88.0, 24.5]], "Major Himalayan river system of northern India.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-yamuna", "Yamuna", [[78.4, 30.1], [78.0, 29.0], [77.7, 28.0], [77.5, 27.0], [77.8, 26.0]], "Major tributary joining the Ganga.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-brahmaputra", "Brahmaputra", [[82.5, 31.0], [88.0, 29.0], [91.0, 27.0], [93.0, 26.0], [95.0, 26.0]], "Major Himalayan river flowing through northeastern India.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-indus", "Indus", [[81.0, 31.0], [78.0, 33.0], [76.0, 34.0], [74.0, 35.0]], "Major river system of northwestern South Asia.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-narmada", "Narmada", [[81.8, 22.7], [80.0, 22.6], [78.0, 22.6], [76.0, 22.6], [74.0, 21.8]], "Major west-flowing peninsular river.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-tapti", "Tapti", [[78.5, 21.2], [77.0, 21.0], [75.5, 21.0], [73.0, 21.0]], "Major west-flowing peninsular river.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-godavari", "Godavari", [[78.5, 19.0], [80.0, 18.8], [82.0, 18.5], [84.0, 17.8], [85.5, 17.5]], "Major east-flowing peninsular river.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-krishna", "Krishna", [[75.7, 17.8], [77.0, 17.6], [79.0, 16.8], [80.5, 16.2], [82.0, 15.8]], "Major east-flowing peninsular river.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-kaveri", "Kaveri", [[75.6, 12.4], [77.0, 12.2], [78.5, 11.8], [79.8, 11.0]], "Major river of southern India.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-mahanadi", "Mahanadi", [[81.7, 21.8], [82.8, 21.0], [84.0, 20.0], [85.5, 19.2]], "Major east-flowing river of central-eastern India.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-damodar", "Damodar", [[84.0, 24.2], [85.0, 23.8], [86.5, 23.7], [87.5, 23.6]], "River associated with the Chhotanagpur region and lower Ganga basin.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-chambal", "Chambal", [[75.5, 24.5], [77.0, 26.0], [78.5, 26.5], [79.5, 26.5]], "Major tributary of the Yamuna.", ["Rivers"], "India", ["Class 11"], "India: Drainage"),
+  line("india-luni", "Luni", [[72.5, 26.5], [73.5, 26.0], [74.5, 25.5], [75.5, 25.0]], "Important river of the arid region of Rajasthan.", ["Rivers", "Climate"], "India", ["Class 11"], "India: Drainage / Climate"),
+
+  point("india-wular", "Wular Lake", "Lake", [74.70, 34.10], "Major freshwater lake in Jammu and Kashmir.", ["Physical"], "India", ["Class 11"], "India: Drainage"),
+  point("india-sambhar", "Sambhar Lake", "Lake", [75.00, 26.90], "Large inland salt lake in Rajasthan.", ["Physical", "Climate"], "India", ["Class 11"], "India: Drainage"),
+  point("india-chilika", "Chilika Lake", "Lagoon", [85.45, 19.75], "Large coastal lagoon on the Odisha coast.", ["Physical", "Climate"], "India", ["Class 11"], "India: Drainage"),
+  point("india-kolleru", "Kolleru Lake", "Lake", [81.20, 16.75], "Large freshwater lake in Andhra Pradesh.", ["Physical"], "India", ["Class 11"], "India: Drainage"),
+  point("india-pulicat", "Pulicat Lake", "Lagoon", [80.10, 13.70], "Large brackish lagoon on the southeastern coast.", ["Physical"], "India", ["Class 11"], "India: Drainage"),
+  point("india-vembanad", "Vembanad", "Lake", [76.40, 9.60], "Large backwater lake in Kerala.", ["Physical"], "India", ["Class 11"], "India: Drainage"),
+
+  point("india-palk", "Palk Strait", "Strait", [79.50, 9.60], "Strait between southeastern India and Sri Lanka.", ["Physical"], "India", ["Class 11"], "India: India Location"),
+  point("india-gulf-mannar", "Gulf of Mannar", "Gulf", [79.00, 8.80], "Gulf between southeastern India and Sri Lanka.", ["Physical"], "India", ["Class 11"], "India: India Location"),
+  point("india-gulf-kachchh", "Gulf of Kachchh", "Gulf", [69.80, 22.80], "Gulf on the western coast of India.", ["Physical"], "India", ["Class 11"], "India: India Location"),
+  point("india-gulf-khambat", "Gulf of Khambat", "Gulf", [72.20, 21.80], "Gulf on the western coast of India.", ["Physical"], "India", ["Class 11"], "India: India Location"),
+
+  point("india-tropic-cancer", "Tropic of Cancer", "Latitude", [78.96, 23.44], "23½° N latitude crosses central India.", ["Political", "Climate"], "India", ["Class 11"], "India: Location"),
+  point("india-standard-meridian", "Standard Meridian of India", "Longitude", [82.50, 23.50], "82°30′ E is India's Standard Meridian.", ["Political", "Climate"], "India", ["Class 11"], "India: Location"),
+  point("india-kanyakumari", "Kanyakumari", "Southern tip", [77.55, 8.08], "Southern tip of mainland India.", ["Political"], "India", ["Class 11"], "India: Location"),
+
+  point("india-kandla", "Kandla", "Major port", [70.22, 23.03], "Major port on the Gulf of Kachchh.", ["Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-marmagao", "Marmagao", "Major port", [73.80, 15.42], "Major port in Goa.", ["Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-kochi", "Kochi", "Major port", [76.27, 9.97], "Major port on the Malabar coast.", ["Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-mangalore", "Mangalore", "Major port", [74.85, 12.91], "Major port on the west coast.", ["Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-tuticorin", "Tuticorin", "Major port", [78.13, 8.80], "Major port in southern Tamil Nadu.", ["Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-visakhapatnam", "Visakhapatnam", "Major port", [83.22, 17.69], "Major east-coast port.", ["Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-paradip", "Paradip", "Major port", [86.67, 20.27], "Major port on the Odisha coast.", ["Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+  point("india-haldia", "Haldia", "Major port", [88.06, 22.03], "Port and industrial centre near the lower Hooghly.", ["Resources"], "India", ["Class 12"], "India: Transport & International Trade"),
+
+  point("india-iron-mayurbhanj", "Mayurbhanj", "Iron ore", [86.65, 21.95], "Important iron-ore region listed in Class XII map work.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-iron-bailadila", "Bailadila", "Iron ore", [81.25, 18.65], "Important iron-ore region listed in Class XII map work.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-iron-ratnagiri", "Ratnagiri", "Iron ore", [73.30, 16.99], "Iron-ore region listed in Class XII map work.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-iron-bellary", "Bellary", "Iron ore", [76.92, 15.14], "Important iron-ore region listed in Class XII map work.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-manganese-balaghat", "Balaghat", "Manganese", [80.18, 21.80], "Important manganese region.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-copper-khetri", "Khetri", "Copper", [75.80, 28.00], "Important copper region in Rajasthan.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-bauxite-koraput", "Koraput", "Bauxite", [82.72, 18.81], "Important bauxite region.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-coal-jharia", "Jharia", "Coal", [86.42, 23.75], "Major coalfield in Jharkhand.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-coal-bokaro", "Bokaro", "Coal", [85.96, 23.67], "Major coalfield in Jharkhand.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-coal-raniganj", "Raniganj", "Coal", [87.30, 23.62], "Major coalfield in West Bengal.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-coal-neyveli", "Neyveli", "Lignite", [79.48, 11.53], "Important lignite field in Tamil Nadu.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-refinery-mathura", "Mathura Refinery", "Oil refinery", [77.68, 27.49], "Major oil refinery listed in Class XII map work.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-refinery-jamnagar", "Jamnagar Refinery", "Oil refinery", [70.07, 22.47], "Major oil refining centre in Gujarat.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
+  point("india-refinery-barauni", "Barauni Refinery", "Oil refinery", [85.92, 25.43], "Major oil refinery in Bihar.", ["Resources"], "India", ["Class 12"], "India: Mineral & Energy Resources"),
 ];
 
 /* -------------------------------------------------------------------------- */
-/* WORLD CLASS XI MAP WORK                                                    */
+/* WORLD: CLASS XI + XII MAP FEATURES                                        */
 /* -------------------------------------------------------------------------- */
 
 const worldFeatures: GeoFeature[] = [
-  // Major deserts
-  polygon(
-    "world-sahara",
-    "Sahara",
-    [[[
-      [-17, 28], [-10, 35], [10, 35], [30, 31], [37, 22],
-      [30, 15], [10, 15], [-5, 20], [-17, 28],
-    ]]],
-    "World", ["XI"], ["Physiography", "Climate"], "Hot desert",
-    "XI · World Map Work · Major Hot Deserts",
-    "The major hot desert belt of northern Africa."
-  ),
-  polygon(
-    "world-gobi",
-    "Gobi",
-    [[[
-      [95, 44], [105, 48], [116, 47], [120, 42], [111, 39],
-      [101, 40], [95, 44],
-    ]]],
-    "World", ["XI"], ["Physiography", "Climate"], "Hot desert",
-    "XI · World Map Work · Major Hot Deserts",
-    "A major desert region of Mongolia and northern China."
-  ),
-  polygon(
-    "world-mojave",
-    "Mojave",
-    [[[
-      [-118, 37], [-113, 37], [-113, 34], [-117, 32],
-      [-120, 34], [-118, 37],
-    ]]],
-    "World", ["XI"], ["Physiography", "Climate"], "Hot desert",
-    "XI · World Map Work · Major Hot Deserts",
-    "A desert of the southwestern United States."
-  ),
-  polygon(
-    "world-great-victoria",
-    "Great Victoria Desert",
-    [[[
-      [122, -27], [135, -26], [137, -30], [128, -34],
-      [120, -31], [122, -27],
-    ]]],
-    "World", ["XI"], ["Physiography", "Climate"], "Hot desert",
-    "XI · World Map Work · Major Hot Deserts",
-    "A large desert region of Australia."
-  ),
-  polygon(
-    "world-patagonian",
-    "Patagonian Desert",
-    [[[
-      [-73, -39], [-65, -39], [-64, -48], [-70, -50],
-      [-74, -45], [-73, -39],
-    ]]],
-    "World", ["XI"], ["Physiography", "Climate"], "Desert",
-    "XI · World Map Work · Major Hot Deserts",
-    "A major arid region of southern South America."
-  ),
+  point("world-equator", "Equator", "Latitude", [0, 0], "0° latitude.", ["Climate", "Political"], "World", ["Class 11"], "Practical: Latitude & Longitude"),
+  point("world-prime-meridian", "Prime Meridian", "Longitude", [0, 20], "0° longitude.", ["Political", "Climate"], "World", ["Class 11"], "Practical: Latitude & Longitude"),
+  point("world-tropic-cancer", "Tropic of Cancer", "Latitude", [0, 23.44], "23½° N latitude.", ["Climate"], "World", ["Class 11"], "Practical: Latitude & Longitude"),
+  point("world-tropic-capricorn", "Tropic of Capricorn", "Latitude", [0, -23.44], "23½° S latitude.", ["Climate"], "World", ["Class 11"], "Practical: Latitude & Longitude"),
+  point("world-arctic-circle", "Arctic Circle", "Latitude", [0, 66.56], "66½° N latitude.", ["Climate"], "World", ["Class 11"], "Practical: Latitude & Longitude"),
+  point("world-international-date-line", "International Date Line", "Longitude", [180, 0], "Approximate 180° longitude reference.", ["Political"], "World", ["Class 11"], "Practical: Latitude & Longitude"),
 
-  // Oceans and seas
-  point("world-indian-ocean", "Indian Ocean", [80, -20], "World", ["XI"], ["Climate"], "Ocean", "XI · World Map Work · Major Oceans", "A major ocean south of Asia."),
-  point("world-pacific-ocean", "Pacific Ocean", [-150, 0], "World", ["XI"], ["Climate"], "Ocean", "XI · World Map Work · Major Oceans", "The largest ocean basin."),
-  point("world-atlantic-ocean", "Atlantic Ocean", [-30, 15], "World", ["XI"], ["Climate"], "Ocean", "XI · World Map Work · Major Oceans", "An ocean between the Americas and Europe/Africa."),
-  point("world-arctic-ocean", "Arctic Ocean", [0, 85], "World", ["XI"], ["Climate"], "Ocean", "XI · World Map Work · Major Oceans", "The ocean surrounding the Arctic region."),
-  point("world-southern-ocean", "Southern Ocean", [0, -65], "World", ["XI"], ["Climate"], "Ocean", "XI · World Map Work · Major Oceans", "The ocean surrounding Antarctica."),
-  point("world-black-sea", "Black Sea", [35, 43], "World", ["XI"], ["Climate"], "Sea", "XI · World Map Work · Major Seas", "A sea between southeastern Europe and western Asia."),
-  point("world-baltic", "Baltic Sea", [20, 58], "World", ["XI"], ["Climate"], "Sea", "XI · World Map Work · Major Seas", "A sea of northern Europe."),
-  point("world-caspian", "Caspian Sea", [51, 41], "World", ["XI"], ["Climate"], "Sea", "XI · World Map Work · Major Seas", "The world's largest inland body of water."),
-  point("world-mediterranean", "Mediterranean Sea", [17, 36], "World", ["XI"], ["Climate"], "Sea", "XI · World Map Work · Major Seas", "A sea between Europe, Africa and Asia."),
-  point("world-red-sea", "Red Sea", [39, 20], "World", ["XI"], ["Climate"], "Sea", "XI · World Map Work · Major Seas", "A sea between northeastern Africa and the Arabian Peninsula."),
-  point("world-north-sea", "North Sea", [3, 56], "World", ["XI"], ["Climate"], "Sea", "XI · World Map Work · Major Seas", "A sea of northwestern Europe."),
-  point("world-bay-fundy", "Bay of Fundy", [-65, 45], "World", ["XI"], ["Climate"], "Bay", "XI · World Map Work · Major Seas", "A major tidal bay on Canada's Atlantic coast."),
+  point("world-london", "London", "City / port", [-0.13, 51.51], "Major European city and port reference.", ["Political", "Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-hamburg", "Hamburg", "Port", [9.99, 53.55], "Major European port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-vancouver", "Vancouver", "Port", [-123.12, 49.28], "Major North American port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-san-francisco", "San Francisco", "Port", [-122.42, 37.77], "Major North American port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-new-orleans", "New Orleans", "Port", [-90.07, 29.95], "Major North American port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-rio", "Rio de Janeiro", "Port", [-43.17, -22.91], "Major South American port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-valparaiso", "Valparaiso", "Port", [-71.62, -33.05], "Major Chilean port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-cape-town", "Cape Town", "Port", [18.42, -33.92], "Major southern African port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-suez", "Suez", "Port / canal", [32.55, 29.97], "Northern terminus region of the Suez Canal.", ["Resources"], "World", ["Class 12"], "Transport & International Trade"),
+  point("world-yokohama", "Yokohama", "Port", [139.64, 35.44], "Major Japanese port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-shanghai", "Shanghai", "Port", [121.47, 31.23], "Major Chinese port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-hong-kong", "Hong Kong", "Port", [114.17, 22.32], "Major Asian port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-karachi", "Karachi", "Port", [67.01, 24.86], "Major South Asian port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-kolkata-port", "Kolkata", "Port", [88.36, 22.57], "Major Indian port.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-perth", "Perth", "Port / city", [115.86, -31.95], "Major Australian urban centre.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-sydney", "Sydney", "Port / city", [151.21, -33.87], "Major Australian urban centre.", ["Resources"], "World", ["Class 12"], "International Trade"),
+  point("world-melbourne", "Melbourne", "Port / city", [144.96, -37.81], "Major Australian urban centre.", ["Resources"], "World", ["Class 12"], "International Trade"),
 
-  // Plates / physical features
-  point("world-ring-fire", "Ring of Fire", [-120, 5], "World", ["XI"], ["Physiography", "Climate"], "Tectonic belt", "XI · World Map Work · Lithospheric Plates", "A broad belt of frequent volcanic and seismic activity around the Pacific."),
-  line(
-    "world-mid-atlantic",
-    "Mid-Atlantic Ridge",
-    [[-35, 65], [-30, 30], [-25, 0], [-20, -30], [-15, -55]],
-    "World", ["XI"], ["Physiography"], "Plate boundary",
-    "XI · World Map Work · Lithospheric Plates",
-    "A major submarine ridge associated with seafloor spreading."
-  ),
+  point("world-sahara", "Sahara", "Hot desert", [13, 24], "Major hot desert of northern Africa.", ["Physical", "Climate"], "World", ["Class 11", "Class 12"], "Physical Geography"),
+  point("world-gobi", "Gobi", "Hot / cold desert", [103, 43], "Large desert region of Mongolia and northern China.", ["Physical", "Climate"], "World", ["Class 11"], "Physical Geography"),
+  point("world-thar", "Thar", "Hot desert", [71, 27.5], "Hot desert of northwestern India and Pakistan.", ["Physical", "Climate"], "World", ["Class 11"], "Physical Geography"),
+  point("world-mojave", "Mojave", "Hot desert", [-116, 35], "Hot desert in southwestern North America.", ["Physical", "Climate"], "World", ["Class 11"], "Physical Geography"),
+  point("world-patagonian", "Patagonian Desert", "Cold desert", [-69, -45], "Arid region of southern South America.", ["Physical", "Climate"], "World", ["Class 11"], "Physical Geography"),
+  point("world-great-victoria", "Great Victoria Desert", "Hot desert", [130, -29], "Large desert in Australia.", ["Physical", "Climate"], "World", ["Class 11"], "Physical Geography"),
+  point("world-amazon-basin", "Amazon Basin", "Physical region", [-60, -4], "Large tropical basin in South America.", ["Physical", "Climate", "Rivers"], "World", ["Class 11"], "Physical Geography"),
+  point("world-rockies", "Rocky Mountains", "Mountain system", [-112, 43], "Major mountain system of western North America.", ["Physical"], "World", ["Class 11"], "Physical Geography"),
+  point("world-andes", "Andes", "Mountain system", [-70, -20], "Major mountain system along western South America.", ["Physical"], "World", ["Class 11"], "Physical Geography"),
+  point("world-nile", "Nile", "River", [31.2, 30.0], "Major river system of northeastern Africa.", ["Rivers"], "World", ["Class 11"], "Physical Geography"),
+  point("world-amazon-river", "Amazon River", "River", [-58, -3], "Major river of tropical South America.", ["Rivers"], "World", ["Class 11"], "Physical Geography"),
 
-  // Currents
-  line("current-humboldt", "Humboldt Current", [[-80, -5], [-78, -20], [-76, -35]], "World", ["XI"], ["Climate"], "Cold current", "XI · World Map Work · Ocean Currents", "Cold current along the west coast of South America."),
-  line("current-california", "California Current", [[-130, 45], [-125, 35], [-120, 25]], "World", ["XI"], ["Climate"], "Cold current", "XI · World Map Work · Ocean Currents", "Cold current along western North America."),
-  line("current-gulf-stream", "Gulf Stream", [[-75, 35], [-55, 40], [-35, 45], [-20, 50]], "World", ["XI"], ["Climate"], "Warm current", "XI · World Map Work · Ocean Currents", "A major warm current in the North Atlantic."),
-  line("current-kuroshio", "Kuroshio Current", [[130, 20], [140, 30], [150, 35]], "World", ["XI"], ["Climate"], "Warm current", "XI · World Map Work · Ocean Currents", "A warm western boundary current of the North Pacific."),
-  line("current-agulhas", "Agulhas Current", [[35, -20], [38, -30], [30, -38]], "World", ["XI"], ["Climate"], "Warm current", "XI · World Map Work · Ocean Currents", "A warm current along southeastern Africa."),
-  line("current-labrador", "Labrador Current", [[-55, 60], [-55, 50], [-50, 45]], "World", ["XI"], ["Climate"], "Cold current", "XI · World Map Work · Ocean Currents", "A cold current in the western North Atlantic."),
+  line("world-mid-atlantic-ridge", "Mid-Atlantic Ridge", [[-35, 60], [-28, 35], [-25, 10], [-15, -15], [-10, -40]], "Major submarine ridge associated with seafloor spreading.", ["Physical"], "World", ["Class 11"], "Distribution of Oceans & Continents"),
+  line("world-humboldt", "Humboldt Current", [[-78, -5], [-80, -15], [-78, -25], [-75, -35]], "Cold current along the west coast of South America.", ["Climate", "Rivers"], "World", ["Class 11"], "Ocean Movements"),
+  line("world-california", "California Current", [[-130, 45], [-125, 35], [-122, 25]], "Cold current along western North America.", ["Climate"], "World", ["Class 11"], "Ocean Movements"),
+  line("world-gulf-stream", "Gulf Stream", [[-80, 25], [-65, 32], [-45, 40], [-25, 48], [-10, 52]], "Warm current flowing from the western Atlantic toward Europe.", ["Climate"], "World", ["Class 11"], "Ocean Movements"),
+  line("world-kuroshio", "Kuroshio Current", [[125, 20], [132, 25], [140, 32], [150, 38]], "Warm current near Japan.", ["Climate"], "World", ["Class 11"], "Ocean Movements"),
+  line("world-agulhas", "Agulhas Current", [[35, -10], [40, -20], [38, -30], [30, -38]], "Warm current along southeastern Africa.", ["Climate"], "World", ["Class 11"], "Ocean Movements"),
+  line("world-labrador", "Labrador Current", [[-55, 60], [-55, 52], [-58, 45]], "Cold current flowing southward along northeastern North America.", ["Climate"], "World", ["Class 11"], "Ocean Movements"),
 
-  // Hotspot points
-  point("hotspot-eastern-himalaya", "Eastern Himalaya", [89, 27], "World", ["XI"], ["Climate"], "Ecological hotspot", "XI · World Map Work · Ecological Hotspots", "An ecological hotspot region associated with high biodiversity."),
-  point("hotspot-western-ghats", "Western Ghats", [75, 15], "World", ["XI"], ["Climate"], "Ecological hotspot", "XI · World Map Work · Ecological Hotspots", "A globally significant biodiversity hotspot in India."),
-  point("hotspot-indonesia", "Indonesia", [117, -2], "World", ["XI"], ["Climate"], "Ecological hotspot", "XI · World Map Work · Ecological Hotspots", "A biodiversity-rich tropical region."),
-  point("hotspot-madagascar", "Eastern Madagascar", [49, -19], "World", ["XI"], ["Climate"], "Ecological hotspot", "XI · World Map Work · Ecological Hotspots", "A major biodiversity hotspot."),
-  point("hotspot-tropical-andes", "Tropical Andes", [-76, -5], "World", ["XI"], ["Climate"], "Ecological hotspot", "XI · World Map Work · Ecological Hotspots", "A biodiversity hotspot along the tropical Andes."),
-
-  // Human geography map-work points from XII
-  point("port-london", "London", [-0.1, 51.5], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major European port."),
-  point("port-hamburg", "Hamburg", [10, 53.5], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major European port."),
-  point("port-vancouver", "Vancouver", [-123.1, 49.3], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major North American port."),
-  point("port-san-francisco", "San Francisco", [-122.4, 37.8], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major North American port."),
-  point("port-new-orleans", "New Orleans", [-90.1, 29.95], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major North American port."),
-  point("port-rio", "Rio de Janeiro", [-43.2, -22.9], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major South American port."),
-  point("port-valparaiso", "Valparaiso", [-71.6, -33], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major South American port."),
-  point("port-suez", "Suez", [32.55, 29.97], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major port associated with the Suez Canal."),
-  point("port-cape-town", "Cape Town", [18.4, -33.9], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major southern African port."),
-  point("port-yokohama", "Yokohama", [139.6, 35.4], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major Japanese port."),
-  point("port-shanghai", "Shanghai", [121.5, 31.2], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major Chinese port."),
-  point("port-hong-kong", "Hong Kong", [114.2, 22.3], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major East Asian port."),
-  point("port-karachi", "Karachi", [67, 24.9], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major Pakistani port."),
-  point("port-kolkata", "Kolkata", [88.36, 22.57], "World", ["XII"], ["Transport"], "Port", "XII · World Map Work · Major Ports", "Major Indian port."),
-  point("airport-tokyo", "Tokyo", [139.7, 35.7], "World", ["XII"], ["Transport"], "Airport", "XII · World Map Work · Airports", "Major Asian aviation centre."),
-  point("airport-beijing", "Beijing", [116.4, 39.9], "World", ["XII"], ["Transport"], "Airport", "XII · World Map Work · Airports", "Major Asian aviation centre."),
-  point("airport-mumbai", "Mumbai", [72.88, 19.08], "World", ["XII"], ["Transport"], "Airport", "XII · World Map Work · Airports", "Major Indian aviation centre."),
-  point("airport-london", "London", [-0.1, 51.5], "World", ["XII"], ["Transport"], "Airport", "XII · World Map Work · Airports", "Major European aviation centre."),
-  point("airport-chicago", "Chicago", [-87.63, 41.88], "World", ["XII"], ["Transport"], "Airport", "XII · World Map Work · Airports", "Major North American aviation centre."),
-  point("airport-sydney", "Sydney", [151.2, -33.9], "World", ["XII"], ["Transport"], "Airport", "XII · World Map Work · Airports", "Major Australian aviation centre."),
+  line("world-trans-siberian", "Trans-Siberian Railway", [[37.6, 55.8], [60, 55], [90, 55], [110, 55], [139.7, 43]], "Major railway corridor across Russia.", ["Resources"], "World", ["Class 12"], "Transport & Communication"),
+  line("world-trans-canadian", "Trans-Canadian Railway", [[-123, 49], [-110, 51], [-95, 50], [-80, 46]], "Major railway corridor across Canada.", ["Resources"], "World", ["Class 12"], "Transport & Communication"),
+  line("world-trans-australian", "Trans-Australian Railway", [[115.9, -32], [125, -31], [135, -31], [145, -34]], "Major railway corridor across southern Australia.", ["Resources"], "World", ["Class 12"], "Transport & Communication"),
+  line("world-suez-canal", "Suez Canal", [[32.3, 31.2], [32.4, 30.5], [32.5, 30.0]], "Artificial waterway linking the Mediterranean and Red Sea.", ["Resources"], "World", ["Class 12"], "Transport & International Trade"),
+  line("world-panama-canal", "Panama Canal", [[-79.9, 9.3], [-79.6, 9.0], [-79.5, 8.9]], "Artificial waterway connecting the Atlantic and Pacific oceans.", ["Resources"], "World", ["Class 12"], "Transport & International Trade"),
+  line("world-rhine", "Rhine", [[8.7, 47.6], [7.6, 50.0], [6.9, 51.0], [4.5, 51.9]], "Major European river and inland waterway.", ["Rivers", "Resources"], "World", ["Class 12"], "Transport & Communication"),
+  line("world-st-lawrence", "St Lawrence", [[-74, 45], [-72, 46], [-68, 47], [-64, 48]], "Major river and waterway in eastern Canada.", ["Rivers", "Resources"], "World", ["Class 12"], "Transport & Communication"),
 ];
-
-/* -------------------------------------------------------------------------- */
-/* CLASS XII INDIA MAP WORK                                                   */
-/* -------------------------------------------------------------------------- */
-
-const indiaHumanFeatures: GeoFeature[] = [
-  point("india-density-high", "Highest Population Density State (2011)", [88.3, 26.1], "India", ["XII"], ["Population"], "Population", "XII · India People & Economy · Population", "Bihar had the highest population density among Indian states in the 2011 Census."),
-  point("india-density-low", "Lowest Population Density State (2011)", [86, 28], "India", ["XII"], ["Population"], "Population", "XII · India People & Economy · Population", "Arunachal Pradesh had the lowest population density among Indian states in the 2011 Census."),
-  point("crop-rice", "Leading Rice Region", [82, 23], "India", ["XII"], ["Resources"], "Crop", "XII · India People & Economy · Land Resources & Agriculture", "A major rice-producing belt of India."),
-  point("crop-wheat", "Leading Wheat Region", [80, 29], "India", ["XII"], ["Resources"], "Crop", "XII · India People & Economy · Land Resources & Agriculture", "A major wheat-producing belt of northern India."),
-  point("crop-cotton", "Leading Cotton Region", [75, 21], "India", ["XII"], ["Resources"], "Crop", "XII · India People & Economy · Land Resources & Agriculture", "A major cotton-producing belt of western and central India."),
-  point("crop-jute", "Leading Jute Region", [88, 24], "India", ["XII"], ["Resources"], "Crop", "XII · India People & Economy · Land Resources & Agriculture", "A major jute-producing region of eastern India."),
-  point("crop-sugarcane", "Leading Sugarcane Region", [80, 27], "India", ["XII"], ["Resources"], "Crop", "XII · India People & Economy · Land Resources & Agriculture", "A major sugarcane-producing belt of northern India."),
-  point("crop-tea", "Leading Tea Region", [94, 27], "India", ["XII"], ["Resources"], "Crop", "XII · India People & Economy · Land Resources & Agriculture", "A major tea-producing region of northeastern India."),
-  point("crop-coffee", "Leading Coffee Region", [76, 13], "India", ["XII"], ["Resources"], "Crop", "XII · India People & Economy · Land Resources & Agriculture", "A major coffee-producing region of southern India."),
-
-  // Mines
-  point("mine-mayurbhanj", "Mayurbhanj Iron Ore", [86.7, 21.9], "India", ["XII"], ["Resources"], "Iron ore", "XII · India People & Economy · Mineral & Energy Resources", "An important iron ore location listed in the syllabus."),
-  point("mine-bailadila", "Bailadila Iron Ore", [81.2, 18.6], "India", ["XII"], ["Resources"], "Iron ore", "XII · India People & Economy · Mineral & Energy Resources", "An important iron ore location listed in the syllabus."),
-  point("mine-ratnagiri", "Ratnagiri Iron Ore", [73.3, 16.9], "India", ["XII"], ["Resources"], "Iron ore", "XII · India People & Economy · Mineral & Energy Resources", "An iron ore location listed in the syllabus."),
-  point("mine-bellary", "Bellary Iron Ore", [76.9, 15.1], "India", ["XII"], ["Resources"], "Iron ore", "XII · India People & Economy · Mineral & Energy Resources", "An important iron ore location listed in the syllabus."),
-  point("mine-balaghat", "Balaghat Manganese", [80.2, 21.8], "India", ["XII"], ["Resources"], "Manganese", "XII · India People & Economy · Mineral & Energy Resources", "A manganese location listed in the syllabus."),
-  point("mine-shimoga", "Shimoga Manganese", [75.6, 14], "India", ["XII"], ["Resources"], "Manganese", "XII · India People & Economy · Mineral & Energy Resources", "A manganese location listed in the syllabus."),
-  point("mine-hazaribagh", "Hazaribagh Copper", [85.4, 23.9], "India", ["XII"], ["Resources"], "Copper", "XII · India People & Economy · Mineral & Energy Resources", "A copper location listed in the syllabus."),
-  point("mine-singhbhum", "Singhbhum Copper", [86, 22.6], "India", ["XII"], ["Resources"], "Copper", "XII · India People & Economy · Mineral & Energy Resources", "A copper location listed in the syllabus."),
-  point("mine-khetri", "Khetri Copper", [75.8, 28.0], "India", ["XII"], ["Resources"], "Copper", "XII · India People & Economy · Mineral & Energy Resources", "A copper location listed in the syllabus."),
-  point("mine-katni", "Katni Bauxite", [80.4, 23.8], "India", ["XII"], ["Resources"], "Bauxite", "XII · India People & Economy · Mineral & Energy Resources", "A bauxite location listed in the syllabus."),
-  point("mine-bilaspur", "Bilaspur Bauxite", [82.2, 22.1], "India", ["XII"], ["Resources"], "Bauxite", "XII · India People & Economy · Mineral & Energy Resources", "A bauxite location listed in the syllabus."),
-  point("mine-koraput", "Koraput Bauxite", [82.7, 19.2], "India", ["XII"], ["Resources"], "Bauxite", "XII · India People & Economy · Mineral & Energy Resources", "A bauxite location listed in the syllabus."),
-  point("mine-jharia", "Jharia Coalfield", [86.4, 23.7], "India", ["XII"], ["Resources"], "Coal", "XII · India People & Economy · Mineral & Energy Resources", "A major coalfield listed in the syllabus."),
-  point("mine-bokaro", "Bokaro Coalfield", [85.9, 23.7], "India", ["XII"], ["Resources"], "Coal", "XII · India People & Economy · Mineral & Energy Resources", "A major coalfield listed in the syllabus."),
-  point("mine-raniganj", "Raniganj Coalfield", [87.1, 23.6], "India", ["XII"], ["Resources"], "Coal", "XII · India People & Economy · Mineral & Energy Resources", "A major coalfield listed in the syllabus."),
-  point("mine-neyveli", "Neyveli Lignite", [79.5, 11.6], "India", ["XII"], ["Resources"], "Lignite", "XII · India People & Economy · Mineral & Energy Resources", "A lignite location listed in the syllabus."),
-
-  // Ports
-  point("port-kandla", "Kandla", [70.2, 23], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-mumbai", "Mumbai Port", [72.84, 18.95], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-marmagao", "Marmagao", [73.8, 15.4], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-kochi", "Kochi", [76.3, 9.97], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-mangalore", "Mangalore", [74.85, 12.9], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-tuticorin", "Tuticorin", [78.13, 8.8], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-chennai", "Chennai Port", [80.3, 13.1], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-visakhapatnam", "Visakhapatnam", [83.3, 17.7], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-paradip", "Paradip", [86.7, 20.3], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-  point("port-haldia", "Haldia", [88.1, 22], "India", ["XII"], ["Transport"], "Port", "XII · India People & Economy · Transport & Communication", "Major port listed in the syllabus."),
-
-  // Airports
-  point("airport-ahmedabad", "Ahmedabad", [72.6, 23], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-  point("airport-bengaluru", "Bengaluru", [77.6, 13], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-  point("airport-chennai", "Chennai Airport", [80.27, 13.08], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-  point("airport-kolkata", "Kolkata Airport", [88.45, 22.65], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-  point("airport-guwahati", "Guwahati", [91.6, 26.1], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-  point("airport-delhi", "Delhi Airport", [77.1, 28.6], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-  point("airport-amritsar", "Amritsar", [74.8, 31.6], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-  point("airport-thiruvananthapuram", "Thiruvananthapuram", [76.9, 8.5], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-  point("airport-hyderabad", "Hyderabad", [78.5, 17.4], "India", ["XII"], ["Transport"], "Airport", "XII · India People & Economy · Transport & Communication", "Airport location listed in the syllabus."),
-];
-
-/* -------------------------------------------------------------------------- */
-/* CBSE PRACTICE DATA                                                         */
-/* -------------------------------------------------------------------------- */
 
 const practiceQuestions: PracticeQuestion[] = [
-  {
-    id: "india-himalayas",
-    prompt: "Mark the Himalayan mountain system.",
-    answer: "Himalayas",
-    scope: "India",
-    level: "XI",
-    category: "Physiography",
-    options: ["Himalayas", "Western Ghats", "Aravalli Range", "Deccan Plateau"],
-    coordinates: [82, 31.5],
-    tolerance: 5,
-    explanation: "The Himalayas form India's major northern mountain system.",
-  },
-  {
-    id: "india-thar",
-    prompt: "Locate the Thar Desert.",
-    answer: "Thar Desert",
-    scope: "India",
-    level: "XI",
-    category: "Physiography",
-    options: ["Thar Desert", "Deccan Plateau", "Northern Plain", "Meghalaya Plateau"],
-    coordinates: [72, 27],
-    tolerance: 5,
-    explanation: "The Thar Desert occupies much of northwestern India, especially Rajasthan.",
-  },
-  {
-    id: "india-ganga",
-    prompt: "Identify the marked river.",
-    answer: "Ganga",
-    scope: "India",
-    level: "XI",
-    category: "Drainage",
-    options: ["Ganga", "Narmada", "Godavari", "Brahmaputra"],
-    coordinates: [84, 25.5],
-    tolerance: 4,
-    explanation: "The Ganga is one of the major Himalayan river systems of northern India.",
-  },
-  {
-    id: "india-western-ghats",
-    prompt: "Locate the Western Ghats.",
-    answer: "Western Ghats",
-    scope: "India",
-    level: "XI",
-    category: "Physiography",
-    options: ["Western Ghats", "Eastern Ghats", "Aravalli Range", "Satpura Range"],
-    coordinates: [74, 15],
-    tolerance: 4,
-    explanation: "The Western Ghats run broadly parallel to India's western coast.",
-  },
-  {
-    id: "india-kanyakumari",
-    prompt: "Locate Kanyakumari.",
-    answer: "Kanyakumari",
-    scope: "India",
-    level: "XI",
-    category: "Location",
-    options: ["Kanyakumari", "Nathu La", "K2", "Rann of Kachchh"],
-    coordinates: [77.55, 8.08],
-    tolerance: 3,
-    explanation: "Kanyakumari is the southern extremity of mainland India.",
-  },
-  {
-    id: "india-nathu-la",
-    prompt: "Identify the marked pass.",
-    answer: "Nathu La",
-    scope: "India",
-    level: "XI",
-    category: "Physiography",
-    options: ["Nathu La", "Shipki La", "Bhor Ghat", "Palghat Gap"],
-    coordinates: [88.85, 27.4],
-    tolerance: 3,
-    explanation: "Nathu La is a mountain pass in Sikkim.",
-  },
-  {
-    id: "india-chilika",
-    prompt: "Locate Chilika Lake.",
-    answer: "Chilika Lake",
-    scope: "India",
-    level: "XI",
-    category: "Drainage",
-    options: ["Chilika Lake", "Wular Lake", "Sambhar Lake", "Pulicat Lake"],
-    coordinates: [86, 19.7],
-    tolerance: 3,
-    explanation: "Chilika is a major coastal lagoon on the Odisha coast.",
-  },
-  {
-    id: "world-sahara",
-    prompt: "Locate the Sahara Desert.",
-    answer: "Sahara",
-    scope: "World",
-    level: "XI",
-    category: "Climate",
-    options: ["Sahara", "Gobi", "Mojave", "Patagonian Desert"],
-    coordinates: [13, 25],
-    tolerance: 12,
-    explanation: "The Sahara extends across much of northern Africa.",
-  },
-  {
-    id: "world-equator",
-    prompt: "Identify the marked latitude.",
-    answer: "Equator",
-    scope: "World",
-    level: "XI",
-    category: "Latitudes",
-    options: ["Equator", "Tropic of Cancer", "Prime Meridian", "Arctic Circle"],
-    coordinates: [0, 0],
-    tolerance: 10,
-    explanation: "The Equator represents 0° latitude.",
-  },
-  {
-    id: "world-gulf-stream",
-    prompt: "Identify the marked current.",
-    answer: "Gulf Stream",
-    scope: "World",
-    level: "XI",
-    category: "Ocean Currents",
-    options: ["Gulf Stream", "Labrador Current", "California Current", "Humboldt Current"],
-    coordinates: [-45, 42],
-    tolerance: 10,
-    explanation: "The Gulf Stream is a major warm current in the North Atlantic.",
-  },
-  {
-    id: "india-port-mumbai",
-    prompt: "Locate Mumbai Port.",
-    answer: "Mumbai Port",
-    scope: "India",
-    level: "XII",
-    category: "Transport",
-    options: ["Mumbai Port", "Kandla", "Chennai Port", "Paradip"],
-    coordinates: [72.84, 18.95],
-    tolerance: 3,
-    explanation: "Mumbai is one of the major ports listed for Class XII map work.",
-  },
-  {
-    id: "india-mine-jharia",
-    prompt: "Locate Jharia Coalfield.",
-    answer: "Jharia Coalfield",
-    scope: "India",
-    level: "XII",
-    category: "Resources",
-    options: ["Jharia Coalfield", "Bokaro Coalfield", "Raniganj Coalfield", "Neyveli Lignite"],
-    coordinates: [86.4, 23.7],
-    tolerance: 3,
-    explanation: "Jharia is one of the coal locations specified in the Class XII map work.",
-  },
-  {
-    id: "india-crop-tea",
-    prompt: "Locate the major tea-producing region.",
-    answer: "Leading Tea Region",
-    scope: "India",
-    level: "XII",
-    category: "Agriculture",
-    options: ["Leading Tea Region", "Leading Wheat Region", "Leading Cotton Region", "Leading Jute Region"],
-    coordinates: [94, 27],
-    tolerance: 4,
-    explanation: "Northeastern India is a major tea-producing region.",
-  },
-  {
-    id: "world-port-yokohama",
-    prompt: "Locate Yokohama.",
-    answer: "Yokohama",
-    scope: "World",
-    level: "XII",
-    category: "Transport",
-    options: ["Yokohama", "Hamburg", "Cape Town", "Vancouver"],
-    coordinates: [139.6, 35.4],
-    tolerance: 8,
-    explanation: "Yokohama is one of the major Asian ports listed in the Class XII map work.",
-  },
+  { id: "i1", prompt: "Locate the capital of India.", answer: "New Delhi", coordinates: [77.21, 28.61], scope: "India", level: "Class 11", type: "Political", options: ["New Delhi", "Mumbai", "Kolkata", "Chennai"], explanation: "New Delhi is the national capital of India." },
+  { id: "i2", prompt: "Locate the Thar Desert.", answer: "Thar Desert", coordinates: [71, 27.5], scope: "India", level: "Class 11", type: "Physiography", options: ["Thar Desert", "Deccan Plateau", "Western Ghats", "Himalayas"], explanation: "The Thar Desert is in northwestern India, especially Rajasthan." },
+  { id: "i3", prompt: "Locate the Himalayas.", answer: "Himalayas", coordinates: [80, 30.8], scope: "India", level: "Class 11", type: "Physiography", options: ["Himalayas", "Western Ghats", "Deccan Plateau", "Aravalli Range"], explanation: "The Himalayas form the major mountain system along northern India." },
+  { id: "i4", prompt: "Locate the Deccan Plateau.", answer: "Deccan Plateau", coordinates: [77, 17.8], scope: "India", level: "Class 11", type: "Physiography", options: ["Deccan Plateau", "Himalayas", "Thar Desert", "Malwa Plateau"], explanation: "The Deccan Plateau occupies a large part of peninsular India." },
+  { id: "i5", prompt: "Locate the Ganga.", answer: "Ganga", coordinates: [84, 25.5], scope: "India", level: "Class 11", type: "Drainage", options: ["Ganga", "Narmada", "Godavari", "Brahmaputra"], explanation: "The Ganga is one of the major Himalayan river systems." },
+  { id: "i6", prompt: "Locate the Western Ghats.", answer: "Western Ghats", coordinates: [73.5, 15], scope: "India", level: "Class 11", type: "Physiography", options: ["Western Ghats", "Himalayas", "Aravalli Range", "Eastern Ghats"], explanation: "The Western Ghats run roughly parallel to India's western coast." },
+  { id: "i7", prompt: "Locate the Tropic of Cancer in India.", answer: "Tropic of Cancer", coordinates: [78.96, 23.44], scope: "India", level: "Class 11", type: "Location", options: ["Tropic of Cancer", "Standard Meridian of India", "Kanyakumari", "Equator"], explanation: "The Tropic of Cancer is at about 23½° N and crosses central India." },
+  { id: "i8", prompt: "Locate the Gulf of Kachchh.", answer: "Gulf of Kachchh", coordinates: [69.8, 22.8], scope: "India", level: "Class 11", type: "Location", options: ["Gulf of Kachchh", "Gulf of Mannar", "Palk Strait", "Gulf of Khambat"], explanation: "The Gulf of Kachchh lies on the western coast of Gujarat." },
+  { id: "i9", prompt: "Locate Jharia, a major coalfield.", answer: "Jharia", coordinates: [86.42, 23.75], scope: "India", level: "Class 12", type: "Mineral Resources", options: ["Jharia", "Bokaro", "Raniganj", "Neyveli"], explanation: "Jharia is a major coalfield in Jharkhand." },
+  { id: "i10", prompt: "Locate a major port on the Odisha coast.", answer: "Paradip", coordinates: [86.67, 20.27], scope: "India", level: "Class 12", type: "Transport", options: ["Paradip", "Kochi", "Kandla", "Mangalore"], explanation: "Paradip is a major port on the Odisha coast." },
+  { id: "w1", prompt: "Locate the Equator.", answer: "Equator", coordinates: [0, 0], scope: "World", level: "Class 11", type: "Latitude", options: ["Equator", "Tropic of Cancer", "Prime Meridian", "Arctic Circle"], explanation: "The Equator represents 0° latitude." },
+  { id: "w2", prompt: "Locate the Prime Meridian.", answer: "Prime Meridian", coordinates: [0, 20], scope: "World", level: "Class 11", type: "Longitude", options: ["Prime Meridian", "Equator", "Tropic of Capricorn", "International Date Line"], explanation: "The Prime Meridian represents 0° longitude." },
+  { id: "w3", prompt: "Locate the Sahara.", answer: "Sahara", coordinates: [13, 24], scope: "World", level: "Class 11", type: "Physical Geography", options: ["Sahara", "Gobi", "Mojave", "Great Victoria Desert"], explanation: "The Sahara extends across much of northern Africa." },
+  { id: "w4", prompt: "Locate the Andes.", answer: "Andes", coordinates: [-70, -20], scope: "World", level: "Class 11", type: "Physical Geography", options: ["Andes", "Rocky Mountains", "Sahara", "Mid-Atlantic Ridge"], explanation: "The Andes run along the western side of South America." },
+  { id: "w5", prompt: "Locate the Mid-Atlantic Ridge.", answer: "Mid-Atlantic Ridge", coordinates: [-25, 10], scope: "World", level: "Class 11", type: "Plate Tectonics", options: ["Mid-Atlantic Ridge", "Gulf Stream", "Andes", "Sahara"], explanation: "The Mid-Atlantic Ridge is a major submarine ridge associated with seafloor spreading." },
+  { id: "w6", prompt: "Locate the Suez Canal.", answer: "Suez Canal", coordinates: [32.4, 30.5], scope: "World", level: "Class 12", type: "Transport", options: ["Suez Canal", "Panama Canal", "Rhine", "St Lawrence"], explanation: "The Suez Canal links the Mediterranean Sea with the Red Sea." },
+  { id: "w7", prompt: "Locate the Trans-Siberian Railway.", answer: "Trans-Siberian Railway", coordinates: [90, 55], scope: "World", level: "Class 12", type: "Transport", options: ["Trans-Siberian Railway", "Trans-Canadian Railway", "Trans-Australian Railway", "Rhine"], explanation: "The Trans-Siberian Railway crosses Russia from western Russia toward the Pacific coast." },
+  { id: "w8", prompt: "Locate the Gulf Stream.", answer: "Gulf Stream", coordinates: [-45, 40], scope: "World", level: "Class 11", type: "Ocean Currents", options: ["Gulf Stream", "Humboldt Current", "California Current", "Labrador Current"], explanation: "The Gulf Stream is a warm Atlantic current flowing northeastward from the western Atlantic." },
 ];
 
-/* -------------------------------------------------------------------------- */
-/* DATA HELPERS                                                               */
-/* -------------------------------------------------------------------------- */
+const allFeatures = [...indiaFeatures, ...worldFeatures];
 
-const allFeatures = [...indiaFeatures, ...worldFeatures, ...indiaHumanFeatures];
-
-function featureCollection(features: GeoFeature[]) {
-  return {
-    type: "FeatureCollection",
-    features: features
-      .filter((f) => f.geometryType !== "Point")
-      .map((f) => ({
-        type: "Feature",
-        properties: {
-          id: f.id,
-          name: f.name,
-          category: f.category,
-        },
-        geometry: f.geometry,
-      })),
-  };
-}
-
-function featureGeometry(f: GeoFeature) {
-  return {
-    type: "Feature",
-    properties: { id: f.id, name: f.name, category: f.category },
-    geometry: f.geometry,
-  };
+function featureCenter(feature: GeoFeature): Coordinates {
+  if (feature.geometryType === "point") return feature.coordinates as Coordinates;
+  const coordinates = feature.coordinates as Coordinates[] | Coordinates[][];
+  if (feature.geometryType === "line") {
+    const lineCoordinates = coordinates as Coordinates[];
+    return lineCoordinates[Math.floor(lineCoordinates.length / 2)] ?? [0, 0];
+  }
+  const polygonCoordinates = coordinates as Coordinates[][];
+  const ring = polygonCoordinates[0] ?? [];
+  return ring[Math.floor(ring.length / 2)] ?? [0, 0];
 }
 
 function distance(a: Coordinates, b: Coordinates) {
@@ -886,1056 +279,288 @@ function distance(a: Coordinates, b: Coordinates) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-function normalize(text: string) {
-  return text.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function matchesClass(feature: GeoFeature, level: ClassLevel) {
-  return (
-    level === "Both" ||
-    feature.classes.includes(level) ||
-    feature.classes.includes("Both")
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* PAGE                                                                       */
-/* -------------------------------------------------------------------------- */
-
 export default function GeographyLabPage() {
   const [scope, setScope] = useState<MapScope>("India");
-  const [level, setLevel] = useState<ClassLevel>("XI");
-  const [layer, setLayer] = useState<Layer>("Physiography");
-  const [mode, setMode] = useState<ExplorerMode>("Explore");
-
+  const [layer, setLayer] = useState<Layer>("Political");
+  const [mode, setMode] = useState<Mode>("Explore");
   const [selected, setSelected] = useState<GeoFeature | null>(null);
   const [search, setSearch] = useState("");
-  const [zoom, setZoom] = useState(1);
-
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("Locate");
+  const [practiceLevel, setPracticeLevel] = useState<PracticeLevel>("All");
   const [practiceIndex, setPracticeIndex] = useState(0);
-  const [practiceResult, setPracticeResult] =
-    useState<"idle" | "correct" | "wrong">("idle");
+  const [practiceResult, setPracticeResult] = useState<"idle" | "correct" | "wrong">("idle");
   const [score, setScore] = useState(0);
   const [attempts, setAttempts] = useState(0);
+  const [exploreZoom, setExploreZoom] = useState(1);
 
-  const scopedFeatures = useMemo(
-    () =>
-      allFeatures.filter(
-        (feature) =>
-          feature.scope === scope &&
-          matchesClass(feature, level)
-      ),
-    [scope, level]
-  );
+  const features = scope === "India" ? indiaFeatures : worldFeatures;
 
   const filteredFeatures = useMemo(() => {
-    const q = normalize(search.trim());
-
-    return scopedFeatures.filter((feature) => {
+    const q = search.trim().toLowerCase();
+    return features.filter((feature) => {
       const layerMatch = feature.layers.includes(layer);
-      const searchMatch =
-        !q ||
-        normalize(feature.name).includes(q) ||
-        normalize(feature.category).includes(q) ||
-        normalize(feature.chapter).includes(q);
-
+      const searchMatch = !q || feature.name.toLowerCase().includes(q) || feature.type.toLowerCase().includes(q) || feature.chapter.toLowerCase().includes(q);
       return layerMatch && searchMatch;
     });
-  }, [scopedFeatures, layer, search]);
+  }, [features, layer, search]);
 
-  const mapFeatures = useMemo(
-    () => filteredFeatures.filter((feature) => feature.geometryType !== "Point"),
-    [filteredFeatures]
-  );
+  const questions = useMemo(() => practiceQuestions.filter((item) => item.scope === scope && (practiceLevel === "All" || item.level === practiceLevel)), [scope, practiceLevel]);
+  const question = questions.length ? questions[practiceIndex % questions.length] : null;
+  const accuracy = attempts ? Math.round((score / attempts) * 100) : 0;
 
-  const pointFeatures = useMemo(
-    () => filteredFeatures.filter((feature) => feature.geometryType === "Point"),
-    [filteredFeatures]
-  );
-
-  const practiceQuestions = useMemo(
-    () =>
-      practiceQuestionsData.filter(
-        (question) =>
-          question.scope === scope &&
-          (level === "Both" || question.level === level)
-      ),
-    [scope, level]
-  );
-
-  const question =
-    practiceQuestions.length > 0
-      ? practiceQuestions[practiceIndex % practiceQuestions.length]
-      : null;
-
-  const accuracy =
-    attempts === 0 ? 0 : Math.round((score / attempts) * 100);
-
-  const projectionConfig =
-    scope === "India"
-      ? {
-          center: [79, 22] as Coordinates,
-          scale: 900,
-        }
-      : {
-          center: [0, 10] as Coordinates,
-          scale: 145,
-        };
-
-  const layerDescription: Record<Layer, string> = {
-    Political: "Boundaries, locations and political geography.",
-    Physiography: "Mountains, plateaus, plains, deserts, peaks and passes.",
-    Drainage: "Rivers, lakes, drainage systems and water bodies.",
-    Climate: "Climate-related regions, latitudes and oceanic patterns.",
-    Resources: "Agriculture, minerals, energy and economic locations.",
-    Transport: "Ports, airports and major transport geography.",
-    Population: "Population distribution and human-geography locations.",
-  };
-
-  const layerDotClass: Record<Layer, string> = {
-    Political: "bg-blue-500",
-    Physiography: "bg-amber-500",
-    Drainage: "bg-cyan-500",
-    Climate: "bg-emerald-500",
-    Resources: "bg-violet-500",
-    Transport: "bg-orange-500",
-    Population: "bg-pink-500",
-  };
+  const projectionConfig = scope === "India"
+    ? { center: [79, 22] as Coordinates, scale: 900 }
+    : { center: [0, 10] as Coordinates, scale: 145 };
 
   useEffect(() => {
     setSelected(null);
     setSearch("");
-    setZoom(1);
+    setExploreZoom(1);
     setPracticeIndex(0);
     setPracticeResult("idle");
-  }, [scope, level]);
+  }, [scope]);
 
   useEffect(() => {
-    setSelected(null);
-  }, [layer]);
+    setPracticeIndex(0);
+    setPracticeResult("idle");
+  }, [practiceLevel, practiceMode]);
+
+  function resetPractice() {
+    setScore(0);
+    setAttempts(0);
+    setPracticeIndex(0);
+    setPracticeResult("idle");
+  }
 
   function answerQuestion(answer: string) {
     if (!question || practiceResult !== "idle") return;
-
     const correct = answer === question.answer;
-    setAttempts((value) => value + 1);
-
-    if (correct) {
-      setScore((value) => value + 1);
-      setPracticeResult("correct");
-    } else {
-      setPracticeResult("wrong");
-    }
+    setAttempts((n) => n + 1);
+    setPracticeResult(correct ? "correct" : "wrong");
+    if (correct) setScore((n) => n + 1);
   }
 
   function answerByCoordinates(coordinates: Coordinates) {
     if (!question || practiceResult !== "idle") return;
-
-    const tolerance =
-      question.tolerance ?? (scope === "India" ? 4 : 10);
-
-    const correct =
-      distance(coordinates, question.coordinates) <= tolerance;
-
-    setAttempts((value) => value + 1);
-
-    if (correct) {
-      setScore((value) => value + 1);
-      setPracticeResult("correct");
-    } else {
-      setPracticeResult("wrong");
-    }
+    const tolerance = scope === "India" ? 4.5 : 8;
+    const correct = distance(coordinates, question.coordinates) <= tolerance;
+    setAttempts((n) => n + 1);
+    setPracticeResult(correct ? "correct" : "wrong");
+    if (correct) setScore((n) => n + 1);
   }
 
   function nextQuestion() {
-    if (!practiceQuestions.length) return;
-
-    setPracticeIndex(
-      (value) => (value + 1) % practiceQuestions.length
-    );
+    if (!questions.length) return;
+    setPracticeIndex((n) => (n + 1) % questions.length);
     setPracticeResult("idle");
   }
 
-  function randomQuestion() {
-    if (!practiceQuestions.length) return;
+  function renderFeature(feature: GeoFeature, interactive = true) {
+    const coords = feature.coordinates;
+    const center = featureCenter(feature);
+    const isSelected = selected?.id === feature.id;
 
-    let next = Math.floor(
-      Math.random() * practiceQuestions.length
-    );
-
-    if (
-      practiceQuestions.length > 1 &&
-      next === practiceIndex
-    ) {
-      next = (next + 1) % practiceQuestions.length;
+    if (feature.geometryType === "point") {
+      return (
+        <Marker key={feature.id} coordinates={coords as Coordinates} onClick={() => interactive && setSelected(feature)}>
+          <circle r={isSelected ? 7 : 4.5} fill={isSelected ? "#0f172a" : "#2563eb"} stroke="#fff" strokeWidth={2} className={interactive ? "cursor-pointer" : ""} />
+          {isSelected && <circle r={12} fill="none" stroke="#0f172a" strokeWidth={1.5} opacity={0.4} />}
+        </Marker>
+      );
     }
 
-    setPracticeIndex(next);
-    setPracticeResult("idle");
+    if (feature.geometryType === "line") {
+      return (
+        <Geographies
+          key={feature.id}
+          geography={{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords as Coordinates[] } } as any}
+        >
+          {({ geographies }) => geographies.map((geo) => (
+            <Geography
+              key={`${feature.id}-${geo.rsmKey}`}
+              geography={geo}
+              onClick={() => interactive && setSelected(feature)}
+              style={{
+                default: { fill: "none", stroke: isSelected ? "#0f172a" : "#0891b2", strokeWidth: isSelected ? 2.8 : 1.8, outline: "none" },
+                hover: { fill: "none", stroke: "#0f172a", strokeWidth: 3.2, outline: "none" },
+                pressed: { fill: "none", stroke: "#0f172a", strokeWidth: 3.2, outline: "none" },
+              }}
+            />
+          ))}
+        </Geographies>
+      );
+    }
+
+    return (
+      <Geographies
+        key={feature.id}
+        geography={{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: coords as Coordinates[][] } } as any}
+      >
+        {({ geographies }) => geographies.map((geo) => (
+          <Geography
+            key={`${feature.id}-${geo.rsmKey}`}
+            geography={geo}
+            onClick={() => interactive && setSelected(feature)}
+            style={{
+              default: { fill: isSelected ? "#bfdbfe" : "#fde68a", fillOpacity: 0.45, stroke: isSelected ? "#0f172a" : "#d97706", strokeWidth: 1.2, outline: "none" },
+              hover: { fill: "#fbbf24", fillOpacity: 0.5, stroke: "#0f172a", strokeWidth: 1.8, outline: "none" },
+              pressed: { fill: "#f59e0b", fillOpacity: 0.5, stroke: "#0f172a", strokeWidth: 1.8, outline: "none" },
+            }}
+          />
+        ))}
+      </Geographies>
+    );
   }
-
-  function resetMap() {
-    setZoom(1);
-    setSelected(null);
-  }
-
-  function selectFeature(feature: GeoFeature) {
-    setSelected(feature);
-  }
-
-  const practiceOptionFeatures = useMemo(() => {
-    if (!question) return [];
-
-    return question.options
-      .map((option) =>
-        scopedFeatures.find(
-          (feature) =>
-            feature.name === option ||
-            normalize(feature.name) === normalize(option)
-        )
-      )
-      .filter(Boolean) as GeoFeature[];
-  }, [question, scopedFeatures]);
 
   return (
     <main className="min-h-screen bg-[#f5f6f8] text-slate-950">
-      <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-6">
-          <div className="text-[11px] font-bold uppercase tracking-[.18em] text-slate-500">
-            VGB Tools · Geography
-          </div>
-
-          <div className="mt-2 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+      <div className="mx-auto max-w-[1550px] px-4 py-6 sm:px-6 lg:px-8">
+        <header className="mb-5">
+          <div className="text-[11px] font-bold uppercase tracking-[.18em] text-slate-500">VGB Tools · Geography</div>
+          <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Geography Lab
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Explore geographical patterns spatially, practise CBSE map
-                work and connect physical and human geography through
-                interactive maps.
-              </p>
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Geography Lab</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Explore physical, political and economic geography, then practise CBSE map-work through spatial interaction.</p>
             </div>
-
             <div className="flex flex-wrap gap-2">
               {(["India", "World"] as MapScope[]).map((item) => (
-                <button
-                  key={item}
-                  onClick={() => setScope(item)}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                    scope === item
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {item}
-                </button>
+                <button key={item} onClick={() => setScope(item)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${scope === item ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-700"}`}>{item}</button>
               ))}
-
-              <button
-                onClick={() =>
-                  setMode(
-                    mode === "Explore" ? "Practice" : "Explore"
-                  )
-                }
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                  mode === "Practice"
-                    ? "bg-emerald-600 text-white"
-                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {mode === "Practice"
-                  ? "Map Explorer"
-                  : "Map Practice"}
-              </button>
+              <button onClick={() => setMode(mode === "Explore" ? "Practice" : "Explore")} className={`rounded-xl px-4 py-2 text-sm font-semibold ${mode === "Practice" ? "bg-emerald-600 text-white" : "border border-slate-200 bg-white text-slate-700"}`}>{mode === "Practice" ? "Map Explorer" : "Map Practice"}</button>
             </div>
           </div>
         </header>
 
-        {mode === "Practice" ? (
-          <section className="space-y-5">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        {mode === "Explore" ? (
+          <section className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)_320px]">
+            <aside className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Layers</div>
+              <div className="mt-3 space-y-1">
+                {(["Political", "Physical", "Rivers", "Climate", "Resources"] as Layer[]).map((item) => (
+                  <button key={item} onClick={() => setLayer(item)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${layer === item ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"}`}>
+                    <span className={`h-2.5 w-2.5 rounded-full ${layer === item ? "bg-white" : item === "Political" ? "bg-blue-500" : item === "Physical" ? "bg-amber-500" : item === "Rivers" ? "bg-cyan-500" : item === "Climate" ? "bg-emerald-500" : "bg-violet-500"}`} />
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-5 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">{layer === "Political" ? "Boundaries, capitals and major cities." : layer === "Physical" ? "Mountains, plateaus, deserts and relief features." : layer === "Rivers" ? "Major rivers, drainage and waterways." : layer === "Climate" ? "Latitudes, currents and climate-related geography." : "Ports, minerals, energy and transport features."}</div>
+              <button onClick={() => { setLayer("Political"); setSelected(null); setSearch(""); setExploreZoom(1); }} className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">Reset explorer</button>
+            </aside>
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-600">
-                    CBSE Map Practice
-                  </div>
-                  <h2 className="mt-1 text-xl font-semibold">
-                    Practise spatial recall
-                  </h2>
+                  <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">{scope} · {layer}</div>
+                  <div className="mt-1 text-lg font-semibold">Interactive map</div>
                 </div>
+                <div className="flex gap-2">
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search feature…" className="w-44 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                  <button onClick={() => setExploreZoom((z) => Math.max(0.75, z - 0.2))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold">−</button>
+                  <button onClick={() => setExploreZoom((z) => Math.min(2, z + 0.2))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold">+</button>
+                </div>
+              </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    ["Locate", "Identify", "Mark", "Quiz"] as PracticeMode[]
-                  ).map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => {
-                        setPracticeMode(item);
-                        setPracticeResult("idle");
-                      }}
-                      className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-                        practiceMode === item
-                          ? "bg-slate-950 text-white"
-                          : "border border-slate-200 bg-white text-slate-700"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {(["Both", "XI", "XII"] as ClassLevel[]).map(
-                    (item) => (
-                      <button
-                        key={item}
-                        onClick={() => setLevel(item)}
-                        className={`rounded-xl px-3 py-2 text-xs font-semibold ${
-                          level === item
-                            ? "bg-emerald-600 text-white"
-                            : "border border-slate-200 bg-white text-slate-600"
-                        }`}
-                      >
-                        Class {item === "Both" ? "XI + XII" : item}
-                      </button>
-                    )
-                  )}
-                </div>
+              <div className="relative min-h-[680px] bg-slate-50">
+                <ComposableMap projection={scope === "India" ? "geoMercator" : "geoEqualEarth"} projectionConfig={{ ...projectionConfig, scale: projectionConfig.scale * exploreZoom }} className="h-[680px] w-full">
+                  <Sphere fill="#f8fafc" stroke="#cbd5e1" strokeWidth={0.7} />
+                  <Graticule stroke="#e2e8f0" strokeWidth={0.35} />
+                  <Geographies geography={scope === "India" ? INDIA_GEO : WORLD_GEO}>
+                    {({ geographies }) => geographies.map((geo) => (
+                      <Geography key={geo.rsmKey} geography={geo} fill="#e5e7eb" stroke="#94a3b8" strokeWidth={0.5} style={{ default: { outline: "none" }, hover: { outline: "none", fill: "#d5dbe3" }, pressed: { outline: "none" } }} />
+                    ))}
+                  </Geographies>
+                  {filteredFeatures.map((feature) => renderFeature(feature))}
+                </ComposableMap>
+                <div className="absolute bottom-4 left-4 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-500 shadow-sm">{filteredFeatures.length} visible feature{filteredFeatures.length === 1 ? "" : "s"} · click a feature for details</div>
               </div>
             </div>
 
-            {question ? (
+            <aside className="space-y-4">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Selected feature</div>
+                {selected ? (
+                  <div className="mt-4">
+                    <h2 className="text-xl font-semibold">{selected.name}</h2>
+                    <div className="mt-1 text-xs font-semibold text-slate-400">{selected.type} · {selected.chapter}</div>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">{selected.description}</p>
+                    <div className="mt-4 flex flex-wrap gap-1.5">{selected.classes.map((c) => <span key={c} className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{c}</span>)}</div>
+                  </div>
+                ) : <p className="mt-4 text-sm leading-6 text-slate-500">Select a point, river, range or other mapped feature to inspect it.</p>}
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Visible features</div>
+                <div className="mt-3 max-h-[360px] space-y-1 overflow-auto pr-1">
+                  {filteredFeatures.map((feature) => (
+                    <button key={feature.id} onClick={() => setSelected(feature)} className={`w-full rounded-xl px-3 py-2 text-left text-sm ${selected?.id === feature.id ? "bg-slate-950 text-white" : "hover:bg-slate-50"}`}>
+                      <div className="font-semibold">{feature.name}</div>
+                      <div className={`text-[11px] ${selected?.id === feature.id ? "text-slate-300" : "text-slate-400"}`}>{feature.type}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </aside>
+          </section>
+        ) : (
+          <section className="space-y-5">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-600">CBSE Map Practice</div><h2 className="mt-1 text-xl font-semibold">Spatial recall and map skills</h2></div>
+                <div className="flex flex-wrap gap-2">{(["Locate", "Identify", "Mark", "Quiz"] as PracticeMode[]).map((item) => <button key={item} onClick={() => setPracticeMode(item)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${practiceMode === item ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-700"}`}>{item}</button>)}</div>
+                <div className="flex flex-wrap gap-2">{(["All", "Class 11", "Class 12"] as PracticeLevel[]).map((item) => <button key={item} onClick={() => setPracticeLevel(item)} className={`rounded-xl px-3 py-2 text-xs font-semibold ${practiceLevel === item ? "bg-emerald-600 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>{item}</button>)}</div>
+              </div>
+            </div>
+
+            {!question ? <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">No practice questions are available for this filter.</div> : (
               <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
                 <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
                   <div className="border-b border-slate-100 p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
-                          Class {question.level} · {question.category}
-                        </p>
-                        <h2 className="mt-1 text-xl font-semibold">
-                          {question.prompt}
-                        </h2>
-                      </div>
-
-                      <div className="text-right text-xs text-slate-500">
-                        Question {practiceIndex + 1} /{" "}
-                        {practiceQuestions.length}
-                      </div>
-                    </div>
-
-                    <p className="mt-2 text-sm text-slate-500">
-                      {practiceMode === "Locate" &&
-                        "Choose the correct feature."}
-                      {practiceMode === "Identify" &&
-                        "Identify the feature represented by the marker."}
-                      {practiceMode === "Mark" &&
-                        "Click the correct numbered location."}
-                      {practiceMode === "Quiz" &&
-                        "Answer using the choices."}
-                    </p>
+                    <div className="flex items-start justify-between gap-4"><div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">{question.level} · {question.type}</div><h2 className="mt-1 text-xl font-semibold">{question.prompt}</h2></div><div className="text-right text-xs text-slate-500">{practiceIndex + 1} / {questions.length}</div></div>
+                    <p className="mt-2 text-sm text-slate-500">{practiceMode === "Identify" ? "Identify the feature marked on the map." : practiceMode === "Mark" ? "Click the correct numbered location." : practiceMode === "Quiz" ? "Answer using the choices." : "Select the correct feature."}</p>
                   </div>
+                  <div className="relative bg-slate-50">
+                    <ComposableMap projection={scope === "India" ? "geoMercator" : "geoEqualEarth"} projectionConfig={projectionConfig} className="h-[650px] w-full">
+                      <Sphere fill="#f8fafc" stroke="#cbd5e1" strokeWidth={0.7} /><Graticule stroke="#e2e8f0" strokeWidth={0.35} />
+                      <Geographies geography={scope === "India" ? INDIA_GEO : WORLD_GEO}>{({ geographies }) => geographies.map((geo) => <Geography key={geo.rsmKey} geography={geo} fill="#e5e7eb" stroke="#94a3b8" strokeWidth={0.5} style={{ default: { outline: "none" }, hover: { outline: "none", fill: "#d5dbe3" }, pressed: { outline: "none" } }} />)}</Geographies>
 
-                  <div className="relative min-h-[600px] bg-slate-50">
-                    <ComposableMap
-                      projection={
-                        scope === "India"
-                          ? "geoMercator"
-                          : "geoEqualEarth"
-                      }
-                      projectionConfig={projectionConfig}
-                      className="h-[600px] w-full"
-                    >
-                      <Sphere
-                        stroke="#cbd5e1"
-                        strokeWidth={0.7}
-                        fill="#f8fafc"
-                      />
-                      <Graticule
-                        stroke="#e2e8f0"
-                        strokeWidth={0.35}
-                      />
+                      {practiceMode === "Identify" && <Marker coordinates={question.coordinates}><circle r={9} fill="#ef4444" stroke="#fff" strokeWidth={3} /><circle r={17} fill="none" stroke="#ef4444" strokeWidth={1.5} opacity={0.45} /></Marker>}
 
-                      <Geographies
-                        geography={
-                          scope === "India" ? INDIA_GEO : WORLD_GEO
-                        }
-                      >
-                        {({ geographies }) =>
-                          geographies.map((geo) => (
-                            <Geography
-                              key={geo.rsmKey}
-                              geography={geo}
-                              fill="#e5e7eb"
-                              stroke="#94a3b8"
-                              strokeWidth={0.5}
-                              style={{
-                                default: { outline: "none" },
-                                hover: {
-                                  outline: "none",
-                                  fill: "#d1d5db",
-                                },
-                                pressed: { outline: "none" },
-                              }}
-                            />
-                          ))
-                        }
-                      </Geographies>
+                      {practiceMode === "Mark" && question.options.map((option, index) => {
+                        const feature = allFeatures.find((f) => f.scope === scope && f.name === option);
+                        if (!feature) return null;
+                        const coordinates = featureCenter(feature);
+                        const isAnswer = feature.name === question.answer;
+                        const reveal = practiceResult !== "idle";
+                        return <Marker key={option} coordinates={coordinates} onClick={() => answerByCoordinates(coordinates)}>
+                          <circle r={15} fill={reveal ? (isAnswer ? "#10b981" : "#ef4444") : "#fff"} stroke="#0f172a" strokeWidth={1.5} className="cursor-pointer" />
+                          <text textAnchor="middle" y={4} style={{ fontFamily: "system-ui", fontSize: 9, fontWeight: 800, fill: "#0f172a", pointerEvents: "none" }}>{index + 1}</text>
+                        </Marker>;
+                      })}
 
-                      {practiceMode === "Identify" && (
-                        <Marker coordinates={question.coordinates}>
-                          <circle
-                            r={9}
-                            fill="#ef4444"
-                            stroke="#fff"
-                            strokeWidth={3}
-                          />
-                          <circle
-                            r={16}
-                            fill="none"
-                            stroke="#ef4444"
-                            strokeWidth={1.5}
-                            opacity={0.45}
-                          />
-                        </Marker>
-                      )}
-
-                      {practiceMode === "Mark" &&
-                        practiceOptionFeatures.map(
-                          (feature, index) => (
-                            <Marker
-                              key={feature.id}
-                              coordinates={feature.coordinates}
-                              onClick={() =>
-                                answerByCoordinates(
-                                  feature.coordinates
-                                )
-                              }
-                            >
-                              <circle
-                                r={14}
-                                fill={
-                                  practiceResult === "idle"
-                                    ? "#fff"
-                                    : feature.name ===
-                                        question.answer
-                                      ? "#10b981"
-                                      : "#ef4444"
-                                }
-                                stroke="#0f172a"
-                                strokeWidth={1.5}
-                                className="cursor-pointer"
-                              />
-                              <text
-                                textAnchor="middle"
-                                y={4}
-                                style={{
-                                  fontFamily: "system-ui",
-                                  fontSize: 8,
-                                  fontWeight: 800,
-                                  fill: "#0f172a",
-                                  pointerEvents: "none",
-                                }}
-                              >
-                                {index + 1}
-                              </text>
-                            </Marker>
-                          )
-                        )}
-
-                      {practiceResult !== "idle" &&
-                        practiceMode !== "Identify" &&
-                        practiceMode !== "Mark" && (
-                          <Marker coordinates={question.coordinates}>
-                            <circle
-                              r={9}
-                              fill={
-                                practiceResult === "correct"
-                                  ? "#10b981"
-                                  : "#ef4444"
-                              }
-                              stroke="#fff"
-                              strokeWidth={3}
-                            />
-                          </Marker>
-                        )}
+                      {practiceMode === "Locate" && practiceResult === "idle" && <g />}
+                      {practiceResult !== "idle" && practiceMode !== "Identify" && practiceMode !== "Mark" && <Marker coordinates={question.coordinates}><circle r={9} fill={practiceResult === "correct" ? "#10b981" : "#ef4444"} stroke="#fff" strokeWidth={3} /></Marker>}
                     </ComposableMap>
-
-                    <div className="absolute bottom-4 left-4 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-500 shadow-sm">
-                      {practiceMode === "Identify"
-                        ? "Identify the marked location."
-                        : practiceMode === "Mark"
-                          ? "Click a numbered location."
-                          : "The answer location stays hidden until submission."}
-                    </div>
+                    <div className="absolute bottom-4 left-4 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-500 shadow-sm">{practiceMode === "Identify" ? "Identify the marked location." : practiceMode === "Mark" ? "Click a numbered location." : "Answer from the panel."}</div>
                   </div>
                 </div>
 
                 <aside className="space-y-4">
-                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Score
-                        </div>
-                        <div className="mt-1 text-2xl font-semibold">
-                          {score}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Attempts
-                        </div>
-                        <div className="mt-1 text-2xl font-semibold">
-                          {attempts}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Accuracy
-                        </div>
-                        <div className="mt-1 text-2xl font-semibold">
-                          {accuracy}%
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="grid grid-cols-3 gap-3">{[["Score", score], ["Attempts", attempts], ["Accuracy", `${accuracy}%`]].map(([label, value]) => <div key={String(label)}><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div><div className="mt-1 text-2xl font-semibold">{value}</div></div>)}</div></div>
 
                   <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
-                      Answer
-                    </p>
+                    <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Answer</div>
+                    {(practiceMode === "Locate" || practiceMode === "Quiz" || practiceMode === "Identify") && <div className="mt-4 space-y-2">{question.options.map((option) => <button key={option} onClick={() => answerQuestion(option)} disabled={practiceResult !== "idle"} className={`w-full rounded-xl border px-4 py-3 text-left text-sm font-medium ${practiceResult !== "idle" ? option === question.answer ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-400" : "border-slate-200 hover:bg-slate-50"}`}>{option}</button>)}</div>}
+                    {practiceMode === "Mark" && <p className="mt-3 text-sm leading-6 text-slate-500">The numbered markers correspond to the answer choices. Click one directly on the map.</p>}
 
-                    {(practiceMode === "Locate" ||
-                      practiceMode === "Quiz" ||
-                      practiceMode === "Identify") && (
-                      <div className="mt-4 space-y-2">
-                        {question.options.map((option) => (
-                          <button
-                            key={option}
-                            onClick={() => answerQuestion(option)}
-                            disabled={practiceResult !== "idle"}
-                            className={`w-full rounded-xl border px-4 py-3 text-left text-sm font-medium transition ${
-                              practiceResult !== "idle"
-                                ? option === question.answer
-                                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                                  : "border-slate-200 text-slate-400"
-                                : "border-slate-200 text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                            }`}
-                          >
-                            {option}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {practiceResult !== "idle" && <div className={`mt-4 rounded-2xl p-4 text-sm ${practiceResult === "correct" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}><div className="font-semibold">{practiceResult === "correct" ? "Correct." : `Not quite. The answer is ${question.answer}.`}</div><p className="mt-1 leading-5">{question.explanation}</p></div>}
 
-                    {practiceMode === "Mark" && (
-                      <p className="mt-3 text-sm leading-6 text-slate-500">
-                        Click one of the numbered locations directly on
-                        the map.
-                      </p>
-                    )}
-
-                    {practiceResult !== "idle" && (
-                      <div
-                        className={`mt-4 rounded-2xl p-4 text-sm leading-6 ${
-                          practiceResult === "correct"
-                            ? "bg-emerald-50 text-emerald-800"
-                            : "bg-rose-50 text-rose-800"
-                        }`}
-                      >
-                        <div className="font-semibold">
-                          {practiceResult === "correct"
-                            ? "Correct."
-                            : `The answer is ${question.answer}.`}
-                        </div>
-                        <div className="mt-1">
-                          {question.explanation}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="mt-4 flex gap-2">
-                      <button
-                        onClick={nextQuestion}
-                        className="flex-1 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
-                      >
-                        Next
-                      </button>
-                      <button
-                        onClick={randomQuestion}
-                        className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"
-                      >
-                        Random
-                      </button>
-                    </div>
+                    <div className="mt-4 flex gap-2"><button onClick={nextQuestion} disabled={practiceResult === "idle"} className="flex-1 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Next question</button><button onClick={resetPractice} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold">Reset</button></div>
                   </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Practice design</div><p className="mt-3 text-sm leading-6 text-slate-500">Questions are grouped by Class XI and XII and use actual mapped locations for the current dataset. The goal is spatial reasoning, not merely recognising a list of names.</p></div>
                 </aside>
               </div>
-            ) : (
-              <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center">
-                <h2 className="text-xl font-semibold">
-                  No questions available
-                </h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  This combination of scope and class level has no
-                  practice questions yet.
-                </p>
-              </div>
             )}
-          </section>
-        ) : (
-          <section className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)_330px]">
-            <aside className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="px-2 py-2">
-                <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
-                  Map Explorer
-                </div>
-                <div className="mt-1 text-sm font-semibold">
-                  Layers
-                </div>
-              </div>
-
-              <div className="mt-2 space-y-1">
-                {(
-                  [
-                    "Political",
-                    "Physiography",
-                    "Drainage",
-                    "Climate",
-                    "Resources",
-                    "Transport",
-                    "Population",
-                  ] as Layer[]
-                ).map((item) => (
-                  <button
-                    key={item}
-                    onClick={() => setLayer(item)}
-                    className={`w-full rounded-xl px-3 py-3 text-left transition ${
-                      layer === item
-                        ? "bg-slate-950 text-white"
-                        : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2 w-2 rounded-full ${layerDotClass[item]}`}
-                      />
-                      <span className="text-sm font-semibold">
-                        {item}
-                      </span>
-                    </div>
-                    <div
-                      className={`mt-1 pl-4 text-xs ${
-                        layer === item
-                          ? "text-slate-300"
-                          : "text-slate-400"
-                      }`}
-                    >
-                      {layerDescription[item]}
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-500">
-                <span className="font-semibold text-slate-700">
-                  Current layer
-                </span>
-                <div className="mt-1">{layerDescription[layer]}</div>
-              </div>
-
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <div className="px-2 text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
-                  Class filter
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-1">
-                  {(["XI", "XII", "Both"] as ClassLevel[]).map(
-                    (item) => (
-                      <button
-                        key={item}
-                        onClick={() => setLevel(item)}
-                        className={`rounded-lg px-2 py-2 text-xs font-semibold ${
-                          level === item
-                            ? "bg-emerald-600 text-white"
-                            : "bg-slate-50 text-slate-600"
-                        }`}
-                      >
-                        {item}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-
-              <button
-                onClick={resetMap}
-                className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Reset map
-              </button>
-            </aside>
-
-            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
-                      {scope} · Class {level} · {layer}
-                    </p>
-                    <h2 className="mt-1 text-xl font-semibold">
-                      Spatial feature explorer
-                    </h2>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      value={search}
-                      onChange={(event) =>
-                        setSearch(event.target.value)
-                      }
-                      placeholder="Search feature, chapter..."
-                      className="w-56 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-                    />
-
-                    <button
-                      onClick={() =>
-                        setZoom((value) =>
-                          Math.max(1, value - 0.25)
-                        )
-                      }
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
-                      aria-label="Zoom out"
-                    >
-                      −
-                    </button>
-                    <button
-                      onClick={() =>
-                        setZoom((value) =>
-                          Math.min(5, value + 0.25)
-                        )
-                      }
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
-                      aria-label="Zoom in"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="relative bg-slate-50">
-                <ComposableMap
-                  projection={
-                    scope === "India"
-                      ? "geoMercator"
-                      : "geoEqualEarth"
-                  }
-                  projectionConfig={projectionConfig}
-                  className="h-[680px] w-full"
-                >
-                  <ZoomableGroup
-                    zoom={zoom}
-                    onMoveEnd={({ zoom: newZoom }) =>
-                      setZoom(newZoom)
-                    }
-                  >
-                    <Sphere
-                      stroke="#cbd5e1"
-                      strokeWidth={0.7}
-                      fill="#f8fafc"
-                    />
-                    <Graticule
-                      stroke="#e2e8f0"
-                      strokeWidth={0.35}
-                    />
-
-                    <Geographies
-                      geography={
-                        scope === "India" ? INDIA_GEO : WORLD_GEO
-                      }
-                    >
-                      {({ geographies }) =>
-                        geographies.map((geo) => (
-                          <Geography
-                            key={geo.rsmKey}
-                            geography={geo}
-                            fill={
-                              scope === "India"
-                                ? "#e8edf2"
-                                : "#e2e8f0"
-                            }
-                            stroke="#94a3b8"
-                            strokeWidth={0.5}
-                            style={{
-                              default: { outline: "none" },
-                              hover: {
-                                outline: "none",
-                                fill: "#cbd5e1",
-                                cursor: "pointer",
-                              },
-                              pressed: { outline: "none" },
-                            }}
-                          />
-                        ))
-                      }
-                    </Geographies>
-
-                    {mapFeatures.map((feature) => (
-                      <Geographies
-                        key={feature.id}
-                        geography={featureGeometry(feature)}
-                      >
-                        {({ geographies }) =>
-                          geographies.map((geo) => (
-                            <Geography
-                              key={geo.rsmKey}
-                              geography={geo}
-                              onClick={() =>
-                                selectFeature(feature)
-                              }
-                              fill={
-                                feature.geometryType ===
-                                "Polygon"
-                                  ? feature.color ??
-                                    (layer === "Physiography"
-                                      ? "#f6d58a"
-                                      : "#bfdbfe")
-                                  : "none"
-                              }
-                              fillOpacity={
-                                feature.geometryType ===
-                                "Polygon"
-                                  ? 0.38
-                                  : 0
-                              }
-                              stroke={
-                                feature.color ??
-                                (layer === "Drainage"
-                                  ? "#0891b2"
-                                  : layer === "Climate"
-                                    ? "#059669"
-                                    : "#b45309")
-                              }
-                              strokeWidth={
-                                feature.geometryType ===
-                                "LineString"
-                                  ? 2.4
-                                  : 1.1
-                              }
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              style={{
-                                default: {
-                                  outline: "none",
-                                  cursor: "pointer",
-                                },
-                                hover: {
-                                  outline: "none",
-                                  cursor: "pointer",
-                                  fill:
-                                    feature.geometryType ===
-                                    "Polygon"
-                                      ? "#fbbf24"
-                                      : "none",
-                                  fillOpacity:
-                                    feature.geometryType ===
-                                    "Polygon"
-                                      ? 0.55
-                                      : 0,
-                                  strokeWidth:
-                                    feature.geometryType ===
-                                    "LineString"
-                                      ? 4
-                                      : 1.7,
-                                },
-                                pressed: { outline: "none" },
-                              }}
-                            />
-                          ))
-                        }
-                      </Geographies>
-                    ))}
-
-                    {pointFeatures.map((feature) => (
-                      <Marker
-                        key={feature.id}
-                        coordinates={feature.coordinates}
-                        onClick={() => selectFeature(feature)}
-                      >
-                        <circle
-                          r={
-                            selected?.id === feature.id
-                              ? 7
-                              : 4.2
-                          }
-                          fill={
-                            selected?.id === feature.id
-                              ? "#0f172a"
-                              : "#2563eb"
-                          }
-                          stroke="#fff"
-                          strokeWidth={1.5}
-                          className="cursor-pointer"
-                        />
-                        <text
-                          textAnchor="middle"
-                          y={-9}
-                          style={{
-                            fontFamily: "system-ui",
-                            fontSize: 7,
-                            fontWeight: 650,
-                            fill: "#334155",
-                            pointerEvents: "none",
-                          }}
-                        >
-                          {feature.name}
-                        </text>
-                      </Marker>
-                    ))}
-                  </ZoomableGroup>
-                </ComposableMap>
-
-                <div className="absolute bottom-4 left-4 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
-                  <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-400">
-                    Legend
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
-                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                    Point feature
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
-                    <span className="h-2 w-5 rounded-full bg-cyan-600" />
-                    Linear feature
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
-                    <span className="h-3 w-5 rounded bg-amber-300" />
-                    Regional feature
-                  </div>
-                </div>
-
-                <div className="absolute bottom-4 right-4 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-500 shadow-sm">
-                  {filteredFeatures.length} mapped feature
-                  {filteredFeatures.length === 1 ? "" : "s"}
-                </div>
-              </div>
-            </div>
-
-            <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
-                Feature information
-              </div>
-
-              {selected ? (
-                <div className="mt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-                    {selected.category}
-                  </div>
-                  <h2 className="mt-1 text-2xl font-semibold">
-                    {selected.name}
-                  </h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
-                    {selected.description}
-                  </p>
-
-                  <div className="mt-4 rounded-xl bg-blue-50 p-3 text-xs font-medium leading-5 text-blue-800">
-                    <span className="font-bold">
-                      Syllabus connection:
-                    </span>{" "}
-                    {selected.chapter}
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <div className="text-[10px] uppercase tracking-wider text-slate-400">
-                        Geometry
-                      </div>
-                      <div className="mt-1 text-xs font-semibold text-slate-700">
-                        {selected.geometryType ===
-                        "LineString"
-                          ? "Linear"
-                          : selected.geometryType ===
-                              "Polygon"
-                            ? "Regional"
-                            : "Point"}
-                      </div>
-                    </div>
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <div className="text-[10px] uppercase tracking-wider text-slate-400">
-                        Class
-                      </div>
-                      <div className="mt-1 text-xs font-semibold text-slate-700">
-                        {selected.classes.join(" / ")}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
-                    Approx. reference coordinate:{" "}
-                    {selected.coordinates[1].toFixed(2)}°,{" "}
-                    {selected.coordinates[0].toFixed(2)}°
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4">
-                  <p className="text-sm leading-6 text-slate-500">
-                    Click a river, range, region, lake, port, mine,
-                    peak or other mapped feature to inspect it.
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-6 border-t border-slate-100 pt-5">
-                <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">
-                  Visible features
-                </div>
-
-                <div className="mt-3 max-h-80 space-y-1 overflow-auto">
-                  {filteredFeatures.map((feature) => (
-                    <button
-                      key={feature.id}
-                      onClick={() => selectFeature(feature)}
-                      className={`w-full rounded-xl px-3 py-2 text-left text-xs transition ${
-                        selected?.id === feature.id
-                          ? "bg-slate-950 text-white"
-                          : "hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="font-semibold">
-                        {feature.name}
-                      </div>
-                      <div
-                        className={`mt-0.5 ${
-                          selected?.id === feature.id
-                            ? "text-slate-300"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        {feature.category} ·{" "}
-                        {feature.geometryType}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-6 border-t border-slate-100 pt-5">
-                <div className="text-xs font-semibold text-slate-700">
-                  Current system
-                </div>
-                <div className="mt-3 space-y-2 text-xs leading-5 text-slate-500">
-                  <div>• Real spatial regions, not only markers</div>
-                  <div>• Rivers and ranges represented as lines</div>
-                  <div>• Lakes and physiographic units as regions</div>
-                  <div>• CBSE XI/XII class filtering</div>
-                  <div>• Searchable syllabus connections</div>
-                  <div>• Interactive CBSE map practice</div>
-                </div>
-              </div>
-            </aside>
           </section>
         )}
       </div>
