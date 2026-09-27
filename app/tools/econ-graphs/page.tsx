@@ -1904,7 +1904,10 @@ type StatMode =
   | "more-ogive"
   | "both-ogive"
   | "scatter"
-  | "time-series";
+  | "time-series"
+  | "spearman"
+  | "spearman-repeated"
+  | "index-numbers";
 
 type FrequencyRow = {
   lower: number;
@@ -1915,6 +1918,12 @@ type FrequencyRow = {
 type PairedPoint = {
   x: number;
   y: number;
+};
+
+type IndexRow = {
+  label: string;
+  base: number;
+  current: number;
 };
 
 const defaultRawData = [
@@ -1935,6 +1944,14 @@ const defaultMultiple = [
   { label: "2024", a: 20, b: 30, c: 25 },
   { label: "2025", a: 28, b: 35, c: 32 },
   { label: "2026", a: 34, b: 42, c: 38 },
+];
+
+const defaultIndexRows: IndexRow[] = [
+  { label: "Food", base: 100, current: 125 },
+  { label: "Clothing", base: 80, current: 92 },
+  { label: "Fuel", base: 60, current: 78 },
+  { label: "Housing", base: 120, current: 138 },
+  { label: "Other", base: 90, current: 99 },
 ];
 
 const defaultFrequency: FrequencyRow[] = [
@@ -2099,6 +2116,49 @@ function pearsonCorrelation(
   if (!dx || !dy) return 0;
 
   return numerator / (dx * dy);
+}
+
+function rankValues(values: number[]) {
+  const sorted = values.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
+  const ranks = new Array<number>(values.length).fill(0);
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1].value === sorted[i].value) j += 1;
+    const averageRank = (i + 1 + j + 1) / 2;
+    for (let k = i; k <= j; k += 1) ranks[sorted[k].index] = averageRank;
+    i = j + 1;
+  }
+  return ranks;
+}
+
+function tieCorrection(values: number[]) {
+  const counts = new Map<number, number>();
+  values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+  return Array.from(counts.values()).filter((count) => count > 1).reduce((total, count) => total + count ** 3 - count, 0);
+}
+
+function spearmanCorrelation(points: PairedPoint[], repeatedRanks = false) {
+  if (points.length < 2) return 0;
+  const rx = rankValues(points.map((p) => p.x));
+  const ry = rankValues(points.map((p) => p.y));
+  const n = points.length;
+  const d2 = sum(rx.map((rank, i) => (rank - ry[i]) ** 2));
+  if (!repeatedRanks) return 1 - (6 * d2) / (n * (n ** 2 - 1));
+  const tieAdjustment = (tieCorrection(points.map((p) => p.x)) + tieCorrection(points.map((p) => p.y))) / 12;
+  return 1 - (6 * (d2 + tieAdjustment)) / (n * (n ** 2 - 1));
+}
+
+function simpleAggregativeIndex(rows: IndexRow[]) {
+  const valid = rows.filter((row) => Number.isFinite(row.base) && Number.isFinite(row.current) && row.base > 0);
+  if (!valid.length) return 0;
+  const baseTotal = sum(valid.map((row) => row.base));
+  const currentTotal = sum(valid.map((row) => row.current));
+  return baseTotal === 0 ? 0 : (currentTotal / baseTotal) * 100;
+}
+
+function priceRelative(row: IndexRow) {
+  return row.base > 0 ? (row.current / row.base) * 100 : 0;
 }
 
 function regressionLine(
@@ -3457,6 +3517,9 @@ function StatisticsLab() {
       ].join("\n")
     );
 
+  const [indexRows, setIndexRows] =
+    useState<IndexRow[]>(defaultIndexRows);
+
   const [showMean, setShowMean] =
     useState(false);
 
@@ -3557,6 +3620,11 @@ function StatisticsLab() {
     pearsonCorrelation(
       paired
     );
+
+  const spearman = spearmanCorrelation(paired, false);
+  const spearmanRepeated = spearmanCorrelation(paired, true);
+  const indexValue = simpleAggregativeIndex(indexRows);
+  const indexChangeFromBase = indexValue - 100;
 
   const grouped =
     frequencyStats(
@@ -3675,6 +3743,14 @@ function StatisticsLab() {
         string
       ][],
     },
+    {
+      title: "Correlation & Index Numbers",
+      items: [
+        ["spearman", "Spearman rank - no ties"],
+        ["spearman-repeated", "Spearman rank - repeated ranks"],
+        ["index-numbers", "Index numbers"],
+      ] as [StatMode, string][],
+    },
   ];
 
   const resetDataset = () => {
@@ -3706,6 +3782,7 @@ function StatisticsLab() {
         "45,51",
       ].join("\n")
     );
+    setIndexRows(defaultIndexRows);
   };
 
   return (
@@ -4425,27 +4502,52 @@ function StatisticsLab() {
               </div>
             </div>
 
-            <StatGraph
-              mode={mode}
-              rawData={rawData}
-              categories={
-                categories
-              }
-              multiple={multiple}
-              frequencyRows={
-                frequencyRows
-              }
-              paired={paired}
-              showMean={
-                showMean
-              }
-              showMedian={
-                showMedian
-              }
-              showMode={
-                showMode
-              }
-            />
+            {mode === "spearman" || mode === "spearman-repeated" || mode === "index-numbers" ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                {mode === "index-numbers" ? (
+                  <div className="space-y-5">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Index numbers</div>
+                      <h3 className="mt-1 text-lg font-semibold">Simple Aggregative Method</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">Enter base-period and current-period prices. Index = ΣP₁ / ΣP₀ × 100.</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[620px] text-sm">
+                        <thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-2 py-2">Item</th><th className="px-2 py-2">Base P₀</th><th className="px-2 py-2">Current P₁</th><th className="px-2 py-2">Price relative</th><th /></tr></thead>
+                        <tbody>
+                          {indexRows.map((row, i) => (
+                            <tr key={i} className="border-b border-slate-50">
+                              <td className="px-2 py-2"><input value={row.label} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],label:e.target.value}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
+                              <td className="px-2 py-2"><input type="number" min="0" value={row.base} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],base:Number(e.target.value)}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
+                              <td className="px-2 py-2"><input type="number" min="0" value={row.current} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],current:Number(e.target.value)}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
+                              <td className="px-2 py-2 font-mono">{fmt(priceRelative(row))}</td>
+                              <td className="px-2 py-2 text-right"><button onClick={() => setIndexRows(indexRows.filter((_,j)=>j!==i))} className="text-xs font-semibold text-red-500">Remove</button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button onClick={() => setIndexRows([...indexRows,{label:"Item "+(indexRows.length+1),base:100,current:110}])} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold hover:bg-slate-200">+ Add item</button>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {[["ΣP₀",sum(indexRows.map(r=>r.base))],["ΣP₁",sum(indexRows.map(r=>r.current))],["Index",indexValue]].map(([label,value])=><div key={String(label)} className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div><div className="mt-1 text-xl font-semibold">{fmt(Number(value))}</div></div>)}
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-600"><strong className="text-slate-900">Base = 100:</strong> the sample index is {fmt(indexValue)}, so the index has changed by {fmt(indexChangeFromBase)} points from the base index.</div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {[['WPI','Wholesale Price Index','Wholesale-level price index.'],['CPI','Consumer Price Index','Consumer-oriented price index.'],['IIP','Index of Industrial Production','Industrial production index.']].map(([abbr,title,body])=><div key={abbr} className="rounded-xl border border-slate-200 p-4"><div className="text-xs font-bold uppercase tracking-wider text-slate-400">{abbr}</div><div className="mt-1 font-semibold">{title}</div><div className="mt-1 text-xs leading-5 text-slate-500">{body}</div></div>)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <div><div className="text-xs font-bold uppercase tracking-wider text-slate-400">Correlation</div><h3 className="mt-1 text-lg font-semibold">Spearman rank correlation</h3><p className="mt-1 text-sm leading-6 text-slate-500">Ranks are calculated automatically from the paired observations above.</p></div>
+                    <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">No repeated ranks</div><div className="mt-1 font-mono text-2xl font-semibold">{spearman.toFixed(4)}</div></div><div className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Repeated ranks</div><div className="mt-1 font-mono text-2xl font-semibold">{spearmanRepeated.toFixed(4)}</div></div></div>
+                    <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-2 py-2">X</th><th className="px-2 py-2">Y</th><th className="px-2 py-2">Rank X</th><th className="px-2 py-2">Rank Y</th><th className="px-2 py-2">d</th><th className="px-2 py-2">d²</th></tr></thead><tbody>{(() => { const rx=rankValues(paired.map(p=>p.x)); const ry=rankValues(paired.map(p=>p.y)); return paired.map((p,i)=>{const d=rx[i]-ry[i]; return <tr key={i} className="border-b border-slate-50"><td className="px-2 py-2 font-mono">{fmt(p.x)}</td><td className="px-2 py-2 font-mono">{fmt(p.y)}</td><td className="px-2 py-2 font-mono">{fmt(rx[i])}</td><td className="px-2 py-2 font-mono">{fmt(ry[i])}</td><td className="px-2 py-2 font-mono">{fmt(d)}</td><td className="px-2 py-2 font-mono">{fmt(d*d)}</td></tr>})})()}</tbody></table></div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-600"><div className="font-semibold text-slate-900">Formula</div><div className="mt-1 font-mono">ρ = 1 − 6Σd² / [n(n² − 1)]</div>{mode === "spearman-repeated" && <div className="mt-2">Repeated ranks use average ranks and the tie correction.</div>}</div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <StatGraph mode={mode} rawData={rawData} categories={categories} multiple={multiple} frequencyRows={frequencyRows} paired={paired} showMean={showMean} showMedian={showMedian} showMode={showMode} />
+            )}
           </div>
 
           {/* NUMERICAL ANALYSIS */}
