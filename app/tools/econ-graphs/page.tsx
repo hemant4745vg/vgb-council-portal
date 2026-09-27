@@ -2,7 +2,11 @@
 
 import { useMemo, useRef, useState } from "react";
 
-type Point = { x: number; y: number };
+type Point = {
+  x: number;
+  y: number;
+  label?: string;
+};
 
 type Curve = {
   id: string;
@@ -786,6 +790,68 @@ const presets: Preset[] = [
   },
 
   {
+    id: "tvc-mc-relationship",
+    title: "TVC & MC Relationship",
+    className: "XI",
+    unit: "Producer Behaviour",
+    description:
+      "Trace total variable cost and marginal cost together to see how MC reflects the slope of TVC.",
+    xLabel: "Output",
+    yLabel: "Cost",
+    xMin: 0,
+    xMax: 30,
+    yMin: 0,
+    yMax: 100,
+    controls: [
+      {
+        key: "scale",
+        label: "Cost scale",
+        min: 0.75,
+        max: 1.35,
+        step: 0.01,
+        value: 1,
+      },
+    ],
+    curves: (c) => [
+      {
+        id: "tvc",
+        label: "TVC",
+        color: curveColors[0],
+        fn: (x) =>
+          Math.max(
+            0,
+            c.scale * (
+              0.004 * x ** 3 -
+              0.12 * x ** 2 +
+              2.8 * x
+            )
+          ),
+      },
+      {
+        id: "mc",
+        label: "MC",
+        color: curveColors[1],
+        fn: (x) =>
+          Math.max(
+            0,
+            c.scale * (
+              0.012 * x ** 2 -
+              0.24 * x +
+              2.8
+            )
+          ),
+      },
+    ],
+    interpretation: [
+      "TVC rises with output because variable inputs are being used to produce more output.",
+      "MC is the change in TVC caused by one additional unit of output, so MC is represented by the slope of the TVC curve.",
+      "When TVC becomes steeper, MC rises; when TVC becomes flatter, MC falls.",
+      "The U-shaped MC curve corresponds to the changing slope of the S-shaped TVC curve in this illustrative model.",
+    ],
+  },
+
+
+  {
     id: "cost-curves",
     title: "Cost Curves",
     className: "XI",
@@ -1182,67 +1248,178 @@ function fmt(n: number) {
 
 function sampleCurve(
   curve: Curve,
-  p: Pick<Preset, "xMin" | "xMax" | "yMin" | "yMax">
+  p: Preset
 ): Point[] {
   const pts: Point[] = [];
-  let previousY: number | null = null;
-  const ySpan = Math.max(p.yMax - p.yMin, 1e-9);
+  const samples = 1400;
+  const range = p.yMax - p.yMin;
+  const margin = Math.max(range * 1.25, 1);
 
-  for (let i = 0; i <= 900; i++) {
-    const x = p.xMin + (i / 900) * (p.xMax - p.xMin);
-    const y = curve.fn(x);
-    const finite = Number.isFinite(y);
-    const outside = finite && (y < p.yMin - ySpan * 0.05 || y > p.yMax + ySpan * 0.05);
-    const jump = finite && previousY !== null && Math.abs(y - previousY) > ySpan * 0.35;
+  for (let i = 0; i <= samples; i++) {
+    const x =
+      p.xMin +
+      (i / samples) *
+        (p.xMax - p.xMin);
 
-    if (!finite || outside || jump) {
+    let y: number;
+    try {
+      y = curve.fn(x);
+    } catch {
+      y = NaN;
+    }
+
+    if (
+      !Number.isFinite(y) ||
+      y < p.yMin - margin ||
+      y > p.yMax + margin
+    ) {
       pts.push({ x: NaN, y: NaN });
-      previousY = null;
     } else {
       pts.push({ x, y });
-      previousY = y;
     }
   }
 
   return pts;
 }
 
+function refineIntersection(
+  a: Curve,
+  b: Curve,
+  left: number,
+  right: number
+) {
+  let lo = left;
+  let hi = right;
+  let flo = a.fn(lo) - b.fn(lo);
+  let fhi = a.fn(hi) - b.fn(hi);
+
+  if (!Number.isFinite(flo) || !Number.isFinite(fhi)) {
+    return null;
+  }
+
+  if (Math.abs(flo) < 1e-10) {
+    const y = a.fn(lo);
+    return Number.isFinite(y) ? { x: lo, y } : null;
+  }
+
+  if (Math.abs(fhi) < 1e-10) {
+    const y = a.fn(hi);
+    return Number.isFinite(y) ? { x: hi, y } : null;
+  }
+
+  if (flo * fhi > 0) return null;
+
+  for (let i = 0; i < 36; i++) {
+    const mid = (lo + hi) / 2;
+    const fm = a.fn(mid) - b.fn(mid);
+
+    if (!Number.isFinite(fm)) return null;
+    if (Math.abs(fm) < 1e-9) {
+      lo = mid;
+      hi = mid;
+      break;
+    }
+
+    if (flo * fm <= 0) {
+      hi = mid;
+      fhi = fm;
+    } else {
+      lo = mid;
+      flo = fm;
+    }
+  }
+
+  const x = (lo + hi) / 2;
+  const y = a.fn(x);
+
+  return Number.isFinite(y) ? { x, y } : null;
+}
+
 function intersections(
   curves: Curve[],
-  bounds: Pick<Preset, "xMin" | "xMax" | "yMin" | "yMax">
+  p: Preset
 ): Point[] {
   const out: Point[] = [];
-  const steps = 900;
-  const xSpan = bounds.xMax - bounds.xMin;
-  const ySpan = bounds.yMax - bounds.yMin;
+  const samples = 1200;
+  const xRange = p.xMax - p.xMin;
+  const yRange = p.yMax - p.yMin;
+  const xTolerance = Math.max(xRange / 180, 1e-6);
+  const yTolerance = Math.max(yRange / 180, 1e-6);
+
+  const addPoint = (point: Point, label: string) => {
+    if (
+      point.x < p.xMin - xTolerance ||
+      point.x > p.xMax + xTolerance ||
+      point.y < p.yMin - yTolerance ||
+      point.y > p.yMax + yTolerance
+    ) {
+      return;
+    }
+
+    const existing = out.find(
+      (q) =>
+        Math.abs(q.x - point.x) < xTolerance &&
+        Math.abs(q.y - point.y) < yTolerance
+    );
+
+    if (existing) {
+      if (existing.label && !existing.label.includes(label)) {
+        existing.label = existing.label + " · " + label;
+      }
+      return;
+    }
+
+    out.push({
+      x: point.x,
+      y: point.y,
+      label,
+    });
+  };
 
   for (let a = 0; a < curves.length; a++) {
     for (let b = a + 1; b < curves.length; b++) {
-      let prevX = bounds.xMin;
-      let prevA = curves[a].fn(prevX);
-      let prevB = curves[b].fn(prevX);
-      let prevD = prevA - prevB;
+      const curveA = curves[a];
+      const curveB = curves[b];
+      let prevX = p.xMin;
+      let prevD: number;
 
-      for (let i = 1; i <= steps; i++) {
-        const x = bounds.xMin + (i / steps) * xSpan;
-        const aY = curves[a].fn(x);
-        const bY = curves[b].fn(x);
-        const d = aY - bY;
+      try {
+        prevD = curveA.fn(prevX) - curveB.fn(prevX);
+      } catch {
+        prevD = NaN;
+      }
 
-        if (Number.isFinite(prevD) && Number.isFinite(d) && Number.isFinite(prevA) && Number.isFinite(prevB) && prevD * d <= 0) {
-          const denominator = Math.abs(prevD) + Math.abs(d);
-          const t = denominator > 0 ? Math.abs(prevD) / denominator : 0;
-          const ix = prevX + (x - prevX) * t;
-          const y = curves[a].fn(ix);
+      for (let i = 1; i <= samples; i++) {
+        const x =
+          p.xMin +
+          (i / samples) * xRange;
 
-          if (Number.isFinite(y) && y >= bounds.yMin && y <= bounds.yMax && !out.some((q) => Math.abs(q.x - ix) < xSpan / 120 && Math.abs(q.y - y) < ySpan / 120)) {
-            out.push({ x: ix, y });
+        let d: number;
+        try {
+          d = curveA.fn(x) - curveB.fn(x);
+        } catch {
+          d = NaN;
+        }
+
+        if (Number.isFinite(prevD) && Number.isFinite(d)) {
+          if (prevD === 0 || d === 0 || prevD * d < 0) {
+            const point = refineIntersection(
+              curveA,
+              curveB,
+              prevX,
+              x
+            );
+
+            if (point) {
+              addPoint(
+                point,
+                curveA.label + " ∩ " + curveB.label
+              );
+            }
           }
         }
 
         prevX = x;
-        prevA = aY;
-        prevB = bY;
         prevD = d;
       }
     }
@@ -1250,7 +1427,6 @@ function intersections(
 
   return out.slice(0, 12);
 }
-
 /* -------------------------------------------------------------------------- */
 /* Economics graph                                                            */
 /* -------------------------------------------------------------------------- */
@@ -1402,12 +1578,21 @@ function EconomicsGraph({
   );
 
   const points = useMemo(
-    () => intersections(curves, view),
-    [curves, view.xMin, view.xMax, view.yMin, view.yMax]
+    () => intersections(curves, preset),
+    [curves, preset]
   );
 
   const pathFor = (curve: Curve) => {
-    const sampled = sampleCurve(curve, view);
+    const sampled = sampleCurve(
+      curve,
+      {
+        ...preset,
+        xMin: view.xMin,
+        xMax: view.xMax,
+        yMin: view.yMin,
+        yMax: view.yMax,
+      }
+    );
 
     const d: string[] = [];
     let drawing = false;
@@ -1457,19 +1642,20 @@ function EconomicsGraph({
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
       <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <svg
-          viewBox={`0 0 ${W} ${H}`}
+          viewBox={"0 0 " + W + " " + H}
           className="h-auto w-full touch-none select-none"
           onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(
-              e.pointerId
-            );
-
+            e.currentTarget.setPointerCapture(e.pointerId);
             drag.current = {
               x: e.clientX,
               y: e.clientY,
             };
           }}
           onPointerMove={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const sx = ((e.clientX - rect.left) / rect.width) * W;
+            const sy = ((e.clientY - rect.top) / rect.height) * H;
+
             if (drag.current) {
               const dx = e.clientX - drag.current.x;
               const dy = e.clientY - drag.current.y;
@@ -1481,96 +1667,173 @@ function EconomicsGraph({
                 y: v.y + dy * unitY,
               }));
 
-              drag.current = { x: e.clientX, y: e.clientY };
+              drag.current = {
+                x: e.clientX,
+                y: e.clientY,
+              };
+              setHover(null);
               return;
             }
 
-            if ((e.target as Element).getAttribute?.("data-intersection") === "true") return;
-
-            const rect = e.currentTarget.getBoundingClientRect();
-            const sx = ((e.clientX - rect.left) * W) / rect.width;
-            const sy = ((e.clientY - rect.top) * H) / rect.height;
             const x = unmapX(sx);
+            const y = unmapY(sy);
 
-            let nearest: { curve: Curve; y: number; d: number } | null = null;
-            curves.forEach((curve) => {
-              const cy = curve.fn(x);
-              if (!Number.isFinite(cy)) return;
-              const d = Math.abs(mapY(cy) - sy);
-              if (!nearest || d < nearest.d) nearest = { curve, y: cy, d };
+            let nearestPoint: { point: Point; d: number } | null = null;
+
+            points.forEach((point) => {
+              const d = Math.hypot(
+                mapX(point.x) - sx,
+                mapY(point.y) - sy
+              );
+
+              if (!nearestPoint || d < nearestPoint.d) {
+                nearestPoint = { point, d };
+              }
             });
 
-            if (nearest && nearest.d < 18) {
-              setHover({ x, y: nearest.y, label: nearest.curve.label });
+            if (nearestPoint && nearestPoint.d <= 18) {
+              setHover({
+                x: nearestPoint.point.x,
+                y: nearestPoint.point.y,
+                label: nearestPoint.point.label ?? "Important intersection",
+              });
+              return;
+            }
+
+            let nearestCurve: { curve: Curve; y: number; d: number } | null = null;
+
+            curves.forEach((curve) => {
+              let cy = NaN;
+              try {
+                cy = curve.fn(x);
+              } catch {
+                cy = NaN;
+              }
+
+              if (!Number.isFinite(cy)) return;
+
+              const d = Math.abs(mapY(cy) - sy);
+              if (!nearestCurve || d < nearestCurve.d) {
+                nearestCurve = { curve, y: cy, d };
+              }
+            });
+
+            if (nearestCurve && nearestCurve.d <= 16) {
+              setHover({
+                x,
+                y: nearestCurve.y,
+                label: nearestCurve.curve.label,
+              });
             } else {
               setHover(null);
             }
           }}
-          onPointerUp={() => {
+          onPointerUp={(e) => {
             drag.current = null;
+            try {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            } catch {}
           }}
           onPointerCancel={() => {
             drag.current = null;
           }}
+          onPointerLeave={() => {
+            if (!drag.current) setHover(null);
+          }}
           onWheel={(e) => {
             e.preventDefault();
-
             setZoom((z) =>
               Math.max(
                 0.5,
-                Math.min(
-                  4,
-                  z *
-                    (e.deltaY < 0
-                      ? 1.12
-                      : 0.89)
-                )
+                Math.min(4, z * (e.deltaY < 0 ? 1.12 : 0.89))
               )
             );
           }}
         >
-          <rect
-            width={W}
-            height={H}
-            fill="white"
-          />
+          <rect width={W} height={H} fill="white" />
 
-          {(() => {
-            const axisX = view.xMin <= 0 && view.xMax >= 0 ? mapX(0) : P;
-            const axisY = view.yMin <= 0 && view.yMax >= 0 ? mapY(0) : H - P;
+          {xs.map((x) => {
+            const axisY =
+              view.yMin <= 0 && view.yMax >= 0
+                ? mapY(0)
+                : H - P;
 
             return (
-              <>
-                {xs.map((x) => (
-                  <g key={`x-${x}`}>
-                    <line x1={mapX(x)} x2={mapX(x)} y1={P} y2={H - P} stroke="#e2e8f0" />
-                    <line x1={mapX(x)} x2={mapX(x)} y1={axisY - 4} y2={axisY + 4} stroke="#334155" strokeWidth="1.5" />
-                    <text x={mapX(x)} y={Math.min(H - 28, Math.max(P + 16, axisY + 20))} textAnchor="middle" fontSize="12" fill="#475569">{fmt(x)}</text>
-                  </g>
-                ))}
-
-                {ys.map((y) => (
-                  <g key={`y-${y}`}>
-                    <line x1={P} x2={W - P} y1={mapY(y)} y2={mapY(y)} stroke="#e2e8f0" />
-                    <line x1={axisX - 4} x2={axisX + 4} y1={mapY(y)} y2={mapY(y)} stroke="#334155" strokeWidth="1.5" />
-                    <text x={Math.max(28, Math.min(W - 8, axisX - 10))} y={mapY(y) + 4} textAnchor="end" fontSize="12" fill="#475569">{fmt(y)}</text>
-                  </g>
-                ))}
-
-                {view.xMin <= 0 && view.xMax >= 0 && (
-                  <line x1={axisX} x2={axisX} y1={P} y2={H - P} stroke="#334155" strokeWidth="2" />
-                )}
-                {view.yMin <= 0 && view.yMax >= 0 && (
-                  <line x1={P} x2={W - P} y1={axisY} y2={axisY} stroke="#334155" strokeWidth="2" />
-                )}
-              </>
+              <g key={"x-" + x}>
+                <line
+                  x1={mapX(x)}
+                  x2={mapX(x)}
+                  y1={P}
+                  y2={H - P}
+                  stroke="#e2e8f0"
+                />
+                <text
+                  x={mapX(x)}
+                  y={axisY - 8}
+                  textAnchor="middle"
+                  fontSize="12"
+                  fill="#64748b"
+                >
+                  {fmt(x)}
+                </text>
+              </g>
             );
-          })()}
+          })}
+
+          {ys.map((y) => {
+            const axisX =
+              view.xMin <= 0 && view.xMax >= 0
+                ? mapX(0)
+                : P;
+
+            return (
+              <g key={"y-" + y}>
+                <line
+                  x1={P}
+                  x2={W - P}
+                  y1={mapY(y)}
+                  y2={mapY(y)}
+                  stroke="#e2e8f0"
+                />
+                <text
+                  x={axisX - 8}
+                  y={mapY(y) + 4}
+                  textAnchor="end"
+                  fontSize="12"
+                  fill="#64748b"
+                >
+                  {fmt(y)}
+                </text>
+              </g>
+            );
+          })}
+
+          {view.xMin <= 0 && view.xMax >= 0 && (
+            <line
+              x1={mapX(0)}
+              x2={mapX(0)}
+              y1={P}
+              y2={H - P}
+              stroke="#334155"
+              strokeWidth="2"
+            />
+          )}
+
+          {view.yMin <= 0 && view.yMax >= 0 && (
+            <line
+              x1={P}
+              x2={W - P}
+              y1={mapY(0)}
+              y2={mapY(0)}
+              stroke="#334155"
+              strokeWidth="2"
+            />
+          )}
 
           <text
-            x={W / 2}
-            y={H - 12}
-            textAnchor="middle"
+            x={W - P + 10}
+            y={(view.yMin <= 0 && view.yMax >= 0 ? mapY(0) : H - P) - 8}
+            textAnchor="start"
             fontSize="14"
             fontWeight="600"
             fill="#334155"
@@ -1579,15 +1842,12 @@ function EconomicsGraph({
           </text>
 
           <text
-            x={18}
-            y={H / 2}
-            textAnchor="middle"
+            x={(view.xMin <= 0 && view.xMax >= 0 ? mapX(0) : P) + 12}
+            y={P - 10}
+            textAnchor="start"
             fontSize="14"
             fontWeight="600"
             fill="#334155"
-            transform={`rotate(-90 18 ${
-              H / 2
-            })`}
           >
             {preset.yLabel}
           </text>
@@ -1599,145 +1859,62 @@ function EconomicsGraph({
               fill="none"
               stroke={curve.color}
               strokeWidth="3"
-              strokeDasharray={
-                curve.dashed
-                  ? "9 7"
-                  : undefined
-              }
+              strokeDasharray={curve.dashed ? "9 7" : undefined}
               strokeLinecap="round"
+              strokeLinejoin="round"
             />
           ))}
 
-          {points.map((pt, i) => (
-            <g key={`p-${i}`}>
-              <line
-                x1={mapX(pt.x)}
-                x2={mapX(pt.x)}
-                y1={mapY(pt.y)}
-                y2={mapY(0)}
-                stroke="#94a3b8"
-                strokeDasharray="4 4"
-              />
+          {points.map((pt, i) => {
+            const px = mapX(pt.x);
+            const py = mapY(pt.y);
 
-              <line
-                x1={mapX(pt.x)}
-                x2={mapX(0)}
-                y1={mapY(pt.y)}
-                y2={mapY(pt.y)}
-                stroke="#94a3b8"
-                strokeDasharray="4 4"
-              />
+            return (
+              <g key={"p-" + i} pointerEvents="none">
+                <line
+                  x1={px}
+                  x2={px}
+                  y1={py}
+                  y2={mapY(0)}
+                  stroke="#94a3b8"
+                  strokeDasharray="4 4"
+                />
+                <line
+                  x1={px}
+                  x2={mapX(0)}
+                  y1={py}
+                  y2={py}
+                  stroke="#94a3b8"
+                  strokeDasharray="4 4"
+                />
+                <circle
+                  cx={px}
+                  cy={py}
+                  r="6"
+                  fill="#0f172a"
+                  stroke="white"
+                  strokeWidth="2"
+                />
+              </g>
+            );
+          })}
 
-              <circle
-                cx={mapX(pt.x)}
-                cy={mapY(pt.y)}
-                r="12"
-                fill="transparent"
-                stroke="transparent"
-                data-intersection="true"
-                pointerEvents="all"
-                onPointerEnter={() =>
-                  setHover({
-                    x: pt.x,
-                    y: pt.y,
-                    label: "Intersection / equilibrium",
-                  })
-                }
-                onPointerLeave={() => setHover(null)}
-              />
-
-              <circle
-                cx={mapX(pt.x)}
-                cy={mapY(pt.y)}
-                r="6"
-                data-intersection="true"
-                fill="#0f172a"
-                stroke="white"
-                strokeWidth="2"
-                onPointerEnter={() =>
-                  setHover({
-                    x: pt.x,
-                    y: pt.y,
-                    label:
-                      "Intersection / equilibrium",
-                  })
-                }
-                onPointerLeave={() =>
-                  setHover(null)
-                }
-              />
-            </g>
-          ))}
-
-          <rect
-            x={P}
-            y={P}
-            width={W - 2 * P}
-            height={H - 2 * P}
-            fill="transparent"
-            pointerEvents="none"
-            onPointerMove={(e) => {
-              const rect =
-                e.currentTarget.ownerSVGElement!.getBoundingClientRect();
-
-              const sx =
-                ((e.clientX - rect.left) *
-                  W) /
-                rect.width;
-
-              const sy =
-                ((e.clientY - rect.top) *
-                  H) /
-                rect.height;
-
-              const x = unmapX(sx);
-
-              const y = unmapY(sy);
-
-              let nearest: {
-                curve: Curve;
-                y: number;
-                d: number;
-              } | null = null;
-
-              curves.forEach((curve) => {
-                const cy = curve.fn(x);
-
-                const d = Math.abs(
-                  mapY(cy) - sy
-                );
-
-                if (
-                  Number.isFinite(cy) &&
-                  (!nearest ||
-                    d < nearest.d)
-                ) {
-                  nearest = {
-                    curve,
-                    y: cy,
-                    d,
-                  };
-                }
-              });
-
-              if (
-                nearest &&
-                nearest.d < 18
-              ) {
-                setHover({
-                  x,
-                  y: nearest.y,
-                  label: nearest.curve.label,
-                });
-              } else {
-                setHover(null);
-              }
-            }}
-            onPointerLeave={() =>
-              setHover(null)
-            }
-          />
-        </svg>
+          {hover && points.some(
+            (point) =>
+              Math.abs(point.x - hover.x) < Math.max((view.xMax - view.xMin) / 120, 1e-6) &&
+              Math.abs(point.y - hover.y) < Math.max((view.yMax - view.yMin) / 120, 1e-6)
+          ) && (
+            <circle
+              cx={mapX(hover.x)}
+              cy={mapY(hover.y)}
+              r="10"
+              fill="none"
+              stroke="#0f172a"
+              strokeWidth="2"
+              opacity="0.35"
+              pointerEvents="none"
+            />
+          )}        </svg>
 
         <div className="absolute left-3 top-3 flex gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
           <button
@@ -1904,10 +2081,7 @@ type StatMode =
   | "more-ogive"
   | "both-ogive"
   | "scatter"
-  | "time-series"
-  | "spearman"
-  | "spearman-repeated"
-  | "index-numbers";
+  | "time-series";
 
 type FrequencyRow = {
   lower: number;
@@ -1918,12 +2092,6 @@ type FrequencyRow = {
 type PairedPoint = {
   x: number;
   y: number;
-};
-
-type IndexRow = {
-  label: string;
-  base: number;
-  current: number;
 };
 
 const defaultRawData = [
@@ -1944,14 +2112,6 @@ const defaultMultiple = [
   { label: "2024", a: 20, b: 30, c: 25 },
   { label: "2025", a: 28, b: 35, c: 32 },
   { label: "2026", a: 34, b: 42, c: 38 },
-];
-
-const defaultIndexRows: IndexRow[] = [
-  { label: "Food", base: 100, current: 125 },
-  { label: "Clothing", base: 80, current: 92 },
-  { label: "Fuel", base: 60, current: 78 },
-  { label: "Housing", base: 120, current: 138 },
-  { label: "Other", base: 90, current: 99 },
 ];
 
 const defaultFrequency: FrequencyRow[] = [
@@ -2116,49 +2276,6 @@ function pearsonCorrelation(
   if (!dx || !dy) return 0;
 
   return numerator / (dx * dy);
-}
-
-function rankValues(values: number[]) {
-  const sorted = values.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
-  const ranks = new Array<number>(values.length).fill(0);
-  let i = 0;
-  while (i < sorted.length) {
-    let j = i;
-    while (j + 1 < sorted.length && sorted[j + 1].value === sorted[i].value) j += 1;
-    const averageRank = (i + 1 + j + 1) / 2;
-    for (let k = i; k <= j; k += 1) ranks[sorted[k].index] = averageRank;
-    i = j + 1;
-  }
-  return ranks;
-}
-
-function tieCorrection(values: number[]) {
-  const counts = new Map<number, number>();
-  values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
-  return Array.from(counts.values()).filter((count) => count > 1).reduce((total, count) => total + count ** 3 - count, 0);
-}
-
-function spearmanCorrelation(points: PairedPoint[], repeatedRanks = false) {
-  if (points.length < 2) return 0;
-  const rx = rankValues(points.map((p) => p.x));
-  const ry = rankValues(points.map((p) => p.y));
-  const n = points.length;
-  const d2 = sum(rx.map((rank, i) => (rank - ry[i]) ** 2));
-  if (!repeatedRanks) return 1 - (6 * d2) / (n * (n ** 2 - 1));
-  const tieAdjustment = (tieCorrection(points.map((p) => p.x)) + tieCorrection(points.map((p) => p.y))) / 12;
-  return 1 - (6 * (d2 + tieAdjustment)) / (n * (n ** 2 - 1));
-}
-
-function simpleAggregativeIndex(rows: IndexRow[]) {
-  const valid = rows.filter((row) => Number.isFinite(row.base) && Number.isFinite(row.current) && row.base > 0);
-  if (!valid.length) return 0;
-  const baseTotal = sum(valid.map((row) => row.base));
-  const currentTotal = sum(valid.map((row) => row.current));
-  return baseTotal === 0 ? 0 : (currentTotal / baseTotal) * 100;
-}
-
-function priceRelative(row: IndexRow) {
-  return row.base > 0 ? (row.current / row.base) * 100 : 0;
 }
 
 function regressionLine(
@@ -3517,9 +3634,6 @@ function StatisticsLab() {
       ].join("\n")
     );
 
-  const [indexRows, setIndexRows] =
-    useState<IndexRow[]>(defaultIndexRows);
-
   const [showMean, setShowMean] =
     useState(false);
 
@@ -3620,11 +3734,6 @@ function StatisticsLab() {
     pearsonCorrelation(
       paired
     );
-
-  const spearman = spearmanCorrelation(paired, false);
-  const spearmanRepeated = spearmanCorrelation(paired, true);
-  const indexValue = simpleAggregativeIndex(indexRows);
-  const indexChangeFromBase = indexValue - 100;
 
   const grouped =
     frequencyStats(
@@ -3743,14 +3852,6 @@ function StatisticsLab() {
         string
       ][],
     },
-    {
-      title: "Correlation & Index Numbers",
-      items: [
-        ["spearman", "Spearman rank - no ties"],
-        ["spearman-repeated", "Spearman rank - repeated ranks"],
-        ["index-numbers", "Index numbers"],
-      ] as [StatMode, string][],
-    },
   ];
 
   const resetDataset = () => {
@@ -3782,7 +3883,6 @@ function StatisticsLab() {
         "45,51",
       ].join("\n")
     );
-    setIndexRows(defaultIndexRows);
   };
 
   return (
@@ -4502,52 +4602,27 @@ function StatisticsLab() {
               </div>
             </div>
 
-            {mode === "spearman" || mode === "spearman-repeated" || mode === "index-numbers" ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                {mode === "index-numbers" ? (
-                  <div className="space-y-5">
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Index numbers</div>
-                      <h3 className="mt-1 text-lg font-semibold">Simple Aggregative Method</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">Enter base-period and current-period prices. Index = ΣP₁ / ΣP₀ × 100.</p>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[620px] text-sm">
-                        <thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-2 py-2">Item</th><th className="px-2 py-2">Base P₀</th><th className="px-2 py-2">Current P₁</th><th className="px-2 py-2">Price relative</th><th /></tr></thead>
-                        <tbody>
-                          {indexRows.map((row, i) => (
-                            <tr key={i} className="border-b border-slate-50">
-                              <td className="px-2 py-2"><input value={row.label} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],label:e.target.value}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
-                              <td className="px-2 py-2"><input type="number" min="0" value={row.base} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],base:Number(e.target.value)}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
-                              <td className="px-2 py-2"><input type="number" min="0" value={row.current} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],current:Number(e.target.value)}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
-                              <td className="px-2 py-2 font-mono">{fmt(priceRelative(row))}</td>
-                              <td className="px-2 py-2 text-right"><button onClick={() => setIndexRows(indexRows.filter((_,j)=>j!==i))} className="text-xs font-semibold text-red-500">Remove</button></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <button onClick={() => setIndexRows([...indexRows,{label:"Item "+(indexRows.length+1),base:100,current:110}])} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold hover:bg-slate-200">+ Add item</button>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      {[["ΣP₀",sum(indexRows.map(r=>r.base))],["ΣP₁",sum(indexRows.map(r=>r.current))],["Index",indexValue]].map(([label,value])=><div key={String(label)} className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div><div className="mt-1 text-xl font-semibold">{fmt(Number(value))}</div></div>)}
-                    </div>
-                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-600"><strong className="text-slate-900">Base = 100:</strong> the sample index is {fmt(indexValue)}, so the index has changed by {fmt(indexChangeFromBase)} points from the base index.</div>
-                    <div className="grid gap-3 md:grid-cols-3">
-                      {[['WPI','Wholesale Price Index','Wholesale-level price index.'],['CPI','Consumer Price Index','Consumer-oriented price index.'],['IIP','Index of Industrial Production','Industrial production index.']].map(([abbr,title,body])=><div key={abbr} className="rounded-xl border border-slate-200 p-4"><div className="text-xs font-bold uppercase tracking-wider text-slate-400">{abbr}</div><div className="mt-1 font-semibold">{title}</div><div className="mt-1 text-xs leading-5 text-slate-500">{body}</div></div>)}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-5">
-                    <div><div className="text-xs font-bold uppercase tracking-wider text-slate-400">Correlation</div><h3 className="mt-1 text-lg font-semibold">Spearman rank correlation</h3><p className="mt-1 text-sm leading-6 text-slate-500">Ranks are calculated automatically from the paired observations above.</p></div>
-                    <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">No repeated ranks</div><div className="mt-1 font-mono text-2xl font-semibold">{spearman.toFixed(4)}</div></div><div className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Repeated ranks</div><div className="mt-1 font-mono text-2xl font-semibold">{spearmanRepeated.toFixed(4)}</div></div></div>
-                    <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-2 py-2">X</th><th className="px-2 py-2">Y</th><th className="px-2 py-2">Rank X</th><th className="px-2 py-2">Rank Y</th><th className="px-2 py-2">d</th><th className="px-2 py-2">d²</th></tr></thead><tbody>{(() => { const rx=rankValues(paired.map(p=>p.x)); const ry=rankValues(paired.map(p=>p.y)); return paired.map((p,i)=>{const d=rx[i]-ry[i]; return <tr key={i} className="border-b border-slate-50"><td className="px-2 py-2 font-mono">{fmt(p.x)}</td><td className="px-2 py-2 font-mono">{fmt(p.y)}</td><td className="px-2 py-2 font-mono">{fmt(rx[i])}</td><td className="px-2 py-2 font-mono">{fmt(ry[i])}</td><td className="px-2 py-2 font-mono">{fmt(d)}</td><td className="px-2 py-2 font-mono">{fmt(d*d)}</td></tr>})})()}</tbody></table></div>
-                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-600"><div className="font-semibold text-slate-900">Formula</div><div className="mt-1 font-mono">ρ = 1 − 6Σd² / [n(n² − 1)]</div>{mode === "spearman-repeated" && <div className="mt-2">Repeated ranks use average ranks and the tie correction.</div>}</div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <StatGraph mode={mode} rawData={rawData} categories={categories} multiple={multiple} frequencyRows={frequencyRows} paired={paired} showMean={showMean} showMedian={showMedian} showMode={showMode} />
-            )}
+            <StatGraph
+              mode={mode}
+              rawData={rawData}
+              categories={
+                categories
+              }
+              multiple={multiple}
+              frequencyRows={
+                frequencyRows
+              }
+              paired={paired}
+              showMean={
+                showMean
+              }
+              showMedian={
+                showMedian
+              }
+              showMode={
+                showMode
+              }
+            />
           </div>
 
           {/* NUMERICAL ANALYSIS */}
