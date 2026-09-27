@@ -27,6 +27,7 @@ const navItems = [
   { name: "Leadership", href: "/leadership" },
   { name: "Council", href: "/council" },
   { name: "Editorial", href: "/editorial" },
+  { name: "Tools", href: "/tools" },
   { name: "Calendar", href: "/calendar" },
   { name: "Study Materials", href: "/study-material" },
   { name: "Cafeteria", href: "/cafeteria" },
