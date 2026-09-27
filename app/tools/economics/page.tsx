@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
 import React, { useState, useMemo } from 'react';
 
 // --- TYPES & INTERFACES ---
 
-export type PresetCategory = 
+type PresetCategory = 
   | 'Micro: Consumer Behaviour'
   | 'Micro: Demand & Elasticity'
   | 'Micro: Production & Costs'
@@ -12,7 +12,7 @@ export type PresetCategory =
   | 'Macro: National Income & Multiplier'
   | 'Macro: Money & Foreign Exchange';
 
-export interface SliderControl {
+interface SliderControl {
   id: string;
   label: string;
   min: number;
@@ -23,7 +23,7 @@ export interface SliderControl {
   discreteValues?: { value: number; label: string }[];
 }
 
-export interface CurveConfig {
+interface CurveConfig {
   id: string;
   name: string;
   color: string;
@@ -31,7 +31,7 @@ export interface CurveConfig {
   equation: (x: number, params: Record<string, number>) => number;
 }
 
-export interface Preset {
+interface Preset {
   id: string;
   title: string;
   category: PresetCategory;
@@ -206,11 +206,11 @@ const PRESETS: Preset[] = [
         color: '#dc2626',
         equation: (q, p) => {
           const mode = p.elasticityMode;
-          if (mode === 0) return q === 50 ? 50 : (q > 49.5 && q < 50.5 ? 50 : NaN); // Vertical represented parametrically
-          if (mode === 1) return 150 - 2 * q; // Steep
-          if (mode === 2) return 2500 / Math.max(q, 1); // Rectangular Hyperbola (P * Q = 2500)
-          if (mode === 3) return 75 - 0.5 * q; // Flat
-          if (mode === 4) return 50; // Perfectly Horizontal
+          if (mode === 0) return q === 50 ? 50 : (q > 49.5 && q < 50.5 ? 50 : NaN);
+          if (mode === 1) return 150 - 2 * q;
+          if (mode === 2) return 2500 / Math.max(q, 1);
+          if (mode === 3) return 75 - 0.5 * q;
+          if (mode === 4) return 50;
           return 100 - q;
         }
       }
@@ -257,10 +257,10 @@ const PRESETS: Preset[] = [
         equation: (q, p) => {
           const mode = p.elasticityMode;
           if (mode === 0) return q === 50 ? 50 : NaN;
-          if (mode === 1) return 20 + 1.2 * q; // Cuts Y-axis (Inelastic)
-          if (mode === 2) return 1.0 * q; // Passes through origin (Es = 1)
-          if (mode === 3) return Math.max(0, -15 + 0.7 * q); // Cuts X-axis (Elastic)
-          if (mode === 4) return 50; // Horizontal
+          if (mode === 1) return 20 + 1.2 * q;
+          if (mode === 2) return 1.0 * q;
+          if (mode === 3) return Math.max(0, -15 + 0.7 * q);
+          if (mode === 4) return 50;
           return q;
         }
       }
@@ -377,7 +377,7 @@ const PRESETS: Preset[] = [
     ],
     curves: [
       { id: 'ic1', name: 'IC1 (Lower Utility)', color: '#cbd5e1', dash: '3,3', equation: (x) => 1200 / (x + 10) - 5 },
-      { id: 'ic2', name: 'IC2 (Optimal Utility)', color: '#a855f7', equation: (x, p) => 1800 / (x + 15) - 5 },
+      { id: 'ic2', name: 'IC2 (Optimal Utility)', color: '#a855f7', equation: (x) => 1800 / (x + 15) - 5 },
       { id: 'ic3', name: 'IC3 (Unattainable)', color: '#cbd5e1', dash: '3,3', equation: (x) => 2600 / (x + 20) - 5 },
       { id: 'budget', name: 'Budget Line (M = Px·X + Py·Y)', color: '#16a34a', equation: (x, p) => (p.income - p.priceX * x) / 0.8 }
     ],
@@ -434,7 +434,7 @@ const PRESETS: Preset[] = [
         }
       }
     ],
-    takeaways: (p) => [
+    takeaways: () => [
       'Phase I (Increasing Returns): TP increases at an increasing rate; MP rises to its peak.',
       'Phase II (Diminishing Returns): MP falls but remains positive; AP reaches max where MP = AP (L = 4). TP reaches max where MP = 0 (L = 8).',
       'Phase III (Negative Returns): MP becomes negative; TP begins to fall (L > 8).'
@@ -460,7 +460,7 @@ const PRESETS: Preset[] = [
       { id: 'ac', name: 'AC / SAC (AFC + AVC)', color: '#2563eb', equation: (q, p) => (p.tfc / Math.max(q, 0.5)) + (25 - 2.5 * q + 0.15 * q * q) },
       { id: 'mc', name: 'MC (dTC / dQ)', color: '#dc2626', equation: (q) => 25 - 5.0 * q + 0.45 * q * q }
     ],
-    takeaways: (p) => [
+    takeaways: () => [
       '1. MC cuts both AVC and AC at their MINIMUM points from below.',
       '2. Vertical distance between AC and AVC equals AFC (gets narrower as Q increases).',
       '3. AFC is a rectangular hyperbola (approaches axes but never touches them).'
@@ -559,9 +559,9 @@ const PRESETS: Preset[] = [
   }
 ];
 
-// --- MAIN GRAPH RENDERER COMPONENT ---
+// --- MAIN PAGE COMPONENT ---
 
-export const EconGraphsInteractive: React.FC = () => {
+export default function EconomicsPage() {
   const [activePresetId, setActivePresetId] = useState<string>('market-equilibrium');
   const activePreset = useMemo(() => PRESETS.find(p => p.id === activePresetId) || PRESETS[0], [activePresetId]);
 
@@ -996,4 +996,4 @@ export const EconGraphsInteractive: React.FC = () => {
 
     </div>
   );
-};
+}
