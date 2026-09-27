@@ -2,11 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 
-type Point = {
-  x: number;
-  y: number;
-  label?: string;
-};
+type Point = { x: number; y: number };
 
 type Curve = {
   id: string;
@@ -16,6 +12,16 @@ type Curve = {
   dashed?: boolean;
   vertical?: boolean;
   xValue?: number;
+};
+
+type Annotation = {
+  id: string;
+  x1: number;
+  y1: number;
+  x2?: number;
+  y2?: number;
+  text: string;
+  tone?: "label" | "arrow" | "guide";
 };
 
 type Preset = {
@@ -111,26 +117,30 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Producer Behaviour",
     description:
-      "Adjust market price and cost conditions to identify the profit-maximising output where MR equals MC.",
+      "For a competitive firm, change market price and identify the profit-maximising output where the rising MC curve equals MR = AR = P.",
     xLabel: "Output",
     yLabel: "Cost / Revenue",
-    xMin: 0,
+    xMin: 1,
     xMax: 100,
     yMin: 0,
     yMax: 100,
     controls: [
-      { key: "price", label: "Price / MR", min: 25, max: 80, step: 1, value: 50 },
-      { key: "cost", label: "Cost pressure", min: 0.7, max: 1.5, step: 0.01, value: 1 },
+      { key: "price", label: "Market price / MR", min: 10, max: 80, step: 1, value: 45 },
+      { key: "scale", label: "Variable-cost scale", min: 0.7, max: 1.3, step: 0.01, value: 1 },
     ],
-    curves: (c) => [
-      { id: "mc", label: "MC", color: curveColors[0], fn: (x) => c.cost * (12 - 0.5 * x + 0.012 * x ** 2) },
-      { id: "avc", label: "AVC", color: curveColors[1], fn: (x) => c.cost * (12 - 0.25 * x + 0.004 * x ** 2) },
-      { id: "mr", label: "MR = AR = P", color: curveColors[2], fn: () => c.price, dashed: true },
-    ],
+    curves: (c) => {
+      const avc = (x) => c.scale * (8 - 0.28 * x + 0.0035 * x * x);
+      const mc = (x) => c.scale * (8 - 0.56 * x + 0.0105 * x * x);
+      return [
+        { id: "mc", label: "MC", color: curveColors[0], fn: mc },
+        { id: "avc", label: "AVC", color: curveColors[1], fn: avc },
+        { id: "mr", label: "MR = AR = P", color: curveColors[2], fn: () => c.price, dashed: true },
+      ];
+    },
     interpretation: [
-      "A competitive firm takes market price as given, so MR = AR = P.",
-      "The profit-maximising output is identified where MC intersects MR from below.",
-      "Changing price shifts the MR/AR/P line and changes the equilibrium output.",
+      "Under perfect competition, MR = AR = P for the individual firm.",
+      "Producer equilibrium occurs where MR = MC and the MC curve is rising through MR.",
+      "The AVC curve also shows the short-run shutdown condition: price below minimum AVC means the firm does not cover variable cost.",
     ],
   },
 
@@ -140,7 +150,7 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Demand",
     description:
-      "Separate a change in quantity demanded caused by price from a change in demand caused by a non-price determinant.",
+      "Use price to move along the same demand curve, or change non-price determinants to shift the entire demand curve.",
     xLabel: "Quantity demanded",
     yLabel: "Price",
     xMin: 0,
@@ -148,18 +158,26 @@ const presets: Preset[] = [
     yMin: 0,
     yMax: 100,
     controls: [
-      { key: "price", label: "Price", min: 20, max: 75, step: 1, value: 55 },
-      { key: "shift", label: "Demand shift", min: -25, max: 25, step: 1, value: 0 },
+      { key: "price", label: "Price (movement along D)", min: 15, max: 75, step: 1, value: 50 },
+      { key: "income", label: "Income", min: -15, max: 15, step: 1, value: 0 },
+      { key: "substitutes", label: "Price of substitutes", min: -15, max: 15, step: 1, value: 0 },
+      { key: "complements", label: "Price of complements", min: -15, max: 15, step: 1, value: 0 },
+      { key: "tastes", label: "Tastes / preferences", min: -15, max: 15, step: 1, value: 0 },
+      { key: "expectations", label: "Expectations", min: -15, max: 15, step: 1, value: 0 },
+      { key: "buyers", label: "Number of buyers", min: -15, max: 15, step: 1, value: 0 },
     ],
-    curves: (c) => [
-      { id: "d", label: "D", color: curveColors[0], fn: (x) => 90 - 0.72 * x },
-      { id: "d2", label: "D₁ / D₂", color: curveColors[1], fn: (x) => 90 - 0.72 * x + c.shift, dashed: true },
-      { id: "price", label: "Chosen price", color: curveColors[2], fn: () => c.price, dashed: true },
-    ],
+    curves: (c) => {
+      const shift = (c.income + c.substitutes - c.complements + c.tastes + c.expectations + c.buyers) / 6;
+      return [
+        { id: "d0", label: "D₀", color: curveColors[0], fn: (x) => 90 - 0.72 * x },
+        { id: "d", label: "D₁ / D₂", color: curveColors[1], fn: (x) => 90 - 0.72 * x + shift, dashed: Math.abs(shift) < 0.01 },
+        { id: "price", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true },
+      ];
+    },
     interpretation: [
-      "Changing price while staying on the same demand curve causes movement along the curve.",
-      "A change in income, tastes, prices of related goods or other determinants shifts the entire demand curve.",
-      "The horizontal intersections at the chosen price make the two concepts visually distinct.",
+      "A change in price causes movement along the same demand curve and changes quantity demanded.",
+      "Income, prices of related goods, tastes/preferences, expectations and number of buyers are non-price determinants that shift demand.",
+      "A rightward shift means an increase in demand; a leftward shift means a decrease in demand.",
     ],
   },
 
@@ -169,7 +187,7 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Supply",
     description:
-      "Distinguish a change in quantity supplied caused by price from a change in supply caused by non-price determinants.",
+      "Use price to move along the same supply curve, or change non-price determinants to shift the entire supply curve.",
     xLabel: "Quantity supplied",
     yLabel: "Price",
     xMin: 0,
@@ -177,18 +195,27 @@ const presets: Preset[] = [
     yMin: 0,
     yMax: 100,
     controls: [
-      { key: "price", label: "Price", min: 20, max: 75, step: 1, value: 50 },
-      { key: "shift", label: "Supply shift", min: -25, max: 25, step: 1, value: 0 },
+      { key: "price", label: "Price (movement along S)", min: 20, max: 80, step: 1, value: 50 },
+      { key: "input", label: "Input prices", min: -15, max: 15, step: 1, value: 0 },
+      { key: "related", label: "Prices of related goods (net effect)", min: -15, max: 15, step: 1, value: 0 },
+      { key: "technology", label: "Technology", min: -15, max: 15, step: 1, value: 0 },
+      { key: "tax", label: "Taxes", min: -15, max: 15, step: 1, value: 0 },
+      { key: "subsidy", label: "Subsidies", min: -15, max: 15, step: 1, value: 0 },
+      { key: "expectations", label: "Expectations", min: -15, max: 15, step: 1, value: 0 },
+      { key: "firms", label: "Number of firms", min: -15, max: 15, step: 1, value: 0 },
     ],
-    curves: (c) => [
-      { id: "s", label: "S", color: curveColors[0], fn: (x) => 8 + 0.72 * x },
-      { id: "s2", label: "S₁ / S₂", color: curveColors[1], fn: (x) => 8 + 0.72 * x + c.shift, dashed: true },
-      { id: "price", label: "Chosen price", color: curveColors[2], fn: () => c.price, dashed: true },
-    ],
+    curves: (c) => {
+      const shift = (c.input + c.related - c.technology + c.tax - c.subsidy + c.expectations - c.firms) / 7;
+      return [
+        { id: "s0", label: "S₀", color: curveColors[0], fn: (x) => 8 + 0.72 * x },
+        { id: "s", label: "S₁ / S₂", color: curveColors[1], fn: (x) => 8 + 0.72 * x + shift, dashed: Math.abs(shift) < 0.01 },
+        { id: "price", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true },
+      ];
+    },
     interpretation: [
-      "Changing price causes movement along the same supply curve.",
-      "Technology, input prices, taxes, subsidies and other non-price determinants shift the supply curve.",
-      "The two intersections at the chosen price show the corresponding quantities supplied.",
+      "A change in price causes movement along the same supply curve and changes quantity supplied.",
+      "Input prices, related-good prices, technology, taxes, subsidies, expectations and number of firms are non-price determinants that shift supply.",
+      "A rightward shift means an increase in supply; a leftward shift means a decrease in supply.",
     ],
   },
 
@@ -198,25 +225,31 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Elasticity of Demand",
     description:
-      "Move the point of observation along a linear demand curve and inspect how percentage responsiveness changes.",
+      "Select the degree of price elasticity and then change price to observe the resulting quantity demanded.",
     xLabel: "Quantity demanded",
     yLabel: "Price",
-    xMin: 1,
+    xMin: 0,
     xMax: 100,
     yMin: 0,
-    yMax: 110,
+    yMax: 100,
     controls: [
-      { key: "slope", label: "Demand slope", min: 0.35, max: 1.2, step: 0.01, value: 0.75 },
-      { key: "quantity", label: "Quantity point", min: 8, max: 92, step: 1, value: 40 },
+      { key: "degree", label: "Degree of elasticity", min: 1, max: 5, step: 1, value: 3 },
+      { key: "price", label: "Price", min: 10, max: 90, step: 1, value: 50 },
     ],
-    curves: (c) => [
-      { id: "d", label: "Demand", color: curveColors[0], fn: (x) => Math.max(0, 92 - c.slope * x) },
-      { id: "point", label: "Selected price", color: curveColors[2], fn: () => Math.max(0, 92 - c.slope * c.quantity), dashed: true },
-    ],
+    curves: (c) => {
+      const degree = Math.round(c.degree);
+      if (degree === 1) return [{ id: "d", label: "Perfectly inelastic demand", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      if (degree === 2) return [{ id: "d", label: "Relatively inelastic demand", color: curveColors[0], fn: (x) => 8 + 1.65 * x }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      if (degree === 3) return [{ id: "d", label: "Unitary elastic demand", color: curveColors[0], fn: (x) => x <= 0 ? 100 : 10000 / Math.max(x, 1) }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      if (degree === 4) return [{ id: "d", label: "Relatively elastic demand", color: curveColors[0], fn: (x) => 92 - 0.55 * x }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      return [{ id: "d", label: "Perfectly elastic demand", color: curveColors[0], fn: () => 50 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+    },
     interpretation: [
-      "PED measures the percentage change in quantity demanded relative to the percentage change in price.",
-      "For a straight-line demand curve, elasticity varies along the curve even though its slope is constant.",
-      "The selected point lets you connect the graph to the point-elasticity expression |dQ/dP × P/Q|.",
+      "Perfectly inelastic demand is vertical: quantity demanded does not respond to price.",
+      "Relatively inelastic demand shows a smaller percentage response of quantity demanded than the percentage change in price.",
+      "Unitary elasticity means the percentage change in quantity demanded equals the percentage change in price.",
+      "Relatively elastic demand shows a larger percentage response of quantity demanded than the percentage change in price.",
+      "Perfectly elastic demand is horizontal: an infinitesimal price change produces an extremely large change in quantity demanded.",
     ],
   },
 
@@ -226,41 +259,28 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Elasticity of Demand",
     description:
-      "Use the total expenditure curve to see how expenditure changes as price changes along a demand schedule.",
+      "Change price and observe how total expenditure changes along the demand relationship. The turning point represents unitary elasticity in this linear model.",
     xLabel: "Price",
     yLabel: "Total expenditure",
     xMin: 0,
     xMax: 100,
     yMin: 0,
-    yMax: 110,
+    yMax: 100,
     controls: [
-      { key: "slope", label: "Demand slope", min: 0.45, max: 1.1, step: 0.01, value: 0.75 },
-      { key: "price", label: "Selected price", min: 5, max: 90, step: 1, value: 45 },
+      { key: "slope", label: "Demand responsiveness", min: 0.55, max: 1.0, step: 0.01, value: 0.75 },
+      { key: "price", label: "Selected price", min: 5, max: 90, step: 1, value: 35 },
     ],
-    curves: (c) => [
-      {
-        id: "te",
-        label: "Total expenditure = P × Q",
-        color: curveColors[0],
-        fn: (p) => {
-          const q = Math.max(0, (95 - p) / c.slope);
-          return Math.min(110, (p * q) / 50);
-        },
-      },
-      {
-        id: "selected",
-        label: "Selected price",
-        color: curveColors[2],
-        fn: () => 0,
-        dashed: true,
-        vertical: true,
-        xValue: c.price,
-      },
-    ],
+    curves: (c) => {
+      const demandQ = (p) => Math.max(0, (95 - p) / c.slope);
+      return [
+        { id: "te", label: "Total expenditure (P × Q)", color: curveColors[0], fn: (p) => Math.min(100, (p * demandQ(p)) / 28) },
+        { id: "selected", label: "Selected price", color: curveColors[2], fn: () => 0, dashed: true, vertical: true, xValue: c.price },
+      ];
+    },
     interpretation: [
       "When price falls and total expenditure rises, demand is elastic over that movement.",
       "When price falls and total expenditure falls, demand is inelastic over that movement.",
-      "At the maximum point of the total-expenditure curve, the corresponding demand movement is unit elastic in this model.",
+      "At the maximum of the total-expenditure curve, a small price change leaves total expenditure unchanged: demand is unit elastic in this linear model.",
     ],
   },
 
@@ -270,7 +290,7 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Elasticity of Supply",
     description:
-      "Change the responsiveness of supply and inspect how quantity supplied reacts to price.",
+      "Select the degree of price elasticity of supply and change price to observe the response of quantity supplied.",
     xLabel: "Quantity supplied",
     yLabel: "Price",
     xMin: 0,
@@ -278,17 +298,23 @@ const presets: Preset[] = [
     yMin: 0,
     yMax: 100,
     controls: [
-      { key: "slope", label: "Supply slope", min: 0.25, max: 1.4, step: 0.01, value: 0.7 },
-      { key: "price", label: "Price point", min: 10, max: 85, step: 1, value: 50 },
+      { key: "degree", label: "Degree of elasticity", min: 1, max: 5, step: 1, value: 3 },
+      { key: "price", label: "Price", min: 10, max: 90, step: 1, value: 50 },
     ],
-    curves: (c) => [
-      { id: "s", label: "Supply", color: curveColors[0], fn: (x) => 8 + c.slope * x },
-      { id: "p", label: "Selected price", color: curveColors[2], fn: () => c.price, dashed: true },
-    ],
+    curves: (c) => {
+      const degree = Math.round(c.degree);
+      if (degree === 1) return [{ id: "s", label: "Perfectly inelastic supply", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      if (degree === 2) return [{ id: "s", label: "Relatively inelastic supply", color: curveColors[0], fn: (x) => 8 + 1.65 * x }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      if (degree === 3) return [{ id: "s", label: "Unitary elastic supply", color: curveColors[0], fn: (x) => x <= 0 ? 0 : 0.01 * x * x }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      if (degree === 4) return [{ id: "s", label: "Relatively elastic supply", color: curveColors[0], fn: (x) => 0.25 * x + 8 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      return [{ id: "s", label: "Perfectly elastic supply", color: curveColors[0], fn: () => 50 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+    },
     interpretation: [
-      "PES measures the percentage change in quantity supplied relative to the percentage change in price.",
-      "A flatter supply curve represents greater responsiveness of quantity supplied to price in this coordinate setup.",
-      "Use the selected point to connect the graph with the percentage-change definition of PES.",
+      "Perfectly inelastic supply is vertical: quantity supplied does not respond to price.",
+      "Relatively inelastic supply shows a smaller percentage response of quantity supplied than the percentage change in price.",
+      "Unitary elasticity means the percentage change in quantity supplied equals the percentage change in price.",
+      "Relatively elastic supply shows a larger percentage response of quantity supplied than the percentage change in price.",
+      "Perfectly elastic supply is horizontal at the relevant price.",
     ],
   },
 
@@ -356,26 +382,32 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Market Forms",
     description:
-      "See the individual firm's horizontal demand, AR and MR line together with cost curves and the equilibrium output.",
+      "Show the competitive firm's horizontal AR/MR/P line together with AC and MC, including the equilibrium output and profit/loss reading.",
     xLabel: "Output",
     yLabel: "Cost / Revenue",
-    xMin: 0,
+    xMin: 1,
     xMax: 100,
     yMin: 0,
     yMax: 100,
     controls: [
-      { key: "price", label: "Market price", min: 25, max: 75, step: 1, value: 50 },
-      { key: "cost", label: "Cost pressure", min: 0.7, max: 1.5, step: 0.01, value: 1 },
+      { key: "price", label: "Market price", min: 10, max: 80, step: 1, value: 50 },
+      { key: "fixed", label: "Fixed cost", min: 20, max: 60, step: 1, value: 40 },
+      { key: "scale", label: "Variable-cost scale", min: 0.7, max: 1.3, step: 0.01, value: 1 },
     ],
-    curves: (c) => [
-      { id: "mc", label: "MC", color: curveColors[0], fn: (x) => c.cost * (12 - 0.5 * x + 0.012 * x ** 2) },
-      { id: "ac", label: "AC", color: curveColors[1], fn: (x) => (20 / Math.max(x, 1)) + c.cost * (12 - 0.25 * x + 0.004 * x ** 2) },
-      { id: "mr", label: "AR = MR = P", color: curveColors[2], fn: () => c.price, dashed: true },
-    ],
+    curves: (c) => {
+      const avc = (x) => c.scale * (8 - 0.28 * x + 0.0035 * x * x);
+      const mc = (x) => c.scale * (8 - 0.56 * x + 0.0105 * x * x);
+      const ac = (x) => c.fixed / x + avc(x);
+      return [
+        { id: "mc", label: "MC", color: curveColors[0], fn: mc },
+        { id: "ac", label: "AC", color: curveColors[1], fn: ac },
+        { id: "mr", label: "AR = MR = P", color: curveColors[2], fn: () => c.price, dashed: true },
+      ];
+    },
     interpretation: [
-      "A perfectly competitive firm is a price taker, so its AR and MR are equal to the market price.",
-      "The firm's equilibrium output is where MC = MR and MC is rising through MR.",
-      "The position of price relative to AC at the equilibrium output indicates profit or loss in the short run.",
+      "A competitive firm is a price taker, so its AR and MR are equal to market price.",
+      "The short-run equilibrium output is where MC = MR with MC rising.",
+      "Compare price with AC at equilibrium output to identify profit, normal profit or loss.",
     ],
   },
 
@@ -400,19 +432,11 @@ const presets: Preset[] = [
     curves: (c) => [
       { id: "ad", label: "AD / AE", color: curveColors[0], fn: (x) => c.autonomous + c.mpc * x },
       { id: "45", label: "45° line", color: "#64748b", fn: (x) => x, dashed: true },
-      {
-        id: "fe",
-        label: "Full-employment output",
-        color: curveColors[2],
-        fn: () => 0,
-        dashed: true,
-        vertical: true,
-        xValue: c.fullEmployment,
-      },
+      { id: "fe", label: "Full-employment output", color: curveColors[2], fn: () => 0, dashed: true, vertical: true, xValue: c.fullEmployment },
     ],
     interpretation: [
-      "Excess demand occurs when planned aggregate expenditure at full-employment output exceeds the level consistent with stable prices.",
-      "Deficient demand occurs when planned aggregate expenditure falls short of the full-employment level.",
+      "At full-employment output, excess demand is shown when planned aggregate expenditure lies above the 45° line.",
+      "At full-employment output, deficient demand is shown when planned aggregate expenditure lies below the 45° line.",
       "Fiscal and monetary policy can be used to reduce an inflationary gap or close a deflationary gap, depending on the policy direction.",
     ],
   },
@@ -771,7 +795,7 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Producer Behaviour",
     description:
-      "Visualise the relationship between total, average and marginal product.",
+      "Visualise the curriculum relationship between total product, average product and marginal product in the short run.",
     xLabel: "Variable input",
     yLabel: "Product",
     xMin: 0,
@@ -779,99 +803,32 @@ const presets: Preset[] = [
     yMin: 0,
     yMax: 100,
     controls: [
-      {
-        key: "productivity",
-        label: "Productivity",
-        min: 0.7,
-        max: 1.5,
-        step: 0.05,
-        value: 1,
-      },
+      { key: "productivity", label: "Productivity scale", min: 0.8, max: 1.2, step: 0.05, value: 1 },
     ],
-    curves: (c) => [
-      {
-        id: "tp",
-        label: "TP",
-        color: curveColors[0],
-        fn: (x) => c.productivity * (24 * x - 1.6 * x * x),
-      },
-      {
-        id: "ap",
-        label: "AP",
-        color: curveColors[1],
-        fn: (x) =>
-          x <= 0 ? 0 : c.productivity * (24 - 1.6 * x),
-      },
-      {
-        id: "mp",
-        label: "MP",
-        color: curveColors[2],
-        fn: (x) => c.productivity * (24 - 3.2 * x),
-      },
-    ],
+    curves: (c) => {
+      const tp = (x) => c.productivity * 0.4 * (18 * x + 2.4 * x * x - 0.2 * x * x * x);
+      const ap = (x) => x <= 0 ? 0 : tp(x) / x;
+      const mp = (x) => c.productivity * 0.4 * (18 + 4.8 * x - 0.6 * x * x);
+      return [
+        { id: "tp", label: "TP", color: curveColors[0], fn: tp },
+        { id: "ap", label: "AP", color: curveColors[1], fn: ap },
+        { id: "mp", label: "MP", color: curveColors[2], fn: mp },
+      ];
+    },
     interpretation: [
-      "MP is the change in total product caused by one more unit of the variable input.",
-      "When MP exceeds AP, AP rises; when MP is below AP, AP falls.",
-      "MP intersects AP at AP's maximum in the standard textbook relationship.",
-    ],
-  },
-
-  {
-    id: "tvc-mc-relationship",
-    title: "TVC & MC Relationship",
-    className: "XI",
-    unit: "Producer Behaviour",
-    description:
-      "Compare total variable cost with marginal cost and connect the slope of TVC to MC.",
-    xLabel: "Output",
-    yLabel: "Cost",
-    xMin: 0,
-    xMax: 30,
-    yMin: 0,
-    yMax: 100,
-    controls: [
-      {
-        key: "scale",
-        label: "Cost scale",
-        min: 0.75,
-        max: 1.35,
-        step: 0.01,
-        value: 1,
-      },
-    ],
-    curves: (c) => [
-      {
-        id: "tvc",
-        label: "TVC",
-        color: curveColors[0],
-        fn: (x) =>
-          c.scale *
-          (0.004 * x ** 3 - 0.12 * x ** 2 + 2.8 * x),
-      },
-      {
-        id: "mc",
-        label: "MC",
-        color: curveColors[1],
-        fn: (x) =>
-          c.scale *
-          (0.012 * x ** 2 - 0.24 * x + 2.8),
-      },
-    ],
-    interpretation: [
-      "TVC rises as output rises because variable inputs are required to produce additional output.",
-      "MC is the change in TVC caused by an additional unit of output, so MC corresponds to the slope of TVC.",
-      "When the TVC curve becomes steeper, MC rises; when TVC becomes flatter, MC falls.",
-      "The illustrative TVC curve has changing slope, producing a U-shaped MC curve.",
+      "AP = TP / units of the variable input.",
+      "MP is the change in TP caused by an additional unit of the variable input, so MP is the slope of TP.",
+      "MP intersects AP at AP's maximum. TP reaches its maximum where MP = 0.",
     ],
   },
 
   {
     id: "cost-curves",
-    title: "Cost Curves",
+    title: "Short-Run Cost Curves & Relationships",
     className: "XI",
     unit: "Producer Behaviour",
     description:
-      "Compare AFC, AVC, AC and MC as output changes.",
+      "A curriculum-based short-run cost system: AFC, AVC, AC and MC are generated from consistent cost relationships.",
     xLabel: "Output",
     yLabel: "Cost",
     xMin: 1,
@@ -879,49 +836,26 @@ const presets: Preset[] = [
     yMin: 0,
     yMax: 100,
     controls: [
-      {
-        key: "fixed",
-        label: "Fixed cost",
-        min: 10,
-        max: 50,
-        step: 1,
-        value: 25,
-      },
+      { key: "fixed", label: "Total fixed cost", min: 20, max: 60, step: 1, value: 40 },
+      { key: "scale", label: "Variable-cost scale", min: 0.7, max: 1.3, step: 0.01, value: 1 },
     ],
-    curves: (c) => [
-      {
-        id: "afc",
-        label: "AFC",
-        color: curveColors[0],
-        fn: (x) => c.fixed / x,
-      },
-      {
-        id: "avc",
-        label: "AVC",
-        color: curveColors[1],
-        fn: (x) => 8 - 0.3 * x + 0.004 * x ** 2,
-      },
-      {
-        id: "ac",
-        label: "AC",
-        color: curveColors[2],
-        fn: (x) =>
-          c.fixed / x +
-          8 -
-          0.3 * x +
-          0.004 * x ** 2,
-      },
-      {
-        id: "mc",
-        label: "MC",
-        color: curveColors[3],
-        fn: (x) => 8 - 0.6 * x + 0.012 * x ** 2,
-      },
-    ],
+    curves: (c) => {
+      const avc = (x) => c.scale * (8 - 0.28 * x + 0.0035 * x * x);
+      const mc = (x) => c.scale * (8 - 0.56 * x + 0.0105 * x * x);
+      const afc = (x) => c.fixed / x;
+      const ac = (x) => afc(x) + avc(x);
+      return [
+        { id: "afc", label: "AFC", color: curveColors[0], fn: afc },
+        { id: "avc", label: "AVC", color: curveColors[1], fn: avc },
+        { id: "ac", label: "AC", color: curveColors[2], fn: ac },
+        { id: "mc", label: "MC", color: curveColors[3], fn: mc },
+      ];
+    },
     interpretation: [
-      "AFC falls continuously as fixed cost is spread over more units.",
-      "AC = AFC + AVC.",
-      "MC intersects AVC and AC at their respective minimum points in the standard model.",
+      "AFC = TFC / Q, so AFC falls continuously as fixed cost is spread over more output.",
+      "AC = AFC + AVC, so AC lies above AVC and the gap between them equals AFC.",
+      "MC is the change in total cost or total variable cost from an additional unit of output.",
+      "MC cuts AVC at AVC's minimum and AC at AC's minimum in the standard short-run relationship.",
     ],
   },
 
@@ -931,47 +865,25 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Producer Behaviour",
     description:
-      "See why AR and MR coincide with price for a perfectly competitive firm.",
+      "Use the competitive-firm revenue identities TR = P × Q and AR = MR = P on a common revenue scale.",
     xLabel: "Output",
-    yLabel: "Revenue",
+    yLabel: "Revenue / Price",
     xMin: 0,
-    xMax: 100,
+    xMax: 10,
     yMin: 0,
-    yMax: 100,
+    yMax: 800,
     controls: [
-      {
-        key: "price",
-        label: "Price",
-        min: 20,
-        max: 80,
-        step: 1,
-        value: 50,
-      },
+      { key: "price", label: "Price", min: 20, max: 80, step: 1, value: 50 },
     ],
     curves: (c) => [
-      {
-        id: "tr",
-        label: "TR",
-        color: curveColors[0],
-        fn: (x) => Math.min(100, (c.price * x) / 80),
-      },
-      {
-        id: "ar",
-        label: "AR",
-        color: curveColors[1],
-        fn: () => c.price,
-      },
-      {
-        id: "mr",
-        label: "MR",
-        color: curveColors[2],
-        fn: () => c.price,
-      },
+      { id: "tr", label: "TR = P × Q", color: curveColors[0], fn: (x) => c.price * x },
+      { id: "ar", label: "AR = P", color: curveColors[1], fn: () => c.price },
+      { id: "mr", label: "MR = P", color: curveColors[2], fn: () => c.price },
     ],
     interpretation: [
       "Under perfect competition, price is constant for the individual firm.",
-      "Therefore AR = MR = Price.",
-      "TR rises linearly with output when price is constant.",
+      "Therefore AR = MR = P.",
+      "TR = P × Q, so with constant price the TR curve is a straight line through the origin and its slope equals price.",
     ],
   },
 
@@ -1094,26 +1006,24 @@ const presets: Preset[] = [
     className: "XII",
     unit: "Determination of Income and Employment",
     description:
-      "Explore how the investment multiplier changes as the marginal propensity to consume changes.",
+      "See how MPC determines the investment multiplier and how an initial investment change affects income.",
     xLabel: "MPC",
-    yLabel: "Multiplier",
+    yLabel: "Multiplier (k)",
     xMin: 0.4,
     xMax: 0.95,
     yMin: 0,
     yMax: 25,
-    controls: [],
-    curves: () => [
-      {
-        id: "k",
-        label: "Multiplier",
-        color: curveColors[0],
-        fn: (x) => 1 / (1 - x),
-      },
+    controls: [
+      { key: "investment", label: "Change in investment (ΔI)", min: 5, max: 30, step: 1, value: 10 },
+    ],
+    curves: (c) => [
+      { id: "k", label: "k = 1 / (1 − MPC)", color: curveColors[0], fn: (x) => 1 / (1 - x) },
+      { id: "selected", label: "Selected ΔY", color: curveColors[2], fn: () => Math.min(25, c.investment / (1 - 0.75)), dashed: true },
     ],
     interpretation: [
       "In the simple model, k = 1 / (1 − MPC).",
-      "A higher MPC produces a larger multiplier.",
-      "The change in equilibrium income equals the multiplier multiplied by the initial change in autonomous expenditure or investment.",
+      "A higher MPC produces a larger investment multiplier.",
+      "The resulting change in income is ΔY = k × ΔI.",
     ],
   },
 
@@ -1123,7 +1033,7 @@ const presets: Preset[] = [
     className: "XII",
     unit: "Money and Banking",
     description:
-      "Explore equilibrium in a standard liquidity-preference diagram.",
+      "Use the liquidity-preference framework with quantity of money on the horizontal axis and a fixed money supply as a vertical line.",
     xLabel: "Quantity of Money",
     yLabel: "Interest rate",
     xMin: 0,
@@ -1131,36 +1041,17 @@ const presets: Preset[] = [
     yMin: 0,
     yMax: 100,
     controls: [
-      {
-        key: "supply",
-        label: "Money supply",
-        min: 25,
-        max: 85,
-        step: 1,
-        value: 55,
-      },
+      { key: "supply", label: "Money supply", min: 20, max: 85, step: 1, value: 55 },
+      { key: "demandShift", label: "Money-demand shift", min: -15, max: 15, step: 1, value: 0 },
     ],
     curves: (c) => [
-      {
-        id: "md",
-        label: "Money demand",
-        color: curveColors[0],
-        fn: (x) => 92 - 0.85 * x,
-      },
-      {
-        id: "ms",
-        label: "Money supply",
-        color: curveColors[1],
-        fn: () => 0,
-        dashed: true,
-        vertical: true,
-        xValue: c.supply,
-      },
+      { id: "md", label: "Money demand", color: curveColors[0], fn: (x) => 92 - 0.85 * x + c.demandShift },
+      { id: "ms", label: "Money supply", color: curveColors[1], fn: () => 0, dashed: true, vertical: true, xValue: c.supply },
     ],
     interpretation: [
-      "Money demand is downward sloping with respect to the interest rate.",
-      "With interest rate on the vertical axis and quantity of money on the horizontal axis, a fixed money supply is shown as a vertical line.",
-      "The intersection determines the equilibrium combination.",
+      "Money demand is downward sloping with respect to the interest rate in this framework.",
+      "A fixed money supply is vertical because the quantity supplied is set independently of the interest rate.",
+      "A change in money supply shifts the vertical MS line and changes the equilibrium interest rate.",
     ],
   },
 
@@ -1256,159 +1147,92 @@ function fmt(n: number) {
 
 function sampleCurve(
   curve: Curve,
-  p: Preset
+  p: Pick<Preset, "xMin" | "xMax" | "yMin" | "yMax">
 ): Point[] {
-  const pts: Point[] = [];
-  const samples = 700;
-  const range = p.yMax - p.yMin;
-  const margin = Math.max(range, 1);
-
   if (curve.vertical) {
     const x = curve.xValue ?? p.xMin;
-    for (let i = 0; i <= samples; i++) {
-      const y = p.yMin + (i / samples) * (p.yMax - p.yMin);
-      pts.push({ x, y });
-    }
-    return pts;
+    return [
+      { x, y: p.yMin },
+      { x, y: p.yMax },
+    ];
   }
 
-  for (let i = 0; i <= samples; i++) {
-    const x = p.xMin + (i / samples) * (p.xMax - p.xMin);
-    let y: number;
+  const pts: Point[] = [];
+  let previousY: number | null = null;
+  const ySpan = Math.max(p.yMax - p.yMin, 1e-9);
 
-    try {
-      y = curve.fn(x);
-    } catch {
-      y = NaN;
-    }
+  for (let i = 0; i <= 900; i++) {
+    const x = p.xMin + (i / 900) * (p.xMax - p.xMin);
+    const y = curve.fn(x);
+    const finite = Number.isFinite(y);
+    const outside = finite && (y < p.yMin - ySpan * 0.05 || y > p.yMax + ySpan * 0.05);
+    const jump = finite && previousY !== null && Math.abs(y - previousY) > ySpan * 0.35;
 
-    if (
-      !Number.isFinite(y) ||
-      y < p.yMin - margin ||
-      y > p.yMax + margin
-    ) {
+    if (!finite || outside || jump) {
       pts.push({ x: NaN, y: NaN });
+      previousY = null;
     } else {
       pts.push({ x, y });
+      previousY = y;
     }
   }
 
   return pts;
 }
 
-function refineIntersection(
-  a: Curve,
-  b: Curve,
-  left: number,
-  right: number
-) {
-  let lo = left;
-  let hi = right;
-  let flo = a.fn(lo) - b.fn(lo);
-  let fhi = a.fn(hi) - b.fn(hi);
-
-  if (!Number.isFinite(flo) || !Number.isFinite(fhi)) return null;
-  if (Math.abs(flo) < 1e-10) return { x: lo, y: a.fn(lo) };
-  if (Math.abs(fhi) < 1e-10) return { x: hi, y: a.fn(hi) };
-  if (flo * fhi > 0) return null;
-
-  for (let i = 0; i < 36; i++) {
-    const mid = (lo + hi) / 2;
-    const fm = a.fn(mid) - b.fn(mid);
-    if (!Number.isFinite(fm)) return null;
-    if (Math.abs(fm) < 1e-9) {
-      lo = mid;
-      hi = mid;
-      break;
-    }
-    if (flo * fm <= 0) {
-      hi = mid;
-      fhi = fm;
-    } else {
-      lo = mid;
-      flo = fm;
-    }
-  }
-
-  const x = (lo + hi) / 2;
-  const y = a.fn(x);
-  return Number.isFinite(y) ? { x, y } : null;
-}
-
-function intersections(curves: Curve[], p: Preset): Point[] {
+function intersections(
+  curves: Curve[],
+  bounds: Pick<Preset, "xMin" | "xMax" | "yMin" | "yMax">
+): Point[] {
   const out: Point[] = [];
-  const samples = 900;
-  const xRange = p.xMax - p.xMin;
-  const xTolerance = Math.max(xRange / 220, 1e-6);
-  const yTolerance = Math.max((p.yMax - p.yMin) / 220, 1e-6);
-
-  const addPoint = (point: Point, label: string) => {
-    if (
-      point.x < p.xMin - xTolerance ||
-      point.x > p.xMax + xTolerance ||
-      point.y < p.yMin - yTolerance ||
-      point.y > p.yMax + yTolerance
-    ) return;
-
-    const existing = out.find(
-      (q) =>
-        Math.abs(q.x - point.x) < xTolerance &&
-        Math.abs(q.y - point.y) < yTolerance
-    );
-
-    if (existing) {
-      if (existing.label && !existing.label.includes(label)) {
-        existing.label += " · " + label;
-      }
-      return;
-    }
-
-    out.push({ ...point, label });
-  };
+  const steps = 900;
+  const xSpan = bounds.xMax - bounds.xMin;
 
   for (let a = 0; a < curves.length; a++) {
     for (let b = a + 1; b < curves.length; b++) {
-      const curveA = curves[a];
-      const curveB = curves[b];
+      const ca = curves[a];
+      const cb = curves[b];
 
-      if (curveA.vertical && curveB.vertical) continue;
+      if (ca.vertical && cb.vertical) continue;
 
-      if (curveA.vertical || curveB.vertical) {
-        const vertical = curveA.vertical ? curveA : curveB;
-        const other = curveA.vertical ? curveB : curveA;
-        const x = vertical.xValue;
-        if (x === undefined || x < p.xMin || x > p.xMax || other.vertical) continue;
-
-        let y: number;
-        try {
-          y = other.fn(x);
-        } catch {
-          y = NaN;
-        }
-        if (Number.isFinite(y)) {
-          addPoint({ x, y }, vertical.label + " ∩ " + other.label);
+      if (ca.vertical || cb.vertical) {
+        const vertical = ca.vertical ? ca : cb;
+        const other = ca.vertical ? cb : ca;
+        const x = vertical.xValue ?? bounds.xMin;
+        const y = other.fn(x);
+        if (Number.isFinite(y) && y >= bounds.yMin && y <= bounds.yMax) {
+          if (!out.some((q) => Math.abs(q.x - x) < xSpan / 120 && Math.abs(q.y - y) < (bounds.yMax - bounds.yMin) / 120)) {
+            out.push({ x, y });
+          }
         }
         continue;
       }
 
-      let prevX = p.xMin;
-      let prevD = curveA.fn(prevX) - curveB.fn(prevX);
+      let prevX = bounds.xMin;
+      let prevA = ca.fn(prevX);
+      let prevB = cb.fn(prevX);
+      let prevD = prevA - prevB;
 
-      for (let i = 1; i <= samples; i++) {
-        const x = p.xMin + (i / samples) * xRange;
-        let d: number;
-        try {
-          d = curveA.fn(x) - curveB.fn(x);
-        } catch {
-          d = NaN;
-        }
+      for (let i = 1; i <= steps; i++) {
+        const x = bounds.xMin + (i / steps) * xSpan;
+        const aY = ca.fn(x);
+        const bY = cb.fn(x);
+        const d = aY - bY;
 
-        if (Number.isFinite(prevD) && Number.isFinite(d) && (prevD === 0 || d === 0 || prevD * d < 0)) {
-          const point = refineIntersection(curveA, curveB, prevX, x);
-          if (point) addPoint(point, curveA.label + " ∩ " + curveB.label);
+        if (Number.isFinite(prevD) && Number.isFinite(d) && Number.isFinite(prevA) && Number.isFinite(prevB) && prevD * d <= 0) {
+          const denominator = Math.abs(prevD) + Math.abs(d);
+          const t = denominator > 0 ? Math.abs(prevD) / denominator : 0;
+          const ix = prevX + (x - prevX) * t;
+          const y = ca.fn(ix);
+
+          if (Number.isFinite(y) && y >= bounds.yMin && y <= bounds.yMax && !out.some((q) => Math.abs(q.x - ix) < xSpan / 120 && Math.abs(q.y - y) < (bounds.yMax - bounds.yMin) / 120)) {
+            out.push({ x: ix, y });
+          }
         }
 
         prevX = x;
+        prevA = aY;
+        prevB = bY;
         prevD = d;
       }
     }
@@ -1420,6 +1244,52 @@ function intersections(curves: Curve[], p: Preset): Point[] {
 /* -------------------------------------------------------------------------- */
 /* Economics graph                                                            */
 /* -------------------------------------------------------------------------- */
+
+function graphAnnotations(preset: Preset, controls: Record<string, number>, curves: Curve[], view: {xMin:number;xMax:number;yMin:number;yMax:number}): Annotation[] {
+  const a: Annotation[] = [];
+  const midX = (view.xMin + view.xMax) / 2;
+  const midY = (view.yMin + view.yMax) / 2;
+  if (preset.id === "demand-movement-shift") {
+    const price = controls.price;
+    const shift = (controls.income + controls.substitutes - controls.complements + controls.tastes + controls.expectations + controls.buyers) / 6;
+    const q0 = Math.max(0, (90 - price) / 0.72);
+    const q1 = Math.max(0, (90 + shift - price) / 0.72);
+    a.push({id:"move",x1:q0,y1:price,x2:Math.max(0,q0-14),y2:price,text:"Movement along D",tone:"arrow"});
+    if (Math.abs(shift)>0.5) a.push({id:"shift",x1:55,y1:90-0.72*55,x2:55,y2:90-0.72*55+shift,text:shift>0?"Increase in demand":"Decrease in demand",tone:"arrow"});
+    if (Math.abs(q1-q0)>1) a.push({id:"gap",x1:q0,y1:price,x2:q1,y2:price,text:"Change in quantity demanded",tone:"guide"});
+  }
+  if (preset.id === "supply-movement-shift") {
+    const price = controls.price;
+    const shift = (controls.input + controls.related - controls.technology + controls.tax - controls.subsidy + controls.expectations - controls.firms) / 7;
+    const q0 = Math.max(0, (price-8)/0.72);
+    const q1 = Math.max(0, (price-8-shift)/0.72);
+    a.push({id:"move",x1:q0,y1:price,x2:Math.min(100,q0+14),y2:price,text:"Movement along S",tone:"arrow"});
+    if (Math.abs(shift)>0.5) a.push({id:"shift",x1:55,y1:8+0.72*55,x2:55,y2:8+0.72*55+shift,text:shift<0?"Increase in supply":"Decrease in supply",tone:"arrow"});
+    if (Math.abs(q1-q0)>1) a.push({id:"gap",x1:q0,y1:price,x2:q1,y2:price,text:"Change in quantity supplied",tone:"guide"});
+  }
+  if (preset.id === "price-ceiling") a.push({id:"binding",x1:18,y1:controls.ceiling,x2:35,y2:controls.ceiling,text:"Binding ceiling if below equilibrium",tone:"label"});
+  if (preset.id === "price-floor") a.push({id:"binding",x1:18,y1:controls.floor,x2:35,y2:controls.floor,text:"Binding floor if above equilibrium",tone:"label"});
+  if (preset.id === "producer-equilibrium" || preset.id === "perfect-competition-firm") a.push({id:"eq",x1:30,y1:controls.price,x2:42,y2:controls.price,text:"Equilibrium: MR = MC",tone:"arrow"});
+  if (preset.id === "cost-curves") {
+    a.push({id:"mcavc",x1:35,y1:10,x2:48,y2:10,text:"MC cuts AVC at AVC minimum",tone:"label"});
+    a.push({id:"mcac",x1:65,y1:35,x2:80,y2:35,text:"MC cuts AC at AC minimum",tone:"label"});
+  }
+  if (preset.id === "tp-ap-mp") {
+    a.push({id:"mp0",x1:10.78,y1:0,x2:10.78,y2:24,text:"TP maximum: MP = 0",tone:"label"});
+    a.push({id:"apmp",x1:6,y1:20,x2:7.5,y2:28,text:"MP = AP at AP maximum",tone:"label"});
+  }
+  if (preset.id === "demand-supply" || preset.id === "forex") a.push({id:"eq",x1:midX-15,y1:midY+15,x2:midX,y2:midY,text:"Market equilibrium",tone:"arrow"});
+  if (preset.id === "total-expenditure") {
+    const unitPrice = 47.5;
+    a.push({id:"unit",x1:unitPrice,y1:5,x2:unitPrice,y2:60,text:"Unit elastic point",tone:"guide"});
+    a.push({id:"elastic",x1:18,y1:45,x2:30,y2:58,text:"Elastic region",tone:"label"});
+    a.push({id:"inelastic",x1:68,y1:48,x2:82,y2:58,text:"Inelastic region",tone:"label"});
+  }
+  if (preset.id === "money-demand") a.push({id:"ms",x1:controls.supply,y1:25,x2:controls.supply,y2:55,text:"Fixed money supply",tone:"label"});
+  if (preset.id === "excess-deficient-demand") a.push({id:"fe",x1:controls.fullEmployment,y1:15,x2:controls.fullEmployment,y2:45,text:"Full-employment output",tone:"label"});
+  if (preset.id === "multiplier") a.push({id:"k",x1:0.75,y1:4,x2:0.82,y2:5.5,text:"Higher MPC → higher k",tone:"arrow"});
+  return a;
+}
 
 function CircularFlowDiagram() {
   return (
@@ -1475,7 +1345,9 @@ function EconomicsGraph({
 }: {
   preset: Preset;
   controls: Record<string, number>;
-  setControls: (v: Record<string, number>) => void;
+  setControls: (
+    v: Record<string, number>
+  ) => void;
 }) {
   const [hover, setHover] = useState<{
     x: number;
@@ -1484,8 +1356,15 @@ function EconomicsGraph({
   } | null>(null);
 
   const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const drag = useRef<{ x: number; y: number } | null>(null);
+  const [pan, setPan] = useState({
+    x: 0,
+    y: 0,
+  });
+
+  const drag = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   if (preset.diagram === "circular-flow") {
     return <CircularFlowDiagram />;
@@ -1495,10 +1374,21 @@ function EconomicsGraph({
   const H = 560;
   const P = 62;
 
-  const xRange = (preset.xMax - preset.xMin) / zoom;
-  const yRange = (preset.yMax - preset.yMin) / zoom;
-  const xMid = (preset.xMin + preset.xMax) / 2 + pan.x;
-  const yMid = (preset.yMin + preset.yMax) / 2 + pan.y;
+  const xRange =
+    (preset.xMax - preset.xMin) /
+    zoom;
+
+  const yRange =
+    (preset.yMax - preset.yMin) /
+    zoom;
+
+  const xMid =
+    (preset.xMin + preset.xMax) / 2 +
+    pan.x;
+
+  const yMid =
+    (preset.yMin + preset.yMax) / 2 +
+    pan.y;
 
   const view = {
     xMin: xMid - xRange / 2,
@@ -1507,18 +1397,54 @@ function EconomicsGraph({
     yMax: yMid + yRange / 2,
   };
 
-  const mapX = (x: number) => P + ((x - view.xMin) / (view.xMax - view.xMin)) * (W - 2 * P);
-  const mapY = (y: number) => H - P - ((y - view.yMin) / (view.yMax - view.yMin)) * (H - 2 * P);
-  const unmapX = (sx: number) => view.xMin + ((sx - P) / (W - 2 * P)) * (view.xMax - view.xMin);
-  const unmapY = (sy: number) => view.yMax - ((sy - P) / (H - 2 * P)) * (view.yMax - view.yMin);
+  const mapX = (x: number) =>
+    P +
+    ((x - view.xMin) /
+      (view.xMax - view.xMin)) *
+      (W - 2 * P);
 
-  const curves = useMemo(() => preset.curves(controls), [preset, controls]);
-  const xs = ticks(view.xMin, view.xMax);
-  const ys = ticks(view.yMin, view.yMax);
-  const points = useMemo(() => intersections(curves, preset), [curves, preset]);
+  const mapY = (y: number) =>
+    H -
+    P -
+    ((y - view.yMin) /
+      (view.yMax - view.yMin)) *
+      (H - 2 * P);
+
+  const unmapX = (sx: number) =>
+    view.xMin +
+    ((sx - P) /
+      (W - 2 * P)) *
+      (view.xMax - view.xMin);
+
+  const unmapY = (sy: number) =>
+    view.yMax -
+    ((sy - P) /
+      (H - 2 * P)) *
+      (view.yMax - view.yMin);
+
+  const curves = useMemo(
+    () => preset.curves(controls),
+    [preset, controls]
+  );
+
+  const xs = ticks(
+    view.xMin,
+    view.xMax
+  );
+
+  const ys = ticks(
+    view.yMin,
+    view.yMax
+  );
+
+  const points = useMemo(
+    () => intersections(curves, view),
+    [curves, view.xMin, view.xMax, view.yMin, view.yMax]
+  );
 
   const pathFor = (curve: Curve) => {
-    const sampled = sampleCurve(curve, { ...preset, xMin: view.xMin, xMax: view.xMax, yMin: view.yMin, yMax: view.yMax });
+    const sampled = sampleCurve(curve, view);
+
     const d: string[] = [];
     let drawing = false;
 
@@ -1527,97 +1453,40 @@ function EconomicsGraph({
         drawing = false;
         return;
       }
+
       const sx = mapX(pt.x);
       const sy = mapY(pt.y);
-      if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx < -1000 || sx > W + 1000 || sy < -1000 || sy > H + 1000) {
+
+      if (
+        !Number.isFinite(sy) ||
+        sy < -1000 ||
+        sy > H + 1000
+      ) {
         drawing = false;
         return;
       }
+
       if (!drawing) {
-        d.push(`M ${sx.toFixed(2)} ${sy.toFixed(2)}`);
+        d.push(
+          `M ${sx.toFixed(2)} ${sy.toFixed(2)}`
+        );
         drawing = true;
       } else {
-        d.push(`L ${sx.toFixed(2)} ${sy.toFixed(2)}`);
+        d.push(
+          `L ${sx.toFixed(2)} ${sy.toFixed(2)}`
+        );
       }
     });
+
     return d.join(" ");
   };
 
   const reset = () => {
     setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
-  const handlePointerMove = (e: any) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const sx = ((e.clientX - rect.left) / rect.width) * W;
-    const sy = ((e.clientY - rect.top) / rect.height) * H;
-
-    if (drag.current) {
-      const dx = e.clientX - drag.current.x;
-      const dy = e.clientY - drag.current.y;
-      const unitX = (view.xMax - view.xMin) / (W - 2 * P);
-      const unitY = (view.yMax - view.yMin) / (H - 2 * P);
-      setPan((v) => ({ x: v.x - dx * unitX, y: v.y + dy * unitY }));
-      drag.current = { x: e.clientX, y: e.clientY };
-      setHover(null);
-      return;
-    }
-
-    if (sx < P || sx > W - P || sy < P || sy > H - P) {
-      setHover(null);
-      return;
-    }
-
-    let nearestPoint: { point: Point; d: number } | null = null;
-    points.forEach((point) => {
-      const d = Math.hypot(mapX(point.x) - sx, mapY(point.y) - sy);
-      if (!nearestPoint || d < nearestPoint.d) nearestPoint = { point, d };
+    setPan({
+      x: 0,
+      y: 0,
     });
-
-    if (nearestPoint && nearestPoint.d <= 18) {
-      setHover({
-        x: nearestPoint.point.x,
-        y: nearestPoint.point.y,
-        label: nearestPoint.point.label ?? "Important intersection",
-      });
-      return;
-    }
-
-    const x = unmapX(sx);
-    const y = unmapY(sy);
-    let nearestCurve: { curve: Curve; x: number; y: number; d: number } | null = null;
-
-    curves.forEach((curve) => {
-      let cy = NaN;
-      let cx = x;
-      let d = Infinity;
-
-      if (curve.vertical) {
-        cx = curve.xValue ?? NaN;
-        if (!Number.isFinite(cx)) return;
-        d = Math.abs(mapX(cx) - sx);
-        cy = y;
-      } else {
-        try {
-          cy = curve.fn(x);
-        } catch {
-          cy = NaN;
-        }
-        if (!Number.isFinite(cy)) return;
-        d = Math.abs(mapY(cy) - sy);
-      }
-
-      if (d < (nearestCurve?.d ?? Infinity)) {
-        nearestCurve = { curve, x: cx, y: cy, d };
-      }
-    });
-
-    if (nearestCurve && nearestCurve.d <= 16) {
-      setHover({ x: nearestCurve.x, y: nearestCurve.y, label: nearestCurve.curve.label });
-    } else {
-      setHover(null);
-    }
   };
 
   return (
@@ -1627,59 +1496,126 @@ function EconomicsGraph({
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full touch-none select-none"
           onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            drag.current = { x: e.clientX, y: e.clientY };
+            e.currentTarget.setPointerCapture(
+              e.pointerId
+            );
+
+            drag.current = {
+              x: e.clientX,
+              y: e.clientY,
+            };
           }}
-          onPointerMove={handlePointerMove}
-          onPointerUp={(e) => {
+          onPointerMove={(e) => {
+            if (drag.current) {
+              const dx = e.clientX - drag.current.x;
+              const dy = e.clientY - drag.current.y;
+              const unitX = (view.xMax - view.xMin) / (W - 2 * P);
+              const unitY = (view.yMax - view.yMin) / (H - 2 * P);
+
+              setPan((v) => ({
+                x: v.x - dx * unitX,
+                y: v.y + dy * unitY,
+              }));
+
+              drag.current = { x: e.clientX, y: e.clientY };
+              return;
+            }
+
+            if ((e.target as Element).getAttribute?.("data-intersection") === "true") return;
+
+            const rect = e.currentTarget.getBoundingClientRect();
+            const sx = ((e.clientX - rect.left) * W) / rect.width;
+            const sy = ((e.clientY - rect.top) * H) / rect.height;
+            const x = unmapX(sx);
+
+            let nearest: { curve: Curve; y: number; d: number } | null = null;
+            curves.forEach((curve) => {
+              if (curve.vertical) return;
+              const cy = curve.fn(x);
+              if (!Number.isFinite(cy)) return;
+              const d = Math.abs(mapY(cy) - sy);
+              if (!nearest || d < nearest.d) nearest = { curve, y: cy, d };
+            });
+
+            if (nearest && nearest.d < 18) {
+              setHover({ x, y: nearest.y, label: nearest.curve.label });
+            } else {
+              setHover(null);
+            }
+          }}
+          onPointerUp={() => {
             drag.current = null;
-            try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
           }}
-          onPointerCancel={() => { drag.current = null; }}
-          onPointerLeave={() => { if (!drag.current) setHover(null); }}
+          onPointerCancel={() => {
+            drag.current = null;
+          }}
           onWheel={(e) => {
             e.preventDefault();
-            setZoom((z) => Math.max(0.5, Math.min(4, z * (e.deltaY < 0 ? 1.12 : 0.89))));
+
+            setZoom((z) =>
+              Math.max(
+                0.5,
+                Math.min(
+                  4,
+                  z *
+                    (e.deltaY < 0
+                      ? 1.12
+                      : 0.89)
+                )
+              )
+            );
           }}
         >
-          <rect width={W} height={H} fill="white" />
+          <defs>
+            <marker id="econ-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#475569" />
+            </marker>
+          </defs>
+          <rect
+            width={W}
+            height={H}
+            fill="white"
+          />
 
-          {xs.map((x) => {
-            const axisY = view.yMin <= 0 && view.yMax >= 0 ? mapY(0) : H - P;
-            return (
-              <g key={`x-${x}`}>
-                <line x1={mapX(x)} x2={mapX(x)} y1={P} y2={H - P} stroke="#e2e8f0" />
-                <text x={mapX(x)} y={axisY - 8} textAnchor="middle" fontSize="12" fill="#64748b">
-                  {fmt(x)}
-                </text>
-              </g>
-            );
-          })}
-
-          {ys.map((y) => {
+          {(() => {
             const axisX = view.xMin <= 0 && view.xMax >= 0 ? mapX(0) : P;
+            const axisY = view.yMin <= 0 && view.yMax >= 0 ? mapY(0) : H - P;
+
             return (
-              <g key={`y-${y}`}>
-                <line x1={P} x2={W - P} y1={mapY(y)} y2={mapY(y)} stroke="#e2e8f0" />
-                <text x={axisX - 8} y={mapY(y) + 4} textAnchor="end" fontSize="12" fill="#64748b">
-                  {fmt(y)}
-                </text>
-              </g>
+              <>
+                {xs.map((x) => (
+                  <g key={`x-${x}`}>
+                    <line x1={mapX(x)} x2={mapX(x)} y1={P} y2={H - P} stroke="#e2e8f0" />
+                    <line x1={mapX(x)} x2={mapX(x)} y1={axisY - 4} y2={axisY + 4} stroke="#334155" strokeWidth="1.5" />
+                    <text x={mapX(x)} y={Math.min(H - 28, Math.max(P + 16, axisY + 20))} textAnchor="middle" fontSize="12" fill="#475569">{fmt(x)}</text>
+                  </g>
+                ))}
+
+                {ys.map((y) => (
+                  <g key={`y-${y}`}>
+                    <line x1={P} x2={W - P} y1={mapY(y)} y2={mapY(y)} stroke="#e2e8f0" />
+                    <line x1={axisX - 4} x2={axisX + 4} y1={mapY(y)} y2={mapY(y)} stroke="#334155" strokeWidth="1.5" />
+                    <text x={Math.max(28, Math.min(W - 8, axisX - 10))} y={mapY(y) + 4} textAnchor="end" fontSize="12" fill="#475569">{fmt(y)}</text>
+                  </g>
+                ))}
+
+                {view.xMin <= 0 && view.xMax >= 0 && (
+                  <line x1={axisX} x2={axisX} y1={P} y2={H - P} stroke="#334155" strokeWidth="2" />
+                )}
+                {view.yMin <= 0 && view.yMax >= 0 && (
+                  <line x1={P} x2={W - P} y1={axisY} y2={axisY} stroke="#334155" strokeWidth="2" markerEnd="url(#econ-arrow)" />
+                )}
+                {view.xMin <= 0 && view.xMax >= 0 && (
+                  <line x1={axisX} x2={axisX} y1={H - P} y2={P} stroke="#334155" strokeWidth="2" markerEnd="url(#econ-arrow)" />
+                )}
+              </>
             );
-          })}
-
-          {view.xMin <= 0 && view.xMax >= 0 && (
-            <line x1={mapX(0)} x2={mapX(0)} y1={P} y2={H - P} stroke="#334155" strokeWidth="2" />
-          )}
-
-          {view.yMin <= 0 && view.yMax >= 0 && (
-            <line x1={P} x2={W - P} y1={mapY(0)} y2={mapY(0)} stroke="#334155" strokeWidth="2" />
-          )}
+          })()}
 
           <text
-            x={W - P + 10}
-            y={(view.yMin <= 0 && view.yMax >= 0 ? mapY(0) : H - P) - 8}
-            textAnchor="start"
+            x={W / 2}
+            y={H - 12}
+            textAnchor="middle"
             fontSize="14"
             fontWeight="600"
             fill="#334155"
@@ -1688,15 +1624,34 @@ function EconomicsGraph({
           </text>
 
           <text
-            x={(view.xMin <= 0 && view.xMax >= 0 ? mapX(0) : P) + 12}
-            y={P - 10}
-            textAnchor="start"
+            x={18}
+            y={H / 2}
+            textAnchor="middle"
             fontSize="14"
             fontWeight="600"
             fill="#334155"
+            transform={`rotate(-90 18 ${
+              H / 2
+            })`}
           >
             {preset.yLabel}
           </text>
+
+
+          {graphAnnotations(preset, controls, curves, view).map((ann) => {
+            const sx1 = mapX(ann.x1);
+            const sy1 = mapY(ann.y1);
+            const sx2 = mapX(ann.x2 ?? ann.x1);
+            const sy2 = mapY(ann.y2 ?? ann.y1);
+            return (
+              <g key={ann.id} pointerEvents="none">
+                {(ann.tone === "arrow" || ann.tone === "guide") && (
+                  <line x1={sx1} y1={sy1} x2={sx2} y2={sy2} stroke="#64748b" strokeWidth="2" strokeDasharray={ann.tone === "guide" ? "5 5" : undefined} markerEnd={ann.tone === "arrow" ? "url(#econ-arrow)" : undefined} />
+                )}
+                <text x={(sx1+sx2)/2} y={(sy1+sy2)/2-8} textAnchor="middle" fontSize="11" fontWeight="600" fill="#475569" paintOrder="stroke" stroke="white" strokeWidth="4">{ann.text}</text>
+              </g>
+            );
+          })}
 
           {curves.map((curve) => (
             <path
@@ -1705,35 +1660,129 @@ function EconomicsGraph({
               fill="none"
               stroke={curve.color}
               strokeWidth="3"
-              strokeDasharray={curve.dashed ? "9 7" : undefined}
+              strokeDasharray={
+                curve.dashed
+                  ? "9 7"
+                  : undefined
+              }
               strokeLinecap="round"
-              strokeLinejoin="round"
             />
           ))}
 
-          {points.map((pt, i) => {
-            const px = mapX(pt.x);
-            const py = mapY(pt.y);
+
+          {curves.map((curve) => {
+            const sample = sampleCurve(curve, view).filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+            if (!sample.length) return null;
+            const pt = sample[Math.floor(sample.length * 0.72)];
             return (
-              <g key={`p-${i}`} pointerEvents="none">
-                <line x1={px} x2={px} y1={py} y2={mapY(0)} stroke="#94a3b8" strokeDasharray="4 4" />
-                <line x1={px} x2={mapX(0)} y1={py} y2={py} stroke="#94a3b8" strokeDasharray="4 4" />
-                <circle cx={px} cy={py} r="6" fill="#0f172a" stroke="white" strokeWidth="2" />
-              </g>
+              <text key={`label-${curve.id}`} x={mapX(pt.x)+7} y={mapY(pt.y)-7} fontSize="12" fontWeight="700" fill={curve.color} paintOrder="stroke" stroke="white" strokeWidth="4">{curve.label}</text>
             );
           })}
+
+          {points.map((pt, i) => (
+            <g key={`p-${i}`}>
+              <line
+                x1={mapX(pt.x)}
+                x2={mapX(pt.x)}
+                y1={mapY(pt.y)}
+                y2={mapY(0)}
+                stroke="#94a3b8"
+                strokeDasharray="4 4"
+              />
+
+              <line
+                x1={mapX(pt.x)}
+                x2={mapX(0)}
+                y1={mapY(pt.y)}
+                y2={mapY(pt.y)}
+                stroke="#94a3b8"
+                strokeDasharray="4 4"
+              />
+
+              <circle
+                cx={mapX(pt.x)}
+                cy={mapY(pt.y)}
+                r="12"
+                fill="transparent"
+                stroke="transparent"
+                data-intersection="true"
+                pointerEvents="all"
+                onPointerEnter={() =>
+                  setHover({
+                    x: pt.x,
+                    y: pt.y,
+                    label: "Intersection / equilibrium",
+                  })
+                }
+                onPointerLeave={() => setHover(null)}
+              />
+
+              <circle
+                cx={mapX(pt.x)}
+                cy={mapY(pt.y)}
+                r="6"
+                data-intersection="true"
+                fill="#0f172a"
+                stroke="white"
+                strokeWidth="2"
+                onPointerEnter={() =>
+                  setHover({
+                    x: pt.x,
+                    y: pt.y,
+                    label:
+                      "Intersection / equilibrium",
+                  })
+                }
+                onPointerLeave={() =>
+                  setHover(null)
+                }
+              />
+            </g>
+          ))}
+
         </svg>
 
         <div className="absolute left-3 top-3 flex gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
-          <button className="h-9 w-9 rounded-lg hover:bg-slate-100" onClick={() => setZoom((z) => Math.min(4, z * 1.15))}>+</button>
-          <button className="h-9 w-9 rounded-lg hover:bg-slate-100" onClick={() => setZoom((z) => Math.max(0.5, z * 0.87))}>−</button>
-          <button className="rounded-lg px-3 text-xs font-semibold hover:bg-slate-100" onClick={reset}>Reset</button>
+          <button
+            className="h-9 w-9 rounded-lg hover:bg-slate-100"
+            onClick={() =>
+              setZoom((z) =>
+                Math.min(4, z * 1.15)
+              )
+            }
+          >
+            +
+          </button>
+
+          <button
+            className="h-9 w-9 rounded-lg hover:bg-slate-100"
+            onClick={() =>
+              setZoom((z) =>
+                Math.max(0.5, z * 0.87)
+              )
+            }
+          >
+            −
+          </button>
+
+          <button
+            className="rounded-lg px-3 text-xs font-semibold hover:bg-slate-100"
+            onClick={reset}
+          >
+            Reset
+          </button>
         </div>
 
         {hover && (
           <div className="pointer-events-none absolute right-3 top-3 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg">
-            <div className="font-semibold text-slate-900">{hover.label}</div>
-            <div className="mt-1 font-mono text-slate-600">X = {fmt(hover.x)} · Y = {fmt(hover.y)}</div>
+            <div className="font-semibold text-slate-900">
+              {hover.label}
+            </div>
+
+            <div className="mt-1 font-mono text-slate-600">
+              X = {fmt(hover.x)} · Y ={" "}
+              {fmt(hover.y)}
+            </div>
           </div>
         )}
 
@@ -1743,54 +1792,107 @@ function EconomicsGraph({
       </div>
 
       <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="font-semibold">Controls</h3>
+        <h3 className="font-semibold">
+          Controls
+        </h3>
+
         <div className="mt-4 space-y-4">
-          {preset.controls.map((control) => (
-            <label key={control.key} className="block">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-                <span>{control.label}</span>
-                <span className="font-mono text-slate-900">{fmt(controls[control.key])}</span>
-              </div>
-              <input
-                className="mt-2 w-full accent-slate-900"
-                type="range"
-                min={control.min}
-                max={control.max}
-                step={control.step}
-                value={controls[control.key]}
-                onChange={(e) => setControls({ ...controls, [control.key]: Number(e.target.value) })}
-              />
-            </label>
-          ))}
+          {preset.controls.map(
+            (control) => (
+              <label
+                key={control.key}
+                className="block"
+              >
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                  <span>
+                    {control.label}
+                  </span>
+
+                  <span className="font-mono text-slate-900">
+                    {fmt(
+                      controls[
+                        control.key
+                      ]
+                    )}
+                  </span>
+                </div>
+
+                <input
+                  className="mt-2 w-full accent-slate-900"
+                  type="range"
+                  min={control.min}
+                  max={control.max}
+                  step={control.step}
+                  value={
+                    controls[
+                      control.key
+                    ]
+                  }
+                  onChange={(e) =>
+                    setControls({
+                      ...controls,
+                      [control.key]:
+                        Number(
+                          e.target.value
+                        ),
+                    })
+                  }
+                />
+              </label>
+            )
+          )}
         </div>
 
         <div className="mt-5 border-t border-slate-100 pt-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Curves</h4>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Curves
+          </h4>
+
           <div className="mt-3 space-y-2">
             {curves.map((curve) => (
-              <div key={curve.id} className="flex items-center gap-2 text-xs text-slate-600">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: curve.color }} />
-                <span>{curve.label}</span>
+              <div
+                key={curve.id}
+                className="flex items-center gap-2 text-sm"
+              >
+                <span
+                  className="h-2.5 w-7 rounded-full"
+                  style={{
+                    background:
+                      curve.color,
+                  }}
+                />
+
+                <span>
+                  {curve.label}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
         <div className="mt-5 border-t border-slate-100 pt-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Interpretation</h4>
-          <ul className="mt-3 space-y-2 text-xs leading-5 text-slate-600">
-            {preset.interpretation.map((item, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
-                <span>{item}</span>
-              </li>
-            ))}
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            What to observe
+          </h4>
+
+          <ul className="mt-2 space-y-2 text-sm leading-5 text-slate-600">
+            {preset.interpretation.map(
+              (item) => (
+                <li key={item}>
+                  • {item}
+                </li>
+              )
+            )}
           </ul>
         </div>
       </aside>
     </div>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Statistics                                                                 */
+/* -------------------------------------------------------------------------- */
 
 type StatMode =
   | "bar"
@@ -1805,7 +1907,10 @@ type StatMode =
   | "more-ogive"
   | "both-ogive"
   | "scatter"
-  | "time-series";
+  | "time-series"
+  | "spearman"
+  | "spearman-repeated"
+  | "index-numbers";
 
 type FrequencyRow = {
   lower: number;
@@ -1816,6 +1921,12 @@ type FrequencyRow = {
 type PairedPoint = {
   x: number;
   y: number;
+};
+
+type IndexRow = {
+  label: string;
+  base: number;
+  current: number;
 };
 
 const defaultRawData = [
@@ -1836,6 +1947,14 @@ const defaultMultiple = [
   { label: "2024", a: 20, b: 30, c: 25 },
   { label: "2025", a: 28, b: 35, c: 32 },
   { label: "2026", a: 34, b: 42, c: 38 },
+];
+
+const defaultIndexRows: IndexRow[] = [
+  { label: "Food", base: 100, current: 125 },
+  { label: "Clothing", base: 80, current: 92 },
+  { label: "Fuel", base: 60, current: 78 },
+  { label: "Housing", base: 120, current: 138 },
+  { label: "Other", base: 90, current: 99 },
 ];
 
 const defaultFrequency: FrequencyRow[] = [
@@ -2000,6 +2119,49 @@ function pearsonCorrelation(
   if (!dx || !dy) return 0;
 
   return numerator / (dx * dy);
+}
+
+function rankValues(values: number[]) {
+  const sorted = values.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
+  const ranks = new Array<number>(values.length).fill(0);
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1].value === sorted[i].value) j += 1;
+    const averageRank = (i + 1 + j + 1) / 2;
+    for (let k = i; k <= j; k += 1) ranks[sorted[k].index] = averageRank;
+    i = j + 1;
+  }
+  return ranks;
+}
+
+function tieCorrection(values: number[]) {
+  const counts = new Map<number, number>();
+  values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+  return Array.from(counts.values()).filter((count) => count > 1).reduce((total, count) => total + count ** 3 - count, 0);
+}
+
+function spearmanCorrelation(points: PairedPoint[], repeatedRanks = false) {
+  if (points.length < 2) return 0;
+  const rx = rankValues(points.map((p) => p.x));
+  const ry = rankValues(points.map((p) => p.y));
+  const n = points.length;
+  const d2 = sum(rx.map((rank, i) => (rank - ry[i]) ** 2));
+  if (!repeatedRanks) return 1 - (6 * d2) / (n * (n ** 2 - 1));
+  const tieAdjustment = (tieCorrection(points.map((p) => p.x)) + tieCorrection(points.map((p) => p.y))) / 12;
+  return 1 - (6 * (d2 + tieAdjustment)) / (n * (n ** 2 - 1));
+}
+
+function simpleAggregativeIndex(rows: IndexRow[]) {
+  const valid = rows.filter((row) => Number.isFinite(row.base) && Number.isFinite(row.current) && row.base > 0);
+  if (!valid.length) return 0;
+  const baseTotal = sum(valid.map((row) => row.base));
+  const currentTotal = sum(valid.map((row) => row.current));
+  return baseTotal === 0 ? 0 : (currentTotal / baseTotal) * 100;
+}
+
+function priceRelative(row: IndexRow) {
+  return row.base > 0 ? (row.current / row.base) * 100 : 0;
 }
 
 function regressionLine(
@@ -3326,7 +3488,6 @@ function StatGraph({
 /* Statistics control panel                                                   */
 /* -------------------------------------------------------------------------- */
 
-
 function StatisticsLab() {
   const [mode, setMode] =
     useState<StatMode>("bar");
@@ -3358,6 +3519,9 @@ function StatisticsLab() {
         "45,51",
       ].join("\n")
     );
+
+  const [indexRows, setIndexRows] =
+    useState<IndexRow[]>(defaultIndexRows);
 
   const [showMean, setShowMean] =
     useState(false);
@@ -3459,6 +3623,11 @@ function StatisticsLab() {
     pearsonCorrelation(
       paired
     );
+
+  const spearman = spearmanCorrelation(paired, false);
+  const spearmanRepeated = spearmanCorrelation(paired, true);
+  const indexValue = simpleAggregativeIndex(indexRows);
+  const indexChangeFromBase = indexValue - 100;
 
   const grouped =
     frequencyStats(
@@ -3577,6 +3746,14 @@ function StatisticsLab() {
         string
       ][],
     },
+    {
+      title: "Correlation & Index Numbers",
+      items: [
+        ["spearman", "Spearman rank - no ties"],
+        ["spearman-repeated", "Spearman rank - repeated ranks"],
+        ["index-numbers", "Index numbers"],
+      ] as [StatMode, string][],
+    },
   ];
 
   const resetDataset = () => {
@@ -3608,6 +3785,7 @@ function StatisticsLab() {
         "45,51",
       ].join("\n")
     );
+    setIndexRows(defaultIndexRows);
   };
 
   return (
@@ -4327,27 +4505,52 @@ function StatisticsLab() {
               </div>
             </div>
 
-            <StatGraph
-              mode={mode}
-              rawData={rawData}
-              categories={
-                categories
-              }
-              multiple={multiple}
-              frequencyRows={
-                frequencyRows
-              }
-              paired={paired}
-              showMean={
-                showMean
-              }
-              showMedian={
-                showMedian
-              }
-              showMode={
-                showMode
-              }
-            />
+            {mode === "spearman" || mode === "spearman-repeated" || mode === "index-numbers" ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                {mode === "index-numbers" ? (
+                  <div className="space-y-5">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Index numbers</div>
+                      <h3 className="mt-1 text-lg font-semibold">Simple Aggregative Method</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">Enter base-period and current-period prices. Index = ΣP₁ / ΣP₀ × 100.</p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[620px] text-sm">
+                        <thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-2 py-2">Item</th><th className="px-2 py-2">Base P₀</th><th className="px-2 py-2">Current P₁</th><th className="px-2 py-2">Price relative</th><th /></tr></thead>
+                        <tbody>
+                          {indexRows.map((row, i) => (
+                            <tr key={i} className="border-b border-slate-50">
+                              <td className="px-2 py-2"><input value={row.label} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],label:e.target.value}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
+                              <td className="px-2 py-2"><input type="number" min="0" value={row.base} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],base:Number(e.target.value)}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
+                              <td className="px-2 py-2"><input type="number" min="0" value={row.current} onChange={(e) => { const next=[...indexRows]; next[i]={...next[i],current:Number(e.target.value)}; setIndexRows(next); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" /></td>
+                              <td className="px-2 py-2 font-mono">{fmt(priceRelative(row))}</td>
+                              <td className="px-2 py-2 text-right"><button onClick={() => setIndexRows(indexRows.filter((_,j)=>j!==i))} className="text-xs font-semibold text-red-500">Remove</button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button onClick={() => setIndexRows([...indexRows,{label:"Item "+(indexRows.length+1),base:100,current:110}])} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold hover:bg-slate-200">+ Add item</button>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {[["ΣP₀",sum(indexRows.map(r=>r.base))],["ΣP₁",sum(indexRows.map(r=>r.current))],["Index",indexValue]].map(([label,value])=><div key={String(label)} className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div><div className="mt-1 text-xl font-semibold">{fmt(Number(value))}</div></div>)}
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-600"><strong className="text-slate-900">Base = 100:</strong> the sample index is {fmt(indexValue)}, so the index has changed by {fmt(indexChangeFromBase)} points from the base index.</div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {[['WPI','Wholesale Price Index','Wholesale-level price index.'],['CPI','Consumer Price Index','Consumer-oriented price index.'],['IIP','Index of Industrial Production','Industrial production index.']].map(([abbr,title,body])=><div key={abbr} className="rounded-xl border border-slate-200 p-4"><div className="text-xs font-bold uppercase tracking-wider text-slate-400">{abbr}</div><div className="mt-1 font-semibold">{title}</div><div className="mt-1 text-xs leading-5 text-slate-500">{body}</div></div>)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <div><div className="text-xs font-bold uppercase tracking-wider text-slate-400">Correlation</div><h3 className="mt-1 text-lg font-semibold">Spearman rank correlation</h3><p className="mt-1 text-sm leading-6 text-slate-500">Ranks are calculated automatically from the paired observations above.</p></div>
+                    <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">No repeated ranks</div><div className="mt-1 font-mono text-2xl font-semibold">{spearman.toFixed(4)}</div></div><div className="rounded-xl bg-slate-50 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Repeated ranks</div><div className="mt-1 font-mono text-2xl font-semibold">{spearmanRepeated.toFixed(4)}</div></div></div>
+                    <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-2 py-2">X</th><th className="px-2 py-2">Y</th><th className="px-2 py-2">Rank X</th><th className="px-2 py-2">Rank Y</th><th className="px-2 py-2">d</th><th className="px-2 py-2">d²</th></tr></thead><tbody>{(() => { const rx=rankValues(paired.map(p=>p.x)); const ry=rankValues(paired.map(p=>p.y)); return paired.map((p,i)=>{const d=rx[i]-ry[i]; return <tr key={i} className="border-b border-slate-50"><td className="px-2 py-2 font-mono">{fmt(p.x)}</td><td className="px-2 py-2 font-mono">{fmt(p.y)}</td><td className="px-2 py-2 font-mono">{fmt(rx[i])}</td><td className="px-2 py-2 font-mono">{fmt(ry[i])}</td><td className="px-2 py-2 font-mono">{fmt(d)}</td><td className="px-2 py-2 font-mono">{fmt(d*d)}</td></tr>})})()}</tbody></table></div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-600"><div className="font-semibold text-slate-900">Formula</div><div className="mt-1 font-mono">ρ = 1 − 6Σd² / [n(n² − 1)]</div>{mode === "spearman-repeated" && <div className="mt-2">Repeated ranks use average ranks and the tie correction.</div>}</div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <StatGraph mode={mode} rawData={rawData} categories={categories} multiple={multiple} frequencyRows={frequencyRows} paired={paired} showMean={showMean} showMedian={showMedian} showMode={showMode} />
+            )}
           </div>
 
           {/* NUMERICAL ANALYSIS */}
@@ -4662,17 +4865,8 @@ export default function EconomicsGraphLabPage() {
   };
 
   const list = presets.filter(
-    (p) => p.className === section
-  );
-
-  const groupedList = list.reduce<{ unit: string; items: Preset[] }[]>(
-    (groups, item) => {
-      const existing = groups.find((group) => group.unit === item.unit);
-      if (existing) existing.items.push(item);
-      else groups.push({ unit: item.unit, items: [item] });
-      return groups;
-    },
-    []
+    (p) =>
+      p.className === section
   );
 
   const switchSection = (
@@ -4750,28 +4944,37 @@ export default function EconomicsGraphLabPage() {
                 Class {section} · Graphs
               </div>
 
-              <div className="mt-2 space-y-4">
-                {groupedList.map((group) => (
-                  <div key={group.unit}>
-                    <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
-                      {group.unit}
+              <div className="mt-2 space-y-1">
+                {list.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() =>
+                      choose(
+                        p.id
+                      )
+                    }
+                    className={`w-full rounded-xl px-3 py-3 text-left text-sm ${
+                      selected ===
+                      p.id
+                        ? "bg-slate-950 text-white"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="font-semibold">
+                      {p.title}
                     </div>
-                    <div className="space-y-1">
-                      {group.items.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => choose(p.id)}
-                          className={`w-full rounded-xl px-3 py-2.5 text-left text-sm ${
-                            selected === p.id
-                              ? "bg-slate-950 text-white"
-                              : "text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          <div className="font-semibold">{p.title}</div>
-                        </button>
-                      ))}
+
+                    <div
+                      className={`mt-1 text-xs ${
+                        selected ===
+                        p.id
+                          ? "text-slate-300"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {p.unit}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </nav>
