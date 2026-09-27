@@ -14,6 +14,8 @@ type Curve = {
   color: string;
   fn: (x: number) => number;
   dashed?: boolean;
+  vertical?: boolean;
+  xValue?: number;
 };
 
 type Preset = {
@@ -121,8 +123,8 @@ const presets: Preset[] = [
       { key: "cost", label: "Cost pressure", min: 0.7, max: 1.5, step: 0.01, value: 1 },
     ],
     curves: (c) => [
-      { id: "mc", label: "MC", color: curveColors[0], fn: (x) => 12 + c.cost * 0.018 * (x - 32) ** 2 },
-      { id: "avc", label: "AVC", color: curveColors[1], fn: (x) => 18 + c.cost * 0.008 * (x - 45) ** 2 },
+      { id: "mc", label: "MC", color: curveColors[0], fn: (x) => c.cost * (12 - 0.5 * x + 0.012 * x ** 2) },
+      { id: "avc", label: "AVC", color: curveColors[1], fn: (x) => c.cost * (12 - 0.25 * x + 0.004 * x ** 2) },
       { id: "mr", label: "MR = AR = P", color: curveColors[2], fn: () => c.price, dashed: true },
     ],
     interpretation: [
@@ -202,7 +204,7 @@ const presets: Preset[] = [
     xMin: 1,
     xMax: 100,
     yMin: 0,
-    yMax: 100,
+    yMax: 110,
     controls: [
       { key: "slope", label: "Demand slope", min: 0.35, max: 1.2, step: 0.01, value: 0.75 },
       { key: "quantity", label: "Quantity point", min: 8, max: 92, step: 1, value: 40 },
@@ -224,24 +226,41 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Elasticity of Demand",
     description:
-      "Compare price and total expenditure to classify demand as elastic, inelastic or unitary.",
-    xLabel: "Quantity demanded",
-    yLabel: "Price / Expenditure",
+      "Use the total expenditure curve to see how expenditure changes as price changes along a demand schedule.",
+    xLabel: "Price",
+    yLabel: "Total expenditure",
     xMin: 0,
     xMax: 100,
     yMin: 0,
-    yMax: 120,
+    yMax: 110,
     controls: [
       { key: "slope", label: "Demand slope", min: 0.45, max: 1.1, step: 0.01, value: 0.75 },
+      { key: "price", label: "Selected price", min: 5, max: 90, step: 1, value: 45 },
     ],
     curves: (c) => [
-      { id: "d", label: "Demand", color: curveColors[0], fn: (x) => Math.max(0, 95 - c.slope * x) },
-      { id: "te", label: "Total expenditure = P × Q", color: curveColors[1], fn: (x) => Math.min(120, Math.max(0, x * (95 - c.slope * x)) / 35), dashed: true },
+      {
+        id: "te",
+        label: "Total expenditure = P × Q",
+        color: curveColors[0],
+        fn: (p) => {
+          const q = Math.max(0, (95 - p) / c.slope);
+          return Math.min(110, (p * q) / 50);
+        },
+      },
+      {
+        id: "selected",
+        label: "Selected price",
+        color: curveColors[2],
+        fn: () => 0,
+        dashed: true,
+        vertical: true,
+        xValue: c.price,
+      },
     ],
     interpretation: [
       "When price falls and total expenditure rises, demand is elastic over that movement.",
       "When price falls and total expenditure falls, demand is inelastic over that movement.",
-      "When total expenditure is unchanged after a price change, demand is unit elastic.",
+      "At the maximum point of the total-expenditure curve, the corresponding demand movement is unit elastic in this model.",
     ],
   },
 
@@ -349,8 +368,8 @@ const presets: Preset[] = [
       { key: "cost", label: "Cost pressure", min: 0.7, max: 1.5, step: 0.01, value: 1 },
     ],
     curves: (c) => [
-      { id: "mc", label: "MC", color: curveColors[0], fn: (x) => 10 + c.cost * 0.02 * (x - 28) ** 2 },
-      { id: "ac", label: "AC", color: curveColors[1], fn: (x) => 24 + c.cost * 0.008 * (x - 48) ** 2 },
+      { id: "mc", label: "MC", color: curveColors[0], fn: (x) => c.cost * (12 - 0.5 * x + 0.012 * x ** 2) },
+      { id: "ac", label: "AC", color: curveColors[1], fn: (x) => (20 / Math.max(x, 1)) + c.cost * (12 - 0.25 * x + 0.004 * x ** 2) },
       { id: "mr", label: "AR = MR = P", color: curveColors[2], fn: () => c.price, dashed: true },
     ],
     interpretation: [
@@ -381,7 +400,15 @@ const presets: Preset[] = [
     curves: (c) => [
       { id: "ad", label: "AD / AE", color: curveColors[0], fn: (x) => c.autonomous + c.mpc * x },
       { id: "45", label: "45° line", color: "#64748b", fn: (x) => x, dashed: true },
-      { id: "fe", label: "Full-employment output", color: curveColors[2], fn: () => c.fullEmployment, dashed: true },
+      {
+        id: "fe",
+        label: "Full-employment output",
+        color: curveColors[2],
+        fn: () => 0,
+        dashed: true,
+        vertical: true,
+        xValue: c.fullEmployment,
+      },
     ],
     interpretation: [
       "Excess demand occurs when planned aggregate expenditure at full-employment output exceeds the level consistent with stable prices.",
@@ -795,7 +822,7 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Producer Behaviour",
     description:
-      "Trace total variable cost and marginal cost together to see how MC reflects the slope of TVC.",
+      "Compare total variable cost with marginal cost and connect the slope of TVC to MC.",
     xLabel: "Output",
     yLabel: "Cost",
     xMin: 0,
@@ -818,38 +845,25 @@ const presets: Preset[] = [
         label: "TVC",
         color: curveColors[0],
         fn: (x) =>
-          Math.max(
-            0,
-            c.scale * (
-              0.004 * x ** 3 -
-              0.12 * x ** 2 +
-              2.8 * x
-            )
-          ),
+          c.scale *
+          (0.004 * x ** 3 - 0.12 * x ** 2 + 2.8 * x),
       },
       {
         id: "mc",
         label: "MC",
         color: curveColors[1],
         fn: (x) =>
-          Math.max(
-            0,
-            c.scale * (
-              0.012 * x ** 2 -
-              0.24 * x +
-              2.8
-            )
-          ),
+          c.scale *
+          (0.012 * x ** 2 - 0.24 * x + 2.8),
       },
     ],
     interpretation: [
-      "TVC rises with output because variable inputs are being used to produce more output.",
-      "MC is the change in TVC caused by one additional unit of output, so MC is represented by the slope of the TVC curve.",
-      "When TVC becomes steeper, MC rises; when TVC becomes flatter, MC falls.",
-      "The U-shaped MC curve corresponds to the changing slope of the S-shaped TVC curve in this illustrative model.",
+      "TVC rises as output rises because variable inputs are required to produce additional output.",
+      "MC is the change in TVC caused by an additional unit of output, so MC corresponds to the slope of TVC.",
+      "When the TVC curve becomes steeper, MC rises; when TVC becomes flatter, MC falls.",
+      "The illustrative TVC curve has changing slope, producing a U-shaped MC curve.",
     ],
   },
-
 
   {
     id: "cost-curves",
@@ -879,28 +893,29 @@ const presets: Preset[] = [
         id: "afc",
         label: "AFC",
         color: curveColors[0],
-        fn: (x) => (c.fixed / x) * 100,
+        fn: (x) => c.fixed / x,
       },
       {
         id: "avc",
         label: "AVC",
         color: curveColors[1],
-        fn: (x) => 18 + 0.008 * (x - 45) ** 2,
+        fn: (x) => 8 - 0.3 * x + 0.004 * x ** 2,
       },
       {
         id: "ac",
         label: "AC",
         color: curveColors[2],
         fn: (x) =>
-          (c.fixed / x) * 100 +
-          18 +
-          0.008 * (x - 45) ** 2,
+          c.fixed / x +
+          8 -
+          0.3 * x +
+          0.004 * x ** 2,
       },
       {
         id: "mc",
         label: "MC",
         color: curveColors[3],
-        fn: (x) => 12 + 0.018 * (x - 30) ** 2,
+        fn: (x) => 8 - 0.6 * x + 0.012 * x ** 2,
       },
     ],
     interpretation: [
@@ -1079,24 +1094,15 @@ const presets: Preset[] = [
     className: "XII",
     unit: "Determination of Income and Employment",
     description:
-      "Explore the relationship between MPC and the investment multiplier.",
+      "Explore how the investment multiplier changes as the marginal propensity to consume changes.",
     xLabel: "MPC",
     yLabel: "Multiplier",
     xMin: 0.4,
     xMax: 0.95,
     yMin: 0,
     yMax: 25,
-    controls: [
-      {
-        key: "investment",
-        label: "Investment change",
-        min: 5,
-        max: 30,
-        step: 1,
-        value: 10,
-      },
-    ],
-    curves: (c) => [
+    controls: [],
+    curves: () => [
       {
         id: "k",
         label: "Multiplier",
@@ -1107,7 +1113,7 @@ const presets: Preset[] = [
     interpretation: [
       "In the simple model, k = 1 / (1 − MPC).",
       "A higher MPC produces a larger multiplier.",
-      "The final income change is k × the initial autonomous investment change.",
+      "The change in equilibrium income equals the multiplier multiplied by the initial change in autonomous expenditure or investment.",
     ],
   },
 
@@ -1145,8 +1151,10 @@ const presets: Preset[] = [
         id: "ms",
         label: "Money supply",
         color: curveColors[1],
-        fn: () => c.supply,
+        fn: () => 0,
         dashed: true,
+        vertical: true,
+        xValue: c.supply,
       },
     ],
     interpretation: [
@@ -1251,17 +1259,23 @@ function sampleCurve(
   p: Preset
 ): Point[] {
   const pts: Point[] = [];
-  const samples = 1400;
+  const samples = 700;
   const range = p.yMax - p.yMin;
-  const margin = Math.max(range * 1.25, 1);
+  const margin = Math.max(range, 1);
+
+  if (curve.vertical) {
+    const x = curve.xValue ?? p.xMin;
+    for (let i = 0; i <= samples; i++) {
+      const y = p.yMin + (i / samples) * (p.yMax - p.yMin);
+      pts.push({ x, y });
+    }
+    return pts;
+  }
 
   for (let i = 0; i <= samples; i++) {
-    const x =
-      p.xMin +
-      (i / samples) *
-        (p.xMax - p.xMin);
-
+    const x = p.xMin + (i / samples) * (p.xMax - p.xMin);
     let y: number;
+
     try {
       y = curve.fn(x);
     } catch {
@@ -1293,33 +1307,20 @@ function refineIntersection(
   let flo = a.fn(lo) - b.fn(lo);
   let fhi = a.fn(hi) - b.fn(hi);
 
-  if (!Number.isFinite(flo) || !Number.isFinite(fhi)) {
-    return null;
-  }
-
-  if (Math.abs(flo) < 1e-10) {
-    const y = a.fn(lo);
-    return Number.isFinite(y) ? { x: lo, y } : null;
-  }
-
-  if (Math.abs(fhi) < 1e-10) {
-    const y = a.fn(hi);
-    return Number.isFinite(y) ? { x: hi, y } : null;
-  }
-
+  if (!Number.isFinite(flo) || !Number.isFinite(fhi)) return null;
+  if (Math.abs(flo) < 1e-10) return { x: lo, y: a.fn(lo) };
+  if (Math.abs(fhi) < 1e-10) return { x: hi, y: a.fn(hi) };
   if (flo * fhi > 0) return null;
 
   for (let i = 0; i < 36; i++) {
     const mid = (lo + hi) / 2;
     const fm = a.fn(mid) - b.fn(mid);
-
     if (!Number.isFinite(fm)) return null;
     if (Math.abs(fm) < 1e-9) {
       lo = mid;
       hi = mid;
       break;
     }
-
     if (flo * fm <= 0) {
       hi = mid;
       fhi = fm;
@@ -1331,20 +1332,15 @@ function refineIntersection(
 
   const x = (lo + hi) / 2;
   const y = a.fn(x);
-
   return Number.isFinite(y) ? { x, y } : null;
 }
 
-function intersections(
-  curves: Curve[],
-  p: Preset
-): Point[] {
+function intersections(curves: Curve[], p: Preset): Point[] {
   const out: Point[] = [];
-  const samples = 1200;
+  const samples = 900;
   const xRange = p.xMax - p.xMin;
-  const yRange = p.yMax - p.yMin;
-  const xTolerance = Math.max(xRange / 180, 1e-6);
-  const yTolerance = Math.max(yRange / 180, 1e-6);
+  const xTolerance = Math.max(xRange / 220, 1e-6);
+  const yTolerance = Math.max((p.yMax - p.yMin) / 220, 1e-6);
 
   const addPoint = (point: Point, label: string) => {
     if (
@@ -1352,9 +1348,7 @@ function intersections(
       point.x > p.xMax + xTolerance ||
       point.y < p.yMin - yTolerance ||
       point.y > p.yMax + yTolerance
-    ) {
-      return;
-    }
+    ) return;
 
     const existing = out.find(
       (q) =>
@@ -1364,36 +1358,44 @@ function intersections(
 
     if (existing) {
       if (existing.label && !existing.label.includes(label)) {
-        existing.label = existing.label + " · " + label;
+        existing.label += " · " + label;
       }
       return;
     }
 
-    out.push({
-      x: point.x,
-      y: point.y,
-      label,
-    });
+    out.push({ ...point, label });
   };
 
   for (let a = 0; a < curves.length; a++) {
     for (let b = a + 1; b < curves.length; b++) {
       const curveA = curves[a];
       const curveB = curves[b];
-      let prevX = p.xMin;
-      let prevD: number;
 
-      try {
-        prevD = curveA.fn(prevX) - curveB.fn(prevX);
-      } catch {
-        prevD = NaN;
+      if (curveA.vertical && curveB.vertical) continue;
+
+      if (curveA.vertical || curveB.vertical) {
+        const vertical = curveA.vertical ? curveA : curveB;
+        const other = curveA.vertical ? curveB : curveA;
+        const x = vertical.xValue;
+        if (x === undefined || x < p.xMin || x > p.xMax || other.vertical) continue;
+
+        let y: number;
+        try {
+          y = other.fn(x);
+        } catch {
+          y = NaN;
+        }
+        if (Number.isFinite(y)) {
+          addPoint({ x, y }, vertical.label + " ∩ " + other.label);
+        }
+        continue;
       }
 
-      for (let i = 1; i <= samples; i++) {
-        const x =
-          p.xMin +
-          (i / samples) * xRange;
+      let prevX = p.xMin;
+      let prevD = curveA.fn(prevX) - curveB.fn(prevX);
 
+      for (let i = 1; i <= samples; i++) {
+        const x = p.xMin + (i / samples) * xRange;
         let d: number;
         try {
           d = curveA.fn(x) - curveB.fn(x);
@@ -1401,22 +1403,9 @@ function intersections(
           d = NaN;
         }
 
-        if (Number.isFinite(prevD) && Number.isFinite(d)) {
-          if (prevD === 0 || d === 0 || prevD * d < 0) {
-            const point = refineIntersection(
-              curveA,
-              curveB,
-              prevX,
-              x
-            );
-
-            if (point) {
-              addPoint(
-                point,
-                curveA.label + " ∩ " + curveB.label
-              );
-            }
-          }
+        if (Number.isFinite(prevD) && Number.isFinite(d) && (prevD === 0 || d === 0 || prevD * d < 0)) {
+          const point = refineIntersection(curveA, curveB, prevX, x);
+          if (point) addPoint(point, curveA.label + " ∩ " + curveB.label);
         }
 
         prevX = x;
@@ -1427,6 +1416,7 @@ function intersections(
 
   return out.slice(0, 12);
 }
+
 /* -------------------------------------------------------------------------- */
 /* Economics graph                                                            */
 /* -------------------------------------------------------------------------- */
@@ -1485,9 +1475,7 @@ function EconomicsGraph({
 }: {
   preset: Preset;
   controls: Record<string, number>;
-  setControls: (
-    v: Record<string, number>
-  ) => void;
+  setControls: (v: Record<string, number>) => void;
 }) {
   const [hover, setHover] = useState<{
     x: number;
@@ -1496,15 +1484,8 @@ function EconomicsGraph({
   } | null>(null);
 
   const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({
-    x: 0,
-    y: 0,
-  });
-
-  const drag = useRef<{
-    x: number;
-    y: number;
-  } | null>(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number } | null>(null);
 
   if (preset.diagram === "circular-flow") {
     return <CircularFlowDiagram />;
@@ -1514,21 +1495,10 @@ function EconomicsGraph({
   const H = 560;
   const P = 62;
 
-  const xRange =
-    (preset.xMax - preset.xMin) /
-    zoom;
-
-  const yRange =
-    (preset.yMax - preset.yMin) /
-    zoom;
-
-  const xMid =
-    (preset.xMin + preset.xMax) / 2 +
-    pan.x;
-
-  const yMid =
-    (preset.yMin + preset.yMax) / 2 +
-    pan.y;
+  const xRange = (preset.xMax - preset.xMin) / zoom;
+  const yRange = (preset.yMax - preset.yMin) / zoom;
+  const xMid = (preset.xMin + preset.xMax) / 2 + pan.x;
+  const yMid = (preset.yMin + preset.yMax) / 2 + pan.y;
 
   const view = {
     xMin: xMid - xRange / 2,
@@ -1537,63 +1507,18 @@ function EconomicsGraph({
     yMax: yMid + yRange / 2,
   };
 
-  const mapX = (x: number) =>
-    P +
-    ((x - view.xMin) /
-      (view.xMax - view.xMin)) *
-      (W - 2 * P);
+  const mapX = (x: number) => P + ((x - view.xMin) / (view.xMax - view.xMin)) * (W - 2 * P);
+  const mapY = (y: number) => H - P - ((y - view.yMin) / (view.yMax - view.yMin)) * (H - 2 * P);
+  const unmapX = (sx: number) => view.xMin + ((sx - P) / (W - 2 * P)) * (view.xMax - view.xMin);
+  const unmapY = (sy: number) => view.yMax - ((sy - P) / (H - 2 * P)) * (view.yMax - view.yMin);
 
-  const mapY = (y: number) =>
-    H -
-    P -
-    ((y - view.yMin) /
-      (view.yMax - view.yMin)) *
-      (H - 2 * P);
-
-  const unmapX = (sx: number) =>
-    view.xMin +
-    ((sx - P) /
-      (W - 2 * P)) *
-      (view.xMax - view.xMin);
-
-  const unmapY = (sy: number) =>
-    view.yMax -
-    ((sy - P) /
-      (H - 2 * P)) *
-      (view.yMax - view.yMin);
-
-  const curves = useMemo(
-    () => preset.curves(controls),
-    [preset, controls]
-  );
-
-  const xs = ticks(
-    view.xMin,
-    view.xMax
-  );
-
-  const ys = ticks(
-    view.yMin,
-    view.yMax
-  );
-
-  const points = useMemo(
-    () => intersections(curves, preset),
-    [curves, preset]
-  );
+  const curves = useMemo(() => preset.curves(controls), [preset, controls]);
+  const xs = ticks(view.xMin, view.xMax);
+  const ys = ticks(view.yMin, view.yMax);
+  const points = useMemo(() => intersections(curves, preset), [curves, preset]);
 
   const pathFor = (curve: Curve) => {
-    const sampled = sampleCurve(
-      curve,
-      {
-        ...preset,
-        xMin: view.xMin,
-        xMax: view.xMax,
-        yMin: view.yMin,
-        yMax: view.yMax,
-      }
-    );
-
+    const sampled = sampleCurve(curve, { ...preset, xMin: view.xMin, xMax: view.xMax, yMin: view.yMin, yMax: view.yMax });
     const d: string[] = [];
     let drawing = false;
 
@@ -1602,178 +1527,129 @@ function EconomicsGraph({
         drawing = false;
         return;
       }
-
       const sx = mapX(pt.x);
       const sy = mapY(pt.y);
-
-      if (
-        !Number.isFinite(sy) ||
-        sy < -1000 ||
-        sy > H + 1000
-      ) {
+      if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx < -1000 || sx > W + 1000 || sy < -1000 || sy > H + 1000) {
         drawing = false;
         return;
       }
-
       if (!drawing) {
-        d.push(
-          `M ${sx.toFixed(2)} ${sy.toFixed(2)}`
-        );
+        d.push(`M ${sx.toFixed(2)} ${sy.toFixed(2)}`);
         drawing = true;
       } else {
-        d.push(
-          `L ${sx.toFixed(2)} ${sy.toFixed(2)}`
-        );
+        d.push(`L ${sx.toFixed(2)} ${sy.toFixed(2)}`);
       }
     });
-
     return d.join(" ");
   };
 
   const reset = () => {
     setZoom(1);
-    setPan({
-      x: 0,
-      y: 0,
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handlePointerMove = (e: any) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const sx = ((e.clientX - rect.left) / rect.width) * W;
+    const sy = ((e.clientY - rect.top) / rect.height) * H;
+
+    if (drag.current) {
+      const dx = e.clientX - drag.current.x;
+      const dy = e.clientY - drag.current.y;
+      const unitX = (view.xMax - view.xMin) / (W - 2 * P);
+      const unitY = (view.yMax - view.yMin) / (H - 2 * P);
+      setPan((v) => ({ x: v.x - dx * unitX, y: v.y + dy * unitY }));
+      drag.current = { x: e.clientX, y: e.clientY };
+      setHover(null);
+      return;
+    }
+
+    if (sx < P || sx > W - P || sy < P || sy > H - P) {
+      setHover(null);
+      return;
+    }
+
+    let nearestPoint: { point: Point; d: number } | null = null;
+    points.forEach((point) => {
+      const d = Math.hypot(mapX(point.x) - sx, mapY(point.y) - sy);
+      if (!nearestPoint || d < nearestPoint.d) nearestPoint = { point, d };
     });
+
+    if (nearestPoint && nearestPoint.d <= 18) {
+      setHover({
+        x: nearestPoint.point.x,
+        y: nearestPoint.point.y,
+        label: nearestPoint.point.label ?? "Important intersection",
+      });
+      return;
+    }
+
+    const x = unmapX(sx);
+    const y = unmapY(sy);
+    let nearestCurve: { curve: Curve; x: number; y: number; d: number } | null = null;
+
+    curves.forEach((curve) => {
+      let cy = NaN;
+      let cx = x;
+      let d = Infinity;
+
+      if (curve.vertical) {
+        cx = curve.xValue ?? NaN;
+        if (!Number.isFinite(cx)) return;
+        d = Math.abs(mapX(cx) - sx);
+        cy = y;
+      } else {
+        try {
+          cy = curve.fn(x);
+        } catch {
+          cy = NaN;
+        }
+        if (!Number.isFinite(cy)) return;
+        d = Math.abs(mapY(cy) - sy);
+      }
+
+      if (d < (nearestCurve?.d ?? Infinity)) {
+        nearestCurve = { curve, x: cx, y: cy, d };
+      }
+    });
+
+    if (nearestCurve && nearestCurve.d <= 16) {
+      setHover({ x: nearestCurve.x, y: nearestCurve.y, label: nearestCurve.curve.label });
+    } else {
+      setHover(null);
+    }
   };
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
       <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <svg
-          viewBox={"0 0 " + W + " " + H}
+          viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full touch-none select-none"
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
-            drag.current = {
-              x: e.clientX,
-              y: e.clientY,
-            };
+            drag.current = { x: e.clientX, y: e.clientY };
           }}
-          onPointerMove={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const sx = ((e.clientX - rect.left) / rect.width) * W;
-            const sy = ((e.clientY - rect.top) / rect.height) * H;
-
-            if (drag.current) {
-              const dx = e.clientX - drag.current.x;
-              const dy = e.clientY - drag.current.y;
-              const unitX = (view.xMax - view.xMin) / (W - 2 * P);
-              const unitY = (view.yMax - view.yMin) / (H - 2 * P);
-
-              setPan((v) => ({
-                x: v.x - dx * unitX,
-                y: v.y + dy * unitY,
-              }));
-
-              drag.current = {
-                x: e.clientX,
-                y: e.clientY,
-              };
-              setHover(null);
-              return;
-            }
-
-            const x = unmapX(sx);
-            const y = unmapY(sy);
-
-            let nearestPoint: { point: Point; d: number } | null = null;
-
-            points.forEach((point) => {
-              const d = Math.hypot(
-                mapX(point.x) - sx,
-                mapY(point.y) - sy
-              );
-
-              if (!nearestPoint || d < nearestPoint.d) {
-                nearestPoint = { point, d };
-              }
-            });
-
-            if (nearestPoint && nearestPoint.d <= 18) {
-              setHover({
-                x: nearestPoint.point.x,
-                y: nearestPoint.point.y,
-                label: nearestPoint.point.label ?? "Important intersection",
-              });
-              return;
-            }
-
-            let nearestCurve: { curve: Curve; y: number; d: number } | null = null;
-
-            curves.forEach((curve) => {
-              let cy = NaN;
-              try {
-                cy = curve.fn(x);
-              } catch {
-                cy = NaN;
-              }
-
-              if (!Number.isFinite(cy)) return;
-
-              const d = Math.abs(mapY(cy) - sy);
-              if (!nearestCurve || d < nearestCurve.d) {
-                nearestCurve = { curve, y: cy, d };
-              }
-            });
-
-            if (nearestCurve && nearestCurve.d <= 16) {
-              setHover({
-                x,
-                y: nearestCurve.y,
-                label: nearestCurve.curve.label,
-              });
-            } else {
-              setHover(null);
-            }
-          }}
+          onPointerMove={handlePointerMove}
           onPointerUp={(e) => {
             drag.current = null;
-            try {
-              e.currentTarget.releasePointerCapture(e.pointerId);
-            } catch {}
+            try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
           }}
-          onPointerCancel={() => {
-            drag.current = null;
-          }}
-          onPointerLeave={() => {
-            if (!drag.current) setHover(null);
-          }}
+          onPointerCancel={() => { drag.current = null; }}
+          onPointerLeave={() => { if (!drag.current) setHover(null); }}
           onWheel={(e) => {
             e.preventDefault();
-            setZoom((z) =>
-              Math.max(
-                0.5,
-                Math.min(4, z * (e.deltaY < 0 ? 1.12 : 0.89))
-              )
-            );
+            setZoom((z) => Math.max(0.5, Math.min(4, z * (e.deltaY < 0 ? 1.12 : 0.89))));
           }}
         >
           <rect width={W} height={H} fill="white" />
 
           {xs.map((x) => {
-            const axisY =
-              view.yMin <= 0 && view.yMax >= 0
-                ? mapY(0)
-                : H - P;
-
+            const axisY = view.yMin <= 0 && view.yMax >= 0 ? mapY(0) : H - P;
             return (
-              <g key={"x-" + x}>
-                <line
-                  x1={mapX(x)}
-                  x2={mapX(x)}
-                  y1={P}
-                  y2={H - P}
-                  stroke="#e2e8f0"
-                />
-                <text
-                  x={mapX(x)}
-                  y={axisY - 8}
-                  textAnchor="middle"
-                  fontSize="12"
-                  fill="#64748b"
-                >
+              <g key={`x-${x}`}>
+                <line x1={mapX(x)} x2={mapX(x)} y1={P} y2={H - P} stroke="#e2e8f0" />
+                <text x={mapX(x)} y={axisY - 8} textAnchor="middle" fontSize="12" fill="#64748b">
                   {fmt(x)}
                 </text>
               </g>
@@ -1781,27 +1657,11 @@ function EconomicsGraph({
           })}
 
           {ys.map((y) => {
-            const axisX =
-              view.xMin <= 0 && view.xMax >= 0
-                ? mapX(0)
-                : P;
-
+            const axisX = view.xMin <= 0 && view.xMax >= 0 ? mapX(0) : P;
             return (
-              <g key={"y-" + y}>
-                <line
-                  x1={P}
-                  x2={W - P}
-                  y1={mapY(y)}
-                  y2={mapY(y)}
-                  stroke="#e2e8f0"
-                />
-                <text
-                  x={axisX - 8}
-                  y={mapY(y) + 4}
-                  textAnchor="end"
-                  fontSize="12"
-                  fill="#64748b"
-                >
+              <g key={`y-${y}`}>
+                <line x1={P} x2={W - P} y1={mapY(y)} y2={mapY(y)} stroke="#e2e8f0" />
+                <text x={axisX - 8} y={mapY(y) + 4} textAnchor="end" fontSize="12" fill="#64748b">
                   {fmt(y)}
                 </text>
               </g>
@@ -1809,25 +1669,11 @@ function EconomicsGraph({
           })}
 
           {view.xMin <= 0 && view.xMax >= 0 && (
-            <line
-              x1={mapX(0)}
-              x2={mapX(0)}
-              y1={P}
-              y2={H - P}
-              stroke="#334155"
-              strokeWidth="2"
-            />
+            <line x1={mapX(0)} x2={mapX(0)} y1={P} y2={H - P} stroke="#334155" strokeWidth="2" />
           )}
 
           {view.yMin <= 0 && view.yMax >= 0 && (
-            <line
-              x1={P}
-              x2={W - P}
-              y1={mapY(0)}
-              y2={mapY(0)}
-              stroke="#334155"
-              strokeWidth="2"
-            />
+            <line x1={P} x2={W - P} y1={mapY(0)} y2={mapY(0)} stroke="#334155" strokeWidth="2" />
           )}
 
           <text
@@ -1868,95 +1714,26 @@ function EconomicsGraph({
           {points.map((pt, i) => {
             const px = mapX(pt.x);
             const py = mapY(pt.y);
-
             return (
-              <g key={"p-" + i} pointerEvents="none">
-                <line
-                  x1={px}
-                  x2={px}
-                  y1={py}
-                  y2={mapY(0)}
-                  stroke="#94a3b8"
-                  strokeDasharray="4 4"
-                />
-                <line
-                  x1={px}
-                  x2={mapX(0)}
-                  y1={py}
-                  y2={py}
-                  stroke="#94a3b8"
-                  strokeDasharray="4 4"
-                />
-                <circle
-                  cx={px}
-                  cy={py}
-                  r="6"
-                  fill="#0f172a"
-                  stroke="white"
-                  strokeWidth="2"
-                />
+              <g key={`p-${i}`} pointerEvents="none">
+                <line x1={px} x2={px} y1={py} y2={mapY(0)} stroke="#94a3b8" strokeDasharray="4 4" />
+                <line x1={px} x2={mapX(0)} y1={py} y2={py} stroke="#94a3b8" strokeDasharray="4 4" />
+                <circle cx={px} cy={py} r="6" fill="#0f172a" stroke="white" strokeWidth="2" />
               </g>
             );
           })}
-
-          {hover && points.some(
-            (point) =>
-              Math.abs(point.x - hover.x) < Math.max((view.xMax - view.xMin) / 120, 1e-6) &&
-              Math.abs(point.y - hover.y) < Math.max((view.yMax - view.yMin) / 120, 1e-6)
-          ) && (
-            <circle
-              cx={mapX(hover.x)}
-              cy={mapY(hover.y)}
-              r="10"
-              fill="none"
-              stroke="#0f172a"
-              strokeWidth="2"
-              opacity="0.35"
-              pointerEvents="none"
-            />
-          )}        </svg>
+        </svg>
 
         <div className="absolute left-3 top-3 flex gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
-          <button
-            className="h-9 w-9 rounded-lg hover:bg-slate-100"
-            onClick={() =>
-              setZoom((z) =>
-                Math.min(4, z * 1.15)
-              )
-            }
-          >
-            +
-          </button>
-
-          <button
-            className="h-9 w-9 rounded-lg hover:bg-slate-100"
-            onClick={() =>
-              setZoom((z) =>
-                Math.max(0.5, z * 0.87)
-              )
-            }
-          >
-            −
-          </button>
-
-          <button
-            className="rounded-lg px-3 text-xs font-semibold hover:bg-slate-100"
-            onClick={reset}
-          >
-            Reset
-          </button>
+          <button className="h-9 w-9 rounded-lg hover:bg-slate-100" onClick={() => setZoom((z) => Math.min(4, z * 1.15))}>+</button>
+          <button className="h-9 w-9 rounded-lg hover:bg-slate-100" onClick={() => setZoom((z) => Math.max(0.5, z * 0.87))}>−</button>
+          <button className="rounded-lg px-3 text-xs font-semibold hover:bg-slate-100" onClick={reset}>Reset</button>
         </div>
 
         {hover && (
           <div className="pointer-events-none absolute right-3 top-3 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-lg">
-            <div className="font-semibold text-slate-900">
-              {hover.label}
-            </div>
-
-            <div className="mt-1 font-mono text-slate-600">
-              X = {fmt(hover.x)} · Y ={" "}
-              {fmt(hover.y)}
-            </div>
+            <div className="font-semibold text-slate-900">{hover.label}</div>
+            <div className="mt-1 font-mono text-slate-600">X = {fmt(hover.x)} · Y = {fmt(hover.y)}</div>
           </div>
         )}
 
@@ -1966,107 +1743,54 @@ function EconomicsGraph({
       </div>
 
       <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="font-semibold">
-          Controls
-        </h3>
-
+        <h3 className="font-semibold">Controls</h3>
         <div className="mt-4 space-y-4">
-          {preset.controls.map(
-            (control) => (
-              <label
-                key={control.key}
-                className="block"
-              >
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-                  <span>
-                    {control.label}
-                  </span>
-
-                  <span className="font-mono text-slate-900">
-                    {fmt(
-                      controls[
-                        control.key
-                      ]
-                    )}
-                  </span>
-                </div>
-
-                <input
-                  className="mt-2 w-full accent-slate-900"
-                  type="range"
-                  min={control.min}
-                  max={control.max}
-                  step={control.step}
-                  value={
-                    controls[
-                      control.key
-                    ]
-                  }
-                  onChange={(e) =>
-                    setControls({
-                      ...controls,
-                      [control.key]:
-                        Number(
-                          e.target.value
-                        ),
-                    })
-                  }
-                />
-              </label>
-            )
-          )}
+          {preset.controls.map((control) => (
+            <label key={control.key} className="block">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                <span>{control.label}</span>
+                <span className="font-mono text-slate-900">{fmt(controls[control.key])}</span>
+              </div>
+              <input
+                className="mt-2 w-full accent-slate-900"
+                type="range"
+                min={control.min}
+                max={control.max}
+                step={control.step}
+                value={controls[control.key]}
+                onChange={(e) => setControls({ ...controls, [control.key]: Number(e.target.value) })}
+              />
+            </label>
+          ))}
         </div>
 
         <div className="mt-5 border-t border-slate-100 pt-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Curves
-          </h4>
-
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Curves</h4>
           <div className="mt-3 space-y-2">
             {curves.map((curve) => (
-              <div
-                key={curve.id}
-                className="flex items-center gap-2 text-sm"
-              >
-                <span
-                  className="h-2.5 w-7 rounded-full"
-                  style={{
-                    background:
-                      curve.color,
-                  }}
-                />
-
-                <span>
-                  {curve.label}
-                </span>
+              <div key={curve.id} className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: curve.color }} />
+                <span>{curve.label}</span>
               </div>
             ))}
           </div>
         </div>
 
         <div className="mt-5 border-t border-slate-100 pt-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            What to observe
-          </h4>
-
-          <ul className="mt-2 space-y-2 text-sm leading-5 text-slate-600">
-            {preset.interpretation.map(
-              (item) => (
-                <li key={item}>
-                  • {item}
-                </li>
-              )
-            )}
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Interpretation</h4>
+          <ul className="mt-3 space-y-2 text-xs leading-5 text-slate-600">
+            {preset.interpretation.map((item, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                <span>{item}</span>
+              </li>
+            ))}
           </ul>
         </div>
       </aside>
     </div>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/* Statistics                                                                 */
-/* -------------------------------------------------------------------------- */
 
 type StatMode =
   | "bar"
@@ -3602,6 +3326,7 @@ function StatGraph({
 /* Statistics control panel                                                   */
 /* -------------------------------------------------------------------------- */
 
+
 function StatisticsLab() {
   const [mode, setMode] =
     useState<StatMode>("bar");
@@ -4937,8 +4662,17 @@ export default function EconomicsGraphLabPage() {
   };
 
   const list = presets.filter(
-    (p) =>
-      p.className === section
+    (p) => p.className === section
+  );
+
+  const groupedList = list.reduce<{ unit: string; items: Preset[] }[]>(
+    (groups, item) => {
+      const existing = groups.find((group) => group.unit === item.unit);
+      if (existing) existing.items.push(item);
+      else groups.push({ unit: item.unit, items: [item] });
+      return groups;
+    },
+    []
   );
 
   const switchSection = (
@@ -5016,37 +4750,28 @@ export default function EconomicsGraphLabPage() {
                 Class {section} · Graphs
               </div>
 
-              <div className="mt-2 space-y-1">
-                {list.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() =>
-                      choose(
-                        p.id
-                      )
-                    }
-                    className={`w-full rounded-xl px-3 py-3 text-left text-sm ${
-                      selected ===
-                      p.id
-                        ? "bg-slate-950 text-white"
-                        : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="font-semibold">
-                      {p.title}
+              <div className="mt-2 space-y-4">
+                {groupedList.map((group) => (
+                  <div key={group.unit}>
+                    <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                      {group.unit}
                     </div>
-
-                    <div
-                      className={`mt-1 text-xs ${
-                        selected ===
-                        p.id
-                          ? "text-slate-300"
-                          : "text-slate-400"
-                      }`}
-                    >
-                      {p.unit}
+                    <div className="space-y-1">
+                      {group.items.map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => choose(p.id)}
+                          className={`w-full rounded-xl px-3 py-2.5 text-left text-sm ${
+                            selected === p.id
+                              ? "bg-slate-950 text-white"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="font-semibold">{p.title}</div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </nav>
