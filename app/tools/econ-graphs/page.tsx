@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Point = { x: number; y: number };
 
@@ -144,7 +144,7 @@ const presets: Preset[] = [
       const shift = determinantSum * 5;
       const d0 = (x:number) => 90 - 0.72*x;
       const d1 = (x:number) => 90 - 0.72*x + shift;
-      const curves: Curve[] = [{ id: "d0", label: "D₀", color: curveColors[0], fn: d0 }, { id: "price", label: "Selected price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      const curves: Curve[] = [{ id: "d0", label: "D₀", color: curveColors[0], fn: d0 }];
       if (Math.abs(shift) > 0.01) curves.splice(1, 0, { id: "d1", label: shift > 0 ? "D₁ (increase)" : "D₂ (decrease)", color: curveColors[1], fn: d1 });
       return curves;
     },
@@ -180,7 +180,6 @@ const presets: Preset[] = [
       const s1 = (x:number) => s0(x) + shift;
       const curves: Curve[] = [
         { id: "s0", label: "S₀", color: curveColors[0], fn: s0 },
-        { id: "price", label: "Selected price", color: curveColors[2], fn: () => c.price, dashed: true },
       ];
       if (Math.abs(shift) > 0.01) curves.splice(1, 0, { id: "s1", label: shift < 0 ? "S₁ (increase)" : "S₂ (decrease)", color: curveColors[1], fn: s1 });
       return curves;
@@ -207,11 +206,23 @@ const presets: Preset[] = [
     curves: (c) => {
       const e = Math.round(c.degree);
       const p = c.price;
-      if (e === 0) return [{ id: "d", label: "E = 0 · Perfectly inelastic", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
-      if (e === 1) return [{ id: "d", label: "E < 1 · Relatively inelastic", color: curveColors[0], fn: (x) => 100 - 1.45*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
-      if (e === 2) return [{ id: "d", label: "E = 1 · Unitary elastic", color: curveColors[0], fn: (x) => 2500/Math.max(x, 1) }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
-      if (e === 3) return [{ id: "d", label: "E > 1 · Relatively elastic", color: curveColors[0], fn: (x) => 90 - 0.42*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
-      return [{ id: "d", label: "E = ∞ · Perfectly elastic", color: curveColors[0], fn: () => p }];
+      const selected = { id: "selected-price", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true };
+      if (e === 0) {
+        return [{ id: "d", label: "D · E = 0 · Perfectly inelastic", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, selected];
+      }
+      if (e === 1) {
+        // P = K / Q^n, with n > 1 giving E = 1/n < 1.
+        return [{ id: "d", label: "D · E < 1 · Relatively inelastic", color: curveColors[0], fn: (x) => 100 / Math.pow(Math.max(x, 1), 1.8) }, selected];
+      }
+      if (e === 2) {
+        // P = K / Q gives unit elasticity.
+        return [{ id: "d", label: "D · E = 1 · Unitary elastic", color: curveColors[0], fn: (x) => 2500 / Math.max(x, 1) }, selected];
+      }
+      if (e === 3) {
+        // P = K / Q^n, with 0 < n < 1 giving E = 1/n > 1.
+        return [{ id: "d", label: "D · E > 1 · Relatively elastic", color: curveColors[0], fn: (x) => 100 / Math.pow(Math.max(x, 1), 0.45) }, selected];
+      }
+      return [{ id: "d", label: "D · E = ∞ · Perfectly elastic", color: curveColors[0], fn: () => p }];
     },
     interpretation: [
       "E = 0: perfectly inelastic demand, shown by a vertical demand curve.",
@@ -267,11 +278,23 @@ const presets: Preset[] = [
     curves: (c) => {
       const e = Math.round(c.degree);
       const p = c.price;
-      if (e === 0) return [{ id: "s", label: "E = 0 · Perfectly inelastic", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
-      if (e === 1) return [{ id: "s", label: "E < 1 · Relatively inelastic", color: curveColors[0], fn: (x) => 5 + 1.45*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
-      if (e === 2) return [{ id: "s", label: "E = 1 · Unitary elastic", color: curveColors[0], fn: (x) => 0.75*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
-      if (e === 3) return [{ id: "s", label: "E > 1 · Relatively elastic", color: curveColors[0], fn: (x) => 8 + 0.42*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
-      return [{ id: "s", label: "E = ∞ · Perfectly elastic", color: curveColors[0], fn: () => p }];
+      const selected = { id: "selected-price", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true };
+      if (e === 0) {
+        return [{ id: "s", label: "S · E = 0 · Perfectly inelastic", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, selected];
+      }
+      if (e === 1) {
+        // P = KQ^n, with n > 1 giving E = 1/n < 1.
+        return [{ id: "s", label: "S · E < 1 · Relatively inelastic", color: curveColors[0], fn: (x) => 0.65 * Math.pow(Math.max(x, 0), 1.8) }, selected];
+      }
+      if (e === 2) {
+        // P = KQ gives unit elasticity.
+        return [{ id: "s", label: "S · E = 1 · Unitary elastic", color: curveColors[0], fn: (x) => 0.75 * x }, selected];
+      }
+      if (e === 3) {
+        // P = KQ^n, with 0 < n < 1 giving E = 1/n > 1.
+        return [{ id: "s", label: "S · E > 1 · Relatively elastic", color: curveColors[0], fn: (x) => 8 + 4.2 * Math.pow(Math.max(x, 0), 0.45) }, selected];
+      }
+      return [{ id: "s", label: "S · E = ∞ · Perfectly elastic", color: curveColors[0], fn: () => p }];
     },
     interpretation: [
       "E = 0: perfectly inelastic supply, shown by a vertical supply curve.",
@@ -372,8 +395,8 @@ const presets: Preset[] = [
     unit: "Determination of Income and Employment",
     description:
       "Move aggregate demand relative to the full-employment output to visualise inflationary and deflationary gaps.",
-    xLabel: "Real income / output",
-    yLabel: "Aggregate demand / expenditure",
+    xLabel: "Real income / output (₹)",
+    yLabel: "Aggregate demand / expenditure (₹)",
     xMin: 0,
     xMax: 120,
     yMin: 0,
@@ -402,8 +425,8 @@ const presets: Preset[] = [
     unit: "Balance of Payments",
     description:
       "Compare market-determined exchange rates with an administratively maintained rate and a managed intervention band.",
-    xLabel: "Quantity of foreign exchange",
-    yLabel: "Exchange rate",
+    xLabel: "Quantity of foreign exchange (units)",
+    yLabel: "Exchange rate (₹ per unit of foreign currency)",
     xMin: 0,
     xMax: 100,
     yMin: 0,
@@ -434,8 +457,8 @@ const presets: Preset[] = [
     unit: "National Income",
     description:
       "Visualise the real and monetary flows between households and firms in the basic two-sector model.",
-    xLabel: "",
-    yLabel: "",
+    xLabel: "Flow categories",
+    yLabel: "Flow direction",
     xMin: 0,
     xMax: 100,
     yMin: 0,
@@ -498,8 +521,8 @@ const presets: Preset[] = [
     className: "XI",
     unit: "Introduction to Microeconomics",
     description: "Complete PPC showing scarcity, efficient, inefficient and unattainable combinations and opportunity cost.",
-    xLabel: "Good X (units)",
-    yLabel: "Good Y (units)",
+    xLabel: "Quantity of Good X (units)",
+    yLabel: "Quantity of Good Y (units)",
     xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [{ key: "curvature", label: "Opportunity-cost curvature", min: 0.75, max: 1.5, step: 0.05, value: 1 }],
     curves: (c) => [{ id: "ppc", label: "PPC", color: curveColors[0], fn: (x) => 100*Math.pow(Math.max(0,1-x/100),c.curvature) }],
@@ -581,9 +604,9 @@ const presets: Preset[] = [
         key: "utility",
         label: "Utility level",
         min: 10,
-        max: 80,
+        max: 35,
         step: 1,
-        value: 35,
+        value: 25,
       },
     ],
     curves: (c) => [
@@ -609,7 +632,7 @@ const presets: Preset[] = [
     description: "A textbook indifference-curve and budget-line diagram with an automatically calculated tangency point.",
     xLabel: "Quantity of Good X (units)",
     yLabel: "Quantity of Good Y (units)",
-    xMin: 0, xMax: 180, yMin: 0, yMax: 180,
+    xMin: 0, xMax: 340, yMin: 0, yMax: 340,
     controls: [
       { key: "income", label: "Consumer income (₹)", min: 60, max: 160, step: 1, value: 100 },
       { key: "px", label: "Price of Good X (₹)", min: 0.5, max: 2, step: 0.05, value: 1 },
@@ -766,7 +789,7 @@ const presets: Preset[] = [
     unit: "Determination of Income and Employment",
     description:
       "Change autonomous expenditure and MPC to see equilibrium income move.",
-    xLabel: "Income / Output (₹)",
+    xLabel: "Income / output (₹)",
     yLabel: "Aggregate Expenditure (₹)",
     xMin: 0,
     xMax: 120,
@@ -819,8 +842,8 @@ const presets: Preset[] = [
     unit: "Determination of Income and Employment",
     description:
       "See how MPC determines the investment multiplier and how an initial investment change affects income.",
-    xLabel: "MPC",
-    yLabel: "Multiplier (k)",
+    xLabel: "Marginal propensity to consume (MPC)",
+    yLabel: "Investment multiplier (k)",
     xMin: 0.4,
     xMax: 0.95,
     yMin: 0,
@@ -1065,9 +1088,14 @@ function graphAnnotations(preset: Preset, controls: Record<string, number>, curv
   if (preset.id === "demand-supply") {
     const q0=dEqQ(), p0=dEqP();
     const q1=dEqQ(controls.dShift,controls.sShift), p1=dEqP(controls.dShift,controls.sShift);
-    a.push({id:"eq-guide-x",x1:q1,y1:0,x2:q1,y2:p1,text:"Qe₁",tone:"guide"});
-    a.push({id:"eq-guide-y",x1:0,y1:p1,x2:q1,y2:p1,text:"Pe₁",tone:"guide"});
-    a.push({id:"eq",x1:q1,y1:p1,x2:q1,y2:p1,text:"E₁: New equilibrium",tone:"label"});
+    a.push({id:"eq-guide-x",x1:q1,y1:0,x2:q1,y2:p1,text:"Qe₁ = " + fmt(q1),tone:"guide"});
+    a.push({id:"eq-guide-y",x1:0,y1:p1,x2:q1,y2:p1,text:"Pe₁ = ₹" + fmt(p1),tone:"guide"});
+    a.push({id:"eq0-point",x1:q0,y1:p0,x2:q0,y2:p0,text:"E₀",tone:"label"});
+    a.push({id:"eq1-point",x1:q1,y1:p1,x2:q1,y2:p1,text:"E₁",tone:"label"});
+    if (Math.abs(q1-q0)>0.05 || Math.abs(p1-p0)>0.05) {
+      const mx=(q0+q1)/2, my=(p0+p1)/2;
+      a.push({id:"eq-arrow",x1:q0,y1:p0,x2:q1,y2:p1,text:"Shift in equilibrium",tone:"arrow"});
+    }
     if (controls.dShift > 0) a.push({id:"d-shift-arrow",x1:28,y1:90-0.75*28,x2:40,y2:90-0.75*40+controls.dShift,text:"Increase in demand",tone:"arrow"});
     if (controls.dShift < 0) a.push({id:"d-shift-arrow",x1:40,y1:90-0.75*40+controls.dShift,x2:28,y2:90-0.75*28,text:"Decrease in demand",tone:"arrow"});
     if (controls.sShift < 0) a.push({id:"s-shift-arrow",x1:28,y1:10+0.65*28+controls.sShift,x2:40,y2:10+0.65*40+controls.sShift,text:"Increase in supply",tone:"arrow"});
@@ -1080,7 +1108,7 @@ function graphAnnotations(preset: Preset, controls: Record<string, number>, curv
 
   if (preset.id === "demand-movement-shift") {
     const determinantSum=controls.income+controls.substitutes-controls.complements+controls.tastes+controls.expectations+controls.buyers;
-    const shift=determinantSum*5;
+    const shift=Math.max(-32, Math.min(32, determinantSum*9));
     const d0=(x:number)=>90-0.72*x;
     const d1=(x:number)=>d0(x)+shift;
     const refPrice=60;
@@ -1246,137 +1274,156 @@ function CircularFlowDiagram() {
 }
 
 function MarginalUtilityDiagram({ controls }: { controls: Record<string, number> }) {
-  const W=900,H=600,P=70;
-  const innerW=W-2*P, panelH=210;
-  const x=(q:number)=>P+(q/10)*innerW;
-  const y=(u:number, top:number)=>top+panelH-(Math.max(0,Math.min(150,u))/150)*panelH;
-  const initial=controls.initial, decline=controls.decline;
+  const W=920,H=620,P=82;
+  const plotW=W-2*P;
+  const initial=controls.initial ?? 30;
+  const decline=controls.decline ?? 1.8;
   const mu=(q:number)=>initial-decline*q;
-  const tu=(q:number)=>initial*q-0.5*decline*q*q;
-  const path=(fn:(q:number)=>number,top:number)=>{let d='';for(let i=0;i<=220;i++){const q=i/22;const px=x(q),py=y(fn(q),top);d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
   const qMax=Math.min(10,initial/decline);
+  const tu=(q:number)=>initial*q-0.5*decline*q*q;
+  const tuMax=Math.max(1,tu(qMax));
+  const x=(q:number)=>P+(q/10)*plotW;
+  const yShared=(u:number)=>300-u*0.9;
+  const yMu0=yShared(0);
+  const path=(fn:(q:number)=>number)=>{let d='';for(let i=0;i<=240;i++){const q=i/24;const yy=fn(q);const px=x(q),py=yShared(yy);d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
   return <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Marginal utility and total utility">
-      <line x1={P} x2={W-P} y1={60} y2={60} stroke="#334155" strokeWidth="2" markerEnd="url(#econ-arrow)"/>
-      <text x={W/2} y={42} textAnchor="middle" fontSize="15" fontWeight="700" fill="#334155">Marginal Utility (MU) · Units consumed</text>
-      <line x1={P} x2={W-P} y1={60+panelH} y2={60+panelH} stroke="#334155" strokeWidth="2" markerEnd="url(#econ-arrow)"/>
-      <text x={W/2} y={60+panelH+28} textAnchor="middle" fontSize="15" fontWeight="700" fill="#334155">Total Utility (TU) · Units consumed</text>
-      <line x1={P} x2={P} y1={60} y2={60+2*panelH+45} stroke="#334155" strokeWidth="2" markerEnd="url(#econ-arrow)"/>
-      <text x={20} y={300} transform="rotate(-90 20 300)" textAnchor="middle" fontSize="15" fontWeight="700" fill="#334155">Utility (utils)</text>
-      {[0,2,4,6,8,10].map(q=><g key={q}><text x={x(q)} y={54} textAnchor="middle" fontSize="11" fill="#64748b">{q}</text><text x={x(q)} y={60+panelH-6} textAnchor="middle" fontSize="11" fill="#64748b">{q}</text></g>)}
-      {[0,30,60,90,120,150].map(u=><text key={u} x={P-10} y={y(u,60)+4} textAnchor="end" fontSize="11" fill="#64748b">{u}</text>)}
-      <path d={path(mu,60)} fill="none" stroke="#2563eb" strokeWidth="4"/>
-      <path d={path(tu,60+panelH)} fill="none" stroke="#dc2626" strokeWidth="4"/>
-      <line x1={x(qMax)} x2={x(qMax)} y1={60} y2={60+2*panelH} stroke="#94a3b8" strokeDasharray="5 5"/>
-      <text x={x(qMax)+8} y={94} fontSize="12" fontWeight="700" fill="#2563eb">MU = 0</text>
-      <text x={x(qMax)+8} y={60+panelH+40} fontSize="12" fontWeight="700" fill="#dc2626">TU maximum</text>
-      <text x={P+10} y={y(mu(2),60)-12} fontSize="13" fontWeight="700" fill="#2563eb">MU curve</text>
-      <text x={P+10} y={y(tu(2),60+panelH)-12} fontSize="13" fontWeight="700" fill="#dc2626">TU curve</text>
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Marginal utility and total utility with shared utility axis and two quantity axes">
+      <defs><marker id="mu-tu-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
+      <line x1={P} x2={W-P} y1={yMu0} y2={yMu0} stroke="#334155" strokeWidth="2" markerEnd="url(#mu-tu-arrow)"/>
+      <line x1={P} x2={W-P} y1={yShared(tuMax)} y2={yShared(tuMax)} stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 4"/>
+      <line x1={P} x2={P} y1="55" y2="570" stroke="#334155" strokeWidth="2" markerEnd="url(#mu-tu-arrow)"/>
+      <line x1={P} x2={W-P} y1="570" y2="570" stroke="#334155" strokeWidth="2" markerEnd="url(#mu-tu-arrow)"/>
+      <text x={W/2} y="28" textAnchor="middle" fontSize="18" fontWeight="800" fill="#0f172a">Marginal Utility (MU) and Total Utility (TU)</text>
+      <text x="28" y="315" transform="rotate(-90 28 315)" textAnchor="middle" fontSize="14" fontWeight="700">Utility (utils)</text>
+      <text x={W/2} y={yMu0-12} textAnchor="middle" fontSize="13" fontWeight="700" fill="#2563eb">X-axis for MU: Units consumed</text>
+      <text x={W/2} y="606" textAnchor="middle" fontSize="13" fontWeight="700" fill="#dc2626">X-axis for TU: Units consumed</text>
+      {[0,2,4,6,8,10].map(q=><g key={q}><text x={x(q)} y={yMu0+22} textAnchor="middle" fontSize="11" fill="#475569">{q}</text><text x={x(q)} y="562" textAnchor="middle" fontSize="11" fill="#475569">{q}</text></g>)}
+      {[0,10,20,30].map(u=><text key={u} x={P-10} y={yShared(u)+4} textAnchor="end" fontSize="11" fill="#475569">{u}</text>)}
+      <path d={path(mu)} fill="none" stroke="#2563eb" strokeWidth="4"/>
+      <path d={path(tu)} fill="none" stroke="#dc2626" strokeWidth="4"/>
+      <line x1={x(qMax)} x2={x(qMax)} y1={yShared(mu(qMax))} y2="570" stroke="#64748b" strokeDasharray="6 5"/>
+      <circle cx={x(qMax)} cy={yShared(0)} r="6" fill="#0f172a"/>
+      <circle cx={x(qMax)} cy={yShared(tuMax)} r="6" fill="#0f172a"/>
+      <text x={x(qMax)+10} y={yShared(0)-10} fontSize="12" fontWeight="700" fill="#2563eb">MU = 0</text>
+      <text x={x(qMax)+10} y={yShared(tuMax)-10} fontSize="12" fontWeight="700" fill="#dc2626">TU maximum</text>
+      <text x={x(1.2)} y={yShared(mu(1.2))-10} fontSize="13" fontWeight="700" fill="#2563eb">MU</text>
+      <text x={x(7)} y={yShared(tu(7))-12} fontSize="13" fontWeight="700" fill="#dc2626">TU</text>
+      <text x={x(7.4)} y={yShared(-8)} fontSize="12" fill="#475569">MU becomes negative after TU maximum</text>
+      <text x={x(0.3)} y={yShared(tu(0))+22} fontSize="11" fill="#475569">TU starts from zero</text>
     </svg>
   </div>;
 }
 
 function ProductionSystemDiagram({ controls }: { controls: Record<string, number> }) {
-  const W=900,H=720,P=72, plotW=W-2*P;
+  const W=920,H=760,P=78,plotW=W-2*P;
   const productivity=controls.productivity ?? 1;
-  const x=(q:number)=>P+(q/12)*plotW;
   const tp=(q:number)=>productivity*(10*q+4*q*q-0.35*q*q*q);
   const ap=(q:number)=>q<=0?0:tp(q)/q;
   const mp=(q:number)=>productivity*(10+8*q-1.05*q*q);
-  const yTop=(v:number)=>55+245-(Math.max(0,Math.min(170,v))/170)*245;
-  const yBot=(v:number)=>410+245-(Math.max(0,Math.min(35,v))/35)*245;
-  const path=(fn:(q:number)=>number,yf:(v:number)=>number)=>{let d='';for(let i=0;i<=240;i++){const q=i/20;const px=x(q),py=yf(fn(q));d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
-  const qTP=(8+Math.sqrt(106))/2.1;
   const qAP=4/0.7;
+  const qTP=(8+Math.sqrt(106))/2.1;
+  const x=(q:number)=>P+(q/12)*plotW;
+  const yTP=(v:number)=>70+245-(Math.max(0,Math.min(110,v))/110)*245;
+  const yP=(v:number)=>430+250-((Math.max(-15,Math.min(35,v))+15)/50)*250;
+  const path=(fn:(q:number)=>number,yf:(v:number)=>number)=>{let d='';for(let i=0;i<=300;i++){const q=i/25;const v=fn(q);d+=(i?' L ':'M ')+x(q).toFixed(2)+' '+yf(v).toFixed(2);}return d;};
   return <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="TP, AP and MP production relationship">
-      <defs><marker id="production-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
-      <text x={W/2} y="27" textAnchor="middle" fontSize="17" fontWeight="800" fill="#0f172a">Total Product (TP)</text>
-      <line x1={P} x2={W-P} y1="300" y2="300" stroke="#334155" strokeWidth="2" markerEnd="url(#production-arrow)"/>
-      <line x1={P} x2={P} y1="55" y2="300" stroke="#334155" strokeWidth="2" markerEnd="url(#production-arrow)"/>
-      <text x={W/2} y="322" textAnchor="middle" fontSize="13" fontWeight="700">Variable input (units)</text>
-      <text x="18" y="177" transform="rotate(-90 18 177)" textAnchor="middle" fontSize="13" fontWeight="700">Total product (units)</text>
-      <path d={path(tp,yTop)} fill="none" stroke={curveColors[0]} strokeWidth="4"/>
-      <line x1={x(qTP)} x2={x(qTP)} y1={yTop(tp(qTP))} y2="300" stroke="#94a3b8" strokeDasharray="5 5"/>
-      <circle cx={x(qTP)} cy={yTop(tp(qTP))} r="6" fill="#0f172a"/>
-      <text x={x(qTP)+9} y={yTop(tp(qTP))-12} fontSize="12" fontWeight="700" fill="#0f172a">TP maximum</text>
-      <text x={x(qTP)+9} y={yTop(tp(qTP))+5} fontSize="11" fill="#475569">MP = 0</text>
-      <text x={x(7.4)} y={yTop(tp(7.4))-10} fontSize="13" fontWeight="700" fill={curveColors[0]}>TP</text>
-      <text x={x(9.3)} y={yTop(tp(9.3))+28} fontSize="12" fill="#475569">TP falls when MP becomes negative</text>
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Textbook production function showing TP, AP and MP relationships">
+      <defs><marker id="production-v8-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
+      <text x={W/2} y="32" textAnchor="middle" fontSize="18" fontWeight="800">Total Product (TP)</text>
+      <line x1={P} x2={W-P} y1="315" y2="315" stroke="#334155" strokeWidth="2" markerEnd="url(#production-v8-arrow)"/>
+      <line x1={P} x2={P} y1="70" y2="315" stroke="#334155" strokeWidth="2" markerEnd="url(#production-v8-arrow)"/>
+      <text x={W/2} y="338" textAnchor="middle" fontSize="13" fontWeight="700">Variable input (units)</text>
+      <text x="22" y="192" transform="rotate(-90 22 192)" textAnchor="middle" fontSize="13" fontWeight="700">Total product (units)</text>
+      <path d={path(tp,yTP)} fill="none" stroke="#2563eb" strokeWidth="4"/>
+      <line x1={x(qTP)} x2={x(qTP)} y1={yTP(tp(qTP))} y2="315" stroke="#64748b" strokeDasharray="6 5"/>
+      <circle cx={x(qTP)} cy={yTP(tp(qTP))} r="6" fill="#0f172a"/>
+      <text x={x(qTP)+9} y={yTP(tp(qTP))-12} fontSize="12" fontWeight="700">TP maximum</text>
+      <text x={x(qTP)+9} y={yTP(tp(qTP))+7} fontSize="11" fill="#475569">MP = 0</text>
+      <text x={x(2.5)} y={yTP(tp(2.5))-12} fontSize="13" fontWeight="700" fill="#2563eb">TP</text>
+      <text x={x(9.2)} y={yTP(tp(9.2))+25} fontSize="11" fill="#475569">TP falls when MP is negative</text>
 
-      <text x={W/2} y="382" textAnchor="middle" fontSize="17" fontWeight="800" fill="#0f172a">Average Product (AP) and Marginal Product (MP)</text>
-      <line x1={P} x2={W-P} y1="655" y2="655" stroke="#334155" strokeWidth="2" markerEnd="url(#production-arrow)"/>
-      <line x1={P} x2={P} y1="410" y2="655" stroke="#334155" strokeWidth="2" markerEnd="url(#production-arrow)"/>
-      <text x={W/2} y="677" textAnchor="middle" fontSize="13" fontWeight="700">Variable input (units)</text>
-      <text x="18" y="532" transform="rotate(-90 18 532)" textAnchor="middle" fontSize="13" fontWeight="700">Product per unit of input</text>
-      <path d={path(ap,yBot)} fill="none" stroke={curveColors[1]} strokeWidth="4"/>
-      <path d={path(mp,yBot)} fill="none" stroke={curveColors[2]} strokeWidth="4"/>
-      <line x1={x(qAP)} x2={x(qAP)} y1={yBot(ap(qAP))} y2="655" stroke="#94a3b8" strokeDasharray="5 5"/>
-      <circle cx={x(qAP)} cy={yBot(ap(qAP))} r="6" fill="#0f172a"/>
-      <text x={x(qAP)+9} y={yBot(ap(qAP))-13} fontSize="12" fontWeight="700" fill="#0f172a">AP maximum</text>
-      <text x={x(qAP)+9} y={yBot(ap(qAP))+4} fontSize="11" fill="#475569">MP = AP</text>
-      <text x={x(qAP/2)} y="430" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage I · Increasing returns</text>
-      <text x={x((qAP+qTP)/2)} y="430" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage II · Diminishing returns</text>
-      <text x={x((qTP+12)/2)} y="430" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage III · Negative returns</text>
-      <text x={x(8.2)} y={yBot(ap(8.2))-10} fontSize="13" fontWeight="700" fill={curveColors[1]}>AP</text>
-      <text x={x(8.2)} y={yBot(mp(8.2))+18} fontSize="13" fontWeight="700" fill={curveColors[2]}>MP</text>
+      <text x={W/2} y="390" textAnchor="middle" fontSize="18" fontWeight="800">Average Product (AP) and Marginal Product (MP)</text>
+      <line x1={P} x2={W-P} y1={yP(0)} y2={yP(0)} stroke="#334155" strokeWidth="2" markerEnd="url(#production-v8-arrow)"/>
+      <line x1={P} x2={P} y1="430" y2="680" stroke="#334155" strokeWidth="2" markerEnd="url(#production-v8-arrow)"/>
+      <text x={W/2} y="708" textAnchor="middle" fontSize="13" fontWeight="700">Variable input (units)</text>
+      <text x="22" y="555" transform="rotate(-90 22 555)" textAnchor="middle" fontSize="13" fontWeight="700">Product per unit of variable input</text>
+      {[0,5,10,15,20,25,30].map(v=><text key={v} x={P-10} y={yP(v)+4} textAnchor="end" fontSize="11" fill="#475569">{v}</text>)}
+      <text x={P-10} y={yP(-15)+4} textAnchor="end" fontSize="11" fill="#475569">−15</text>
+      <path d={path(ap,yP)} fill="none" stroke="#16a34a" strokeWidth="4"/>
+      <path d={path(mp,yP)} fill="none" stroke="#dc2626" strokeWidth="4"/>
+      <line x1={x(qAP)} x2={x(qAP)} y1={yP(ap(qAP))} y2={yP(0)} stroke="#64748b" strokeDasharray="6 5"/>
+      <line x1={x(qTP)} x2={x(qTP)} y1={yP(mp(qTP))} y2={yP(0)} stroke="#64748b" strokeDasharray="6 5"/>
+      <circle cx={x(qAP)} cy={yP(ap(qAP))} r="6" fill="#0f172a"/>
+      <circle cx={x(qTP)} cy={yP(0)} r="6" fill="#0f172a"/>
+      <text x={x(qAP)+8} y={yP(ap(qAP))-12} fontSize="12" fontWeight="700">AP maximum: MP = AP</text>
+      <text x={x(qTP)+8} y={yP(0)-10} fontSize="12" fontWeight="700">MP = 0</text>
+      <text x={x(8.6)} y={yP(ap(8.6))-10} fontSize="13" fontWeight="700" fill="#16a34a">AP</text>
+      <text x={x(8.6)} y={yP(mp(8.6))+18} fontSize="13" fontWeight="700" fill="#dc2626">MP</text>
+      <text x={x(qAP/2)} y="452" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage I: Increasing returns</text>
+      <text x={(x(qAP)+x(qTP))/2} y="452" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage II: Diminishing returns</text>
+      <text x={(x(qTP)+x(12))/2} y="452" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage III: Negative returns</text>
     </svg>
   </div>;
 }
 
 function CostSystemDiagram({ controls }: { controls: Record<string, number> }) {
-  const W=900,H=760,P=72,plotW=W-2*P;
-  const fixed=controls.fixed ?? 40, scale=controls.scale ?? 1;
-  const x=(q:number)=>P+(q/80)*plotW;
-  const tvc=(q:number)=>scale*(0.8*q-0.025*q*q+0.0005*q*q*q);
+  const W=920,H=790,P=78,plotW=W-2*P;
+  const fixed=controls.fixed ?? 40;
+  const scale=controls.scale ?? 1;
+  // TVC(q) generates AVC and MC mechanically, so the relationships cannot drift apart.
+  const rawTVC=(q:number)=>2*q-0.06*q*q+0.001*q*q*q;
+  const tvc=(q:number)=>scale*rawTVC(q);
   const tc=(q:number)=>fixed+tvc(q);
-  const avc=(q:number)=>scale*(0.8-0.025*q+0.0005*q*q);
-  const afc=(q:number)=>q<5?6:fixed/q;
-  const ac=(q:number)=>avc(q)+afc(q);
-  const mc=(q:number)=>scale*(0.8-0.05*q+0.0015*q*q);
-  const yTop=(v:number)=>55+245-(Math.max(0,Math.min(130,v))/130)*245;
-  const yBot=(v:number)=>405+285-(Math.max(0,Math.min(6,v))/6)*285;
-  const path=(fn:(q:number)=>number,yf:(v:number)=>number)=>{let d='';for(let i=0;i<=240;i++){const q=i/3;const px=x(q),py=yf(fn(q));d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
-  const qAVC=25;
-  const qAC=44.87;
+  const avc=(q:number)=>scale*(2-0.06*q+0.001*q*q);
+  const afc=(q:number)=>q<=0?0:fixed/q;
+  const ac=(q:number)=>afc(q)+avc(q);
+  const mc=(q:number)=>scale*(2-0.12*q+0.003*q*q);
+  const x=(q:number)=>P+(q/80)*plotW;
+  const yTotal=(v:number)=>70+250-(Math.max(0,Math.min(360,v))/360)*250;
+  const yUnit=(v:number)=>450+260-(Math.max(0,Math.min(45,v))/45)*260;
+  const path=(fn:(q:number)=>number,yf:(v:number)=>number)=>{let d='';for(let i=0;i<=320;i++){const q=i/4;d+=(i?' L ':'M ')+x(q).toFixed(2)+' '+yf(fn(q)).toFixed(2);}return d;};
+  const qAVC=30;
+  const qAC=41.57;
   return <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Short-run total and per-unit cost relationships">
-      <defs><marker id="cost-system-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
-      <text x={W/2} y="27" textAnchor="middle" fontSize="17" fontWeight="800">Total Cost Curves</text>
-      <line x1={P} x2={W-P} y1="300" y2="300" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-system-arrow)"/>
-      <line x1={P} x2={P} y1="55" y2="300" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-system-arrow)"/>
-      <text x={W/2} y="322" textAnchor="middle" fontSize="13" fontWeight="700">Output (units)</text>
-      <text x="18" y="178" transform="rotate(-90 18 178)" textAnchor="middle" fontSize="13" fontWeight="700">Total cost (₹)</text>
-      <path d={path(()=>fixed,yTop)} fill="none" stroke="#16a34a" strokeWidth="4"/>
-      <path d={path(tvc,yTop)} fill="none" stroke="#2563eb" strokeWidth="4"/>
-      <path d={path(tc,yTop)} fill="none" stroke="#dc2626" strokeWidth="4"/>
-      <text x={x(66)} y={yTop(fixed)-9} fill="#16a34a" fontSize="12" fontWeight="700">TFC</text>
-      <text x={x(58)} y={yTop(tvc(58))-9} fill="#2563eb" fontSize="12" fontWeight="700">TVC</text>
-      <text x={x(50)} y={yTop(tc(50))-10} fill="#dc2626" fontSize="12" fontWeight="700">TC = TFC + TVC</text>
-      <line x1={x(40)} x2={x(40)} y1={yTop(fixed)} y2={yTop(tvc(40))} stroke="#64748b" strokeDasharray="5 5"/>
-      <text x={x(40)+8} y={(yTop(fixed)+yTop(tvc(40)))/2} fontSize="11" fill="#475569">Vertical distance = TFC</text>
-      <text x={x(3)} y={yTop(fixed)-8} fontSize="11" fill="#475569">TFC is constant</text>
-      <text x={x(3)} y={yTop(tvc(3))+22} fontSize="11" fill="#475569">TVC starts from origin</text>
-      <text x={W/2} y="367" textAnchor="middle" fontSize="17" fontWeight="800">Average and Marginal Cost Curves</text>
-      <line x1={P} x2={W-P} y1="690" y2="690" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-system-arrow)"/>
-      <line x1={P} x2={P} y1="405" y2="690" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-system-arrow)"/>
-      <text x={W/2} y="713" textAnchor="middle" fontSize="13" fontWeight="700">Output (units)</text>
-      <text x="18" y="548" transform="rotate(-90 18 548)" textAnchor="middle" fontSize="13" fontWeight="700">Cost per unit (₹)</text>
-      <path d={path(afc,yBot)} fill="none" stroke="#2563eb" strokeWidth="4"/>
-      <path d={path(avc,yBot)} fill="none" stroke="#16a34a" strokeWidth="4"/>
-      <path d={path(ac,yBot)} fill="none" stroke="#dc2626" strokeWidth="4"/>
-      <path d={path(mc,yBot)} fill="none" stroke="#9333ea" strokeWidth="4"/>
-      <line x1={x(qAVC)} x2={x(qAVC)} y1={yBot(avc(qAVC))} y2="690" stroke="#94a3b8" strokeDasharray="5 5"/>
-      <line x1={x(qAC)} x2={x(qAC)} y1={yBot(ac(qAC))} y2="690" stroke="#94a3b8" strokeDasharray="5 5"/>
-      <circle cx={x(qAVC)} cy={yBot(avc(qAVC))} r="6" fill="#0f172a"/>
-      <circle cx={x(qAC)} cy={yBot(ac(qAC))} r="6" fill="#0f172a"/>
-      <text x={x(64)} y={yBot(afc(64))-10} fill="#2563eb" fontSize="12" fontWeight="700">AFC: continuously falling</text>
-      <text x={x(57)} y={yBot(avc(57))-10} fill="#16a34a" fontSize="12" fontWeight="700">AVC</text>
-      <text x={x(58)} y={yBot(ac(58))-10} fill="#dc2626" fontSize="12" fontWeight="700">AC = AFC + AVC</text>
-      <text x={x(68)} y={yBot(mc(68))-10} fill="#9333ea" fontSize="12" fontWeight="700">MC</text>
-      <text x={x(qAVC)+8} y={yBot(avc(qAVC))+26} fontSize="11" fill="#475569">MC cuts AVC at AVC minimum</text>
-      <text x={x(qAC)+8} y={yBot(ac(qAC))+26} fontSize="11" fill="#475569">MC cuts AC at AC minimum</text>
-      <text x={x(10)} y={yBot(ac(10))+42} fontSize="11" fill="#475569">AC lies above AVC by AFC</text>
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Short-run cost curves and mathematical relationships">
+      <defs><marker id="cost-v8-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
+      <text x={W/2} y="32" textAnchor="middle" fontSize="18" fontWeight="800">Total Cost Relationships</text>
+      <line x1={P} x2={W-P} y1="320" y2="320" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-v8-arrow)"/>
+      <line x1={P} x2={P} y1="70" y2="320" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-v8-arrow)"/>
+      <text x={W/2} y="344" textAnchor="middle" fontSize="13" fontWeight="700">Output (units)</text>
+      <text x="22" y="195" transform="rotate(-90 22 195)" textAnchor="middle" fontSize="13" fontWeight="700">Total cost (₹)</text>
+      <path d={path(()=>fixed,yTotal)} fill="none" stroke="#16a34a" strokeWidth="4"/>
+      <path d={path(tvc,yTotal)} fill="none" stroke="#2563eb" strokeWidth="4"/>
+      <path d={path(tc,yTotal)} fill="none" stroke="#dc2626" strokeWidth="4"/>
+      <text x={x(65)} y={yTotal(fixed)-10} fill="#16a34a" fontSize="12" fontWeight="700">TFC = fixed cost</text>
+      <text x={x(55)} y={yTotal(tvc(55))-10} fill="#2563eb" fontSize="12" fontWeight="700">TVC</text>
+      <text x={x(46)} y={yTotal(tc(46))-10} fill="#dc2626" fontSize="12" fontWeight="700">TC = TFC + TVC</text>
+      <line x1={x(45)} x2={x(45)} y1={yTotal(fixed)} y2={yTotal(tvc(45))} stroke="#64748b" strokeDasharray="6 5"/>
+      <text x={x(45)+9} y={(yTotal(fixed)+yTotal(tvc(45)))/2} fontSize="11" fill="#475569">Vertical distance = TFC</text>
+      <circle cx={x(0)} cy={yTotal(0)} r="4" fill="#2563eb"/>
+      <text x={x(0)+8} y={yTotal(0)-10} fontSize="11" fill="#475569">TVC starts at origin</text>
+      <circle cx={x(0)} cy={yTotal(fixed)} r="4" fill="#dc2626"/>
+      <text x={x(0)+8} y={yTotal(fixed)-10} fontSize="11" fill="#475569">TC starts at TFC</text>
+      <text x={W/2} y="405" textAnchor="middle" fontSize="18" fontWeight="800">Per-Unit Cost Relationships</text>
+      <line x1={P} x2={W-P} y1={yUnit(0)} y2={yUnit(0)} stroke="#334155" strokeWidth="2" markerEnd="url(#cost-v8-arrow)"/>
+      <line x1={P} x2={P} y1="450" y2={yUnit(0)} stroke="#334155" strokeWidth="2" markerEnd="url(#cost-v8-arrow)"/>
+      <text x={W/2} y="746" textAnchor="middle" fontSize="13" fontWeight="700">Output (units)</text>
+      <text x="22" y="580" transform="rotate(-90 22 580)" textAnchor="middle" fontSize="13" fontWeight="700">Cost per unit (₹)</text>
+      <path d={path(afc,yUnit)} fill="none" stroke="#2563eb" strokeWidth="4"/>
+      <path d={path(avc,yUnit)} fill="none" stroke="#16a34a" strokeWidth="4"/>
+      <path d={path(ac,yUnit)} fill="none" stroke="#dc2626" strokeWidth="4"/>
+      <path d={path(mc,yUnit)} fill="none" stroke="#9333ea" strokeWidth="4"/>
+      <line x1={x(qAVC)} x2={x(qAVC)} y1={yUnit(avc(qAVC))} y2={yUnit(0)} stroke="#64748b" strokeDasharray="6 5"/>
+      <line x1={x(qAC)} x2={x(qAC)} y1={yUnit(ac(qAC))} y2={yUnit(0)} stroke="#64748b" strokeDasharray="6 5"/>
+      <circle cx={x(qAVC)} cy={yUnit(avc(qAVC))} r="6" fill="#0f172a"/>
+      <circle cx={x(qAC)} cy={yUnit(ac(qAC))} r="6" fill="#0f172a"/>
+      <text x={x(68)} y={yUnit(afc(68))-10} fill="#2563eb" fontSize="12" fontWeight="700">AFC</text>
+      <text x={x(58)} y={yUnit(avc(58))-10} fill="#16a34a" fontSize="12" fontWeight="700">AVC</text>
+      <text x={x(56)} y={yUnit(ac(56))-10} fill="#dc2626" fontSize="12" fontWeight="700">AC = AFC + AVC</text>
+      <text x={x(68)} y={yUnit(mc(68))-10} fill="#9333ea" fontSize="12" fontWeight="700">MC</text>
+      <text x={x(qAVC)+8} y={yUnit(avc(qAVC))-12} fontSize="11" fill="#475569">MC = AVC at AVC minimum</text>
+      <text x={x(qAC)+8} y={yUnit(ac(qAC))+22} fontSize="11" fill="#475569">MC = AC at AC minimum</text>
+      <text x={x(12)} y={yUnit(ac(12))+35} fontSize="11" fill="#475569">AC − AVC = AFC</text>
     </svg>
   </div>;
 }
@@ -1398,6 +1445,28 @@ function EconomicsGraph({
     label: string;
   } | null>(null);
 
+  // Preset selection and control-state updates are separate React state updates.
+  // Merge the preset defaults here so the newly selected graph can never render
+  // against the previous graph's control object for one frame.
+  const effectiveControls = useMemo(
+    () =>
+      Object.fromEntries(
+        preset.controls.map((control) => [
+          control.key,
+          Number.isFinite(controls[control.key])
+            ? controls[control.key]
+            : control.value,
+        ])
+      ),
+    [preset, controls]
+  );
+
+  useEffect(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setHover(null);
+  }, [preset.id]);
+
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({
     x: 0,
@@ -1413,13 +1482,13 @@ function EconomicsGraph({
     return <CircularFlowDiagram />;
   }
   if (preset.diagram === "mu-tu") {
-    return <MarginalUtilityDiagram controls={controls} />;
+    return <MarginalUtilityDiagram controls={effectiveControls} />;
   }
   if (preset.diagram === "cost-system") {
-    return <CostSystemDiagram controls={controls} />;
+    return <CostSystemDiagram controls={effectiveControls} />;
   }
   if (preset.diagram === "production-system") {
-    return <ProductionSystemDiagram controls={controls} />;
+    return <ProductionSystemDiagram controls={effectiveControls} />;
   }
 
   const W = 900;
@@ -1475,8 +1544,8 @@ function EconomicsGraph({
       (view.yMax - view.yMin);
 
   const curves = useMemo(
-    () => preset.curves(controls),
-    [preset, controls]
+    () => preset.curves(effectiveControls),
+    [preset, effectiveControls]
   );
 
   const xs = ticks(
@@ -1690,7 +1759,7 @@ function EconomicsGraph({
           </text>
 
 
-          {graphAnnotations(preset, controls, curves, view).map((ann) => {
+          {graphAnnotations(preset, effectiveControls, curves, view).map((ann) => {
             const sx1 = mapX(ann.x1);
             const sy1 = mapY(ann.y1);
             const sx2 = mapX(ann.x2 ?? ann.x1);
@@ -1871,18 +1940,12 @@ function EconomicsGraph({
                   min={control.min}
                   max={control.max}
                   step={control.step}
-                  value={
-                    controls[
-                      control.key
-                    ]
-                  }
+                  value={effectiveControls[control.key]}
                   onChange={(e) =>
                     setControls({
                       ...controls,
                       [control.key]:
-                        Number(
-                          e.target.value
-                        ),
+                        Number(e.target.value),
                     })
                   }
                 />
