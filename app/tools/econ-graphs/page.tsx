@@ -46,7 +46,7 @@ type Preset = {
     value: number;
   }[];
   interpretation: string[];
-  diagram?: "circular-flow";
+  diagram?: "circular-flow" | "mu-tu" | "cost-system" | "production-system";
 };
 
 const curveColors = [
@@ -57,60 +57,37 @@ const curveColors = [
   "#ea580c",
 ];
 
+function controlDisplayValue(control: Preset["controls"][number], value: number): string {
+  if (control.key === "degree") {
+    return ["0", "< 1", "1", "> 1", "∞"][Math.round(value)] ?? fmt(value);
+  }
+  return fmt(value);
+}
+
 const presets: Preset[] = [
   {
     id: "demand-supply",
     title: "Demand, Supply & Market Equilibrium",
     className: "XI",
     unit: "Price Determination",
-    description:
-      "Move demand and supply to see equilibrium price and quantity change.",
-    xLabel: "Quantity",
-    yLabel: "Price",
-    xMin: 0,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
+    description: "Shift demand or supply and observe the automatically determined market equilibrium.",
+    xLabel: "Quantity (in units)",
+    yLabel: "Price (₹ per unit)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      {
-        key: "dShift",
-        label: "Demand shift",
-        min: -25,
-        max: 25,
-        step: 1,
-        value: 0,
-      },
-      {
-        key: "sShift",
-        label: "Supply shift",
-        min: -25,
-        max: 25,
-        step: 1,
-        value: 0,
-      },
+      { key: "dShift", label: "Demand shift", min: -20, max: 20, step: 1, value: 0 },
+      { key: "sShift", label: "Supply shift", min: -20, max: 20, step: 1, value: 0 },
     ],
     curves: (c) => [
-      {
-        id: "d",
-        label: "Demand",
-        color: curveColors[0],
-        fn: (x) => 90 - 0.75 * x + c.dShift,
-      },
-      {
-        id: "s",
-        label: "Supply",
-        color: curveColors[1],
-        fn: (x) => 10 + 0.65 * x + c.sShift,
-      },
+      { id: "d", label: "D", color: curveColors[0], fn: (x) => 90 - 0.75 * x + c.dShift },
+      { id: "s", label: "S", color: curveColors[1], fn: (x) => 10 + 0.65 * x + c.sShift },
     ],
     interpretation: [
-      "A rightward demand shift raises equilibrium price and quantity in this model.",
-      "A rightward supply shift lowers equilibrium price and raises equilibrium quantity.",
-      "The intersection of demand and supply gives market equilibrium.",
+      "Equilibrium is the intersection of demand and supply, so equilibrium price and quantity are recalculated whenever either condition changes.",
+      "An increase in demand shifts D rightward and, in this model, raises both equilibrium price and quantity.",
+      "An increase in supply shifts S rightward and, in this model, lowers equilibrium price while raising equilibrium quantity.",
     ],
   },
-
-
   {
     id: "producer-equilibrium",
     title: "Producer Equilibrium · MR = MC",
@@ -118,8 +95,8 @@ const presets: Preset[] = [
     unit: "Producer Behaviour",
     description:
       "For a competitive firm, change market price and identify the profit-maximising output where the rising MC curve equals MR = AR = P.",
-    xLabel: "Output",
-    yLabel: "Cost / Revenue",
+    xLabel: "Output (units)",
+    yLabel: "Cost / Revenue (₹ per unit)",
     xMin: 1,
     xMax: 100,
     yMin: 0,
@@ -149,110 +126,100 @@ const presets: Preset[] = [
     title: "Movement Along Demand vs Shift in Demand",
     className: "XI",
     unit: "Demand",
-    description:
-      "Use price to move along the same demand curve, or change non-price determinants to shift the entire demand curve.",
-    xLabel: "Quantity demanded",
-    yLabel: "Price",
-    xMin: 0,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
+    description: "Price changes quantity demanded along one demand curve. Non-price determinants shift the whole demand curve.",
+    xLabel: "Quantity demanded (in units)",
+    yLabel: "Price (₹ per unit)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      { key: "price", label: "Price (movement along D)", min: 15, max: 75, step: 1, value: 50 },
-      { key: "income", label: "Income", min: -15, max: 15, step: 1, value: 0 },
-      { key: "substitutes", label: "Price of substitutes", min: -15, max: 15, step: 1, value: 0 },
-      { key: "complements", label: "Price of complements", min: -15, max: 15, step: 1, value: 0 },
-      { key: "tastes", label: "Tastes / preferences", min: -15, max: 15, step: 1, value: 0 },
-      { key: "expectations", label: "Expectations", min: -15, max: 15, step: 1, value: 0 },
-      { key: "buyers", label: "Number of buyers", min: -15, max: 15, step: 1, value: 0 },
+      { key: "price", label: "Price (₹ per unit)", min: 20, max: 75, step: 1, value: 50 },
+      { key: "income", label: "Income effect", min: -2, max: 2, step: 1, value: 0 },
+      { key: "substitutes", label: "Price of substitutes", min: -2, max: 2, step: 1, value: 0 },
+      { key: "complements", label: "Price of complements", min: -2, max: 2, step: 1, value: 0 },
+      { key: "tastes", label: "Tastes / preferences", min: -2, max: 2, step: 1, value: 0 },
+      { key: "expectations", label: "Expectations", min: -2, max: 2, step: 1, value: 0 },
+      { key: "buyers", label: "Number of buyers", min: -2, max: 2, step: 1, value: 0 },
     ],
     curves: (c) => {
-      const shift = (c.income + c.substitutes - c.complements + c.tastes + c.expectations + c.buyers) / 6;
-      return [
-        { id: "d0", label: "D₀", color: curveColors[0], fn: (x) => 90 - 0.72 * x },
-        { id: "d", label: "D₁ / D₂", color: curveColors[1], fn: (x) => 90 - 0.72 * x + shift, dashed: Math.abs(shift) < 0.01 },
-        { id: "price", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true },
-      ];
+      const determinantSum = c.income + c.substitutes - c.complements + c.tastes + c.expectations + c.buyers;
+      const shift = determinantSum * 5;
+      const d0 = (x:number) => 90 - 0.72*x;
+      const d1 = (x:number) => 90 - 0.72*x + shift;
+      const curves: Curve[] = [{ id: "d0", label: "D₀", color: curveColors[0], fn: d0 }, { id: "price", label: "Selected price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      if (Math.abs(shift) > 0.01) curves.splice(1, 0, { id: "d1", label: shift > 0 ? "D₁ (increase)" : "D₂ (decrease)", color: curveColors[1], fn: d1 });
+      return curves;
     },
     interpretation: [
-      "A change in price causes movement along the same demand curve and changes quantity demanded.",
-      "Income, prices of related goods, tastes/preferences, expectations and number of buyers are non-price determinants that shift demand.",
-      "A rightward shift means an increase in demand; a leftward shift means a decrease in demand.",
+      "Movement along demand: only the price of the commodity changes, so the same demand curve is used.",
+      "Shift in demand: income, related-good prices, tastes/preferences, expectations and number of buyers change, so the whole demand curve moves.",
+      "The determinant controls use large discrete effects so the shift is visually unmistakable rather than a microscopic displacement.",
     ],
   },
-
   {
     id: "supply-movement-shift",
     title: "Movement Along Supply vs Shift in Supply",
     className: "XI",
     unit: "Supply",
-    description:
-      "Use price to move along the same supply curve, or change non-price determinants to shift the entire supply curve.",
-    xLabel: "Quantity supplied",
-    yLabel: "Price",
-    xMin: 0,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
+    description: "Price changes quantity supplied along one supply curve. Non-price determinants shift the whole supply curve.",
+    xLabel: "Quantity supplied (in units)",
+    yLabel: "Price (₹ per unit)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      { key: "price", label: "Price (movement along S)", min: 20, max: 80, step: 1, value: 50 },
-      { key: "input", label: "Input prices", min: -15, max: 15, step: 1, value: 0 },
-      { key: "related", label: "Prices of related goods (net effect)", min: -15, max: 15, step: 1, value: 0 },
-      { key: "technology", label: "Technology", min: -15, max: 15, step: 1, value: 0 },
-      { key: "tax", label: "Taxes", min: -15, max: 15, step: 1, value: 0 },
-      { key: "subsidy", label: "Subsidies", min: -15, max: 15, step: 1, value: 0 },
-      { key: "expectations", label: "Expectations", min: -15, max: 15, step: 1, value: 0 },
-      { key: "firms", label: "Number of firms", min: -15, max: 15, step: 1, value: 0 },
+      { key: "price", label: "Price (₹ per unit)", min: 20, max: 80, step: 1, value: 50 },
+      { key: "input", label: "Input prices", min: -2, max: 2, step: 1, value: 0 },
+      { key: "related", label: "Prices of related goods", min: -2, max: 2, step: 1, value: 0 },
+      { key: "technology", label: "Technology", min: -2, max: 2, step: 1, value: 0 },
+      { key: "tax", label: "Taxes", min: -2, max: 2, step: 1, value: 0 },
+      { key: "subsidy", label: "Subsidies", min: -2, max: 2, step: 1, value: 0 },
+      { key: "expectations", label: "Expectations", min: -2, max: 2, step: 1, value: 0 },
+      { key: "firms", label: "Number of firms", min: -2, max: 2, step: 1, value: 0 },
     ],
     curves: (c) => {
-      const shift = (c.input + c.related - c.technology + c.tax - c.subsidy + c.expectations - c.firms) / 7;
-      return [
-        { id: "s0", label: "S₀", color: curveColors[0], fn: (x) => 8 + 0.72 * x },
-        { id: "s", label: "S₁ / S₂", color: curveColors[1], fn: (x) => 8 + 0.72 * x + shift, dashed: Math.abs(shift) < 0.01 },
-        { id: "price", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true },
+      const determinantSum = c.input + c.related - c.technology + c.tax - c.subsidy + c.expectations - c.firms;
+      const shift = determinantSum * 5;
+      const s0 = (x:number) => 8 + 0.72*x;
+      const s1 = (x:number) => s0(x) + shift;
+      const curves: Curve[] = [
+        { id: "s0", label: "S₀", color: curveColors[0], fn: s0 },
+        { id: "price", label: "Selected price", color: curveColors[2], fn: () => c.price, dashed: true },
       ];
+      if (Math.abs(shift) > 0.01) curves.splice(1, 0, { id: "s1", label: shift < 0 ? "S₁ (increase)" : "S₂ (decrease)", color: curveColors[1], fn: s1 });
+      return curves;
     },
     interpretation: [
-      "A change in price causes movement along the same supply curve and changes quantity supplied.",
-      "Input prices, related-good prices, technology, taxes, subsidies, expectations and number of firms are non-price determinants that shift supply.",
-      "A rightward shift means an increase in supply; a leftward shift means a decrease in supply.",
+      "Movement along supply: only the price of the commodity changes, so the same supply curve is used.",
+      "Shift in supply: input prices, related-good prices, technology, taxes, subsidies, expectations and number of firms change, so the whole supply curve moves.",
+      "Lower input costs, better technology, subsidies and more firms increase supply; higher input costs, taxes and fewer firms decrease supply, other things equal.",
     ],
   },
-
   {
     id: "price-elasticity-demand",
     title: "Price Elasticity of Demand",
     className: "XI",
     unit: "Elasticity of Demand",
-    description:
-      "Select the degree of price elasticity and then change price to observe the resulting quantity demanded.",
-    xLabel: "Quantity demanded",
-    yLabel: "Price",
-    xMin: 0,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
+    description: "Select E = 0, E < 1, E = 1, E > 1 or E = ∞. The curve changes shape accordingly; price then shows movement along that curve.",
+    xLabel: "Quantity demanded (in units)",
+    yLabel: "Price (₹ per unit)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      { key: "degree", label: "Degree of elasticity", min: 1, max: 5, step: 1, value: 3 },
-      { key: "price", label: "Price", min: 10, max: 90, step: 1, value: 50 },
+      { key: "degree", label: "Elasticity (E)", min: 0, max: 4, step: 1, value: 2 },
+      { key: "price", label: "Price (₹ per unit)", min: 10, max: 90, step: 1, value: 50 },
     ],
     curves: (c) => {
-      const degree = Math.round(c.degree);
-      if (degree === 1) return [{ id: "d", label: "Perfectly inelastic demand", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
-      if (degree === 2) return [{ id: "d", label: "Relatively inelastic demand", color: curveColors[0], fn: (x) => 8 + 1.65 * x }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
-      if (degree === 3) return [{ id: "d", label: "Unitary elastic demand", color: curveColors[0], fn: (x) => x <= 0 ? 100 : 10000 / Math.max(x, 1) }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
-      if (degree === 4) return [{ id: "d", label: "Relatively elastic demand", color: curveColors[0], fn: (x) => 92 - 0.55 * x }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
-      return [{ id: "d", label: "Perfectly elastic demand", color: curveColors[0], fn: () => 50 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      const e = Math.round(c.degree);
+      const p = c.price;
+      if (e === 0) return [{ id: "d", label: "E = 0 · Perfectly inelastic", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
+      if (e === 1) return [{ id: "d", label: "E < 1 · Relatively inelastic", color: curveColors[0], fn: (x) => 100 - 1.45*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
+      if (e === 2) return [{ id: "d", label: "E = 1 · Unitary elastic", color: curveColors[0], fn: (x) => 2500/Math.max(x, 1) }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
+      if (e === 3) return [{ id: "d", label: "E > 1 · Relatively elastic", color: curveColors[0], fn: (x) => 90 - 0.42*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
+      return [{ id: "d", label: "E = ∞ · Perfectly elastic", color: curveColors[0], fn: () => p }];
     },
     interpretation: [
-      "Perfectly inelastic demand is vertical: quantity demanded does not respond to price.",
-      "Relatively inelastic demand shows a smaller percentage response of quantity demanded than the percentage change in price.",
-      "Unitary elasticity means the percentage change in quantity demanded equals the percentage change in price.",
-      "Relatively elastic demand shows a larger percentage response of quantity demanded than the percentage change in price.",
-      "Perfectly elastic demand is horizontal: an infinitesimal price change produces an extremely large change in quantity demanded.",
+      "E = 0: perfectly inelastic demand, shown by a vertical demand curve.",
+      "E < 1: relatively inelastic; E = 1: unitary elastic; E > 1: relatively elastic.",
+      "E = ∞: perfectly elastic demand, shown by a horizontal demand curve.",
+      "The price controller changes the selected point along the chosen demand curve; it does not create extra equilibria.",
     ],
   },
-
   {
     id: "total-expenditure",
     title: "Total Expenditure Method of PED",
@@ -260,8 +227,8 @@ const presets: Preset[] = [
     unit: "Elasticity of Demand",
     description:
       "Change price and observe how total expenditure changes along the demand relationship. The turning point represents unitary elasticity in this linear model.",
-    xLabel: "Price",
-    yLabel: "Total expenditure",
+    xLabel: "Price (₹ per unit)",
+    yLabel: "Total expenditure (₹)",
     xMin: 0,
     xMax: 100,
     yMin: 0,
@@ -289,64 +256,51 @@ const presets: Preset[] = [
     title: "Price Elasticity of Supply",
     className: "XI",
     unit: "Elasticity of Supply",
-    description:
-      "Select the degree of price elasticity of supply and change price to observe the response of quantity supplied.",
-    xLabel: "Quantity supplied",
-    yLabel: "Price",
-    xMin: 0,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
+    description: "Select E = 0, E < 1, E = 1, E > 1 or E = ∞. The supply curve changes shape accordingly; price then shows movement along that curve.",
+    xLabel: "Quantity supplied (in units)",
+    yLabel: "Price (₹ per unit)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      { key: "degree", label: "Degree of elasticity", min: 1, max: 5, step: 1, value: 3 },
-      { key: "price", label: "Price", min: 10, max: 90, step: 1, value: 50 },
+      { key: "degree", label: "Elasticity (E)", min: 0, max: 4, step: 1, value: 2 },
+      { key: "price", label: "Price (₹ per unit)", min: 10, max: 90, step: 1, value: 50 },
     ],
     curves: (c) => {
-      const degree = Math.round(c.degree);
-      if (degree === 1) return [{ id: "s", label: "Perfectly inelastic supply", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
-      if (degree === 2) return [{ id: "s", label: "Relatively inelastic supply", color: curveColors[0], fn: (x) => 8 + 1.65 * x }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
-      if (degree === 3) return [{ id: "s", label: "Unitary elastic supply", color: curveColors[0], fn: (x) => x <= 0 ? 0 : 0.01 * x * x }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
-      if (degree === 4) return [{ id: "s", label: "Relatively elastic supply", color: curveColors[0], fn: (x) => 0.25 * x + 8 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
-      return [{ id: "s", label: "Perfectly elastic supply", color: curveColors[0], fn: () => 50 }, { id: "p", label: "Price", color: curveColors[2], fn: () => c.price, dashed: true }];
+      const e = Math.round(c.degree);
+      const p = c.price;
+      if (e === 0) return [{ id: "s", label: "E = 0 · Perfectly inelastic", color: curveColors[0], fn: () => 50, vertical: true, xValue: 50 }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
+      if (e === 1) return [{ id: "s", label: "E < 1 · Relatively inelastic", color: curveColors[0], fn: (x) => 5 + 1.45*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
+      if (e === 2) return [{ id: "s", label: "E = 1 · Unitary elastic", color: curveColors[0], fn: (x) => 0.75*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
+      if (e === 3) return [{ id: "s", label: "E > 1 · Relatively elastic", color: curveColors[0], fn: (x) => 8 + 0.42*x }, { id: "p", label: "Selected price", color: curveColors[2], fn: () => p, dashed: true }];
+      return [{ id: "s", label: "E = ∞ · Perfectly elastic", color: curveColors[0], fn: () => p }];
     },
     interpretation: [
-      "Perfectly inelastic supply is vertical: quantity supplied does not respond to price.",
-      "Relatively inelastic supply shows a smaller percentage response of quantity supplied than the percentage change in price.",
-      "Unitary elasticity means the percentage change in quantity supplied equals the percentage change in price.",
-      "Relatively elastic supply shows a larger percentage response of quantity supplied than the percentage change in price.",
-      "Perfectly elastic supply is horizontal at the relevant price.",
+      "E = 0: perfectly inelastic supply, shown by a vertical supply curve.",
+      "E < 1: relatively inelastic; E = 1: unitary elastic; E > 1: relatively elastic.",
+      "E = ∞: perfectly elastic supply, shown by a horizontal supply curve.",
+      "The price controller changes the selected point along the chosen supply curve; it does not create extra equilibria.",
     ],
   },
-
   {
     id: "marginal-utility",
-    title: "Marginal Utility & Consumer Equilibrium",
+    title: "Marginal Utility & Total Utility",
     className: "XI",
     unit: "Consumer Behaviour",
-    description:
-      "Observe diminishing marginal utility and the point at which MU becomes zero, then connect it to consumer equilibrium.",
-    xLabel: "Units consumed",
-    yLabel: "Utility",
-    xMin: 0,
-    xMax: 20,
-    yMin: 0,
-    yMax: 100,
+    description: "Two aligned textbook panels show diminishing marginal utility and the corresponding total-utility relationship without treating every crossing as an equilibrium.",
+    xLabel: "Units of the commodity consumed",
+    yLabel: "Utility (utils)",
+    xMin: 0, xMax: 10, yMin: 0, yMax: 100,
     controls: [
-      { key: "initial", label: "Initial MU", min: 35, max: 85, step: 1, value: 70 },
-      { key: "decline", label: "Rate of decline", min: 1, max: 5, step: 0.1, value: 3 },
+      { key: "initial", label: "Initial MU (utils)", min: 15, max: 35, step: 1, value: 30 },
+      { key: "decline", label: "Decline in MU", min: 1, max: 3, step: 0.1, value: 1.8 },
     ],
-    curves: (c) => [
-      { id: "tu", label: "Total utility", color: curveColors[0], fn: (x) => Math.min(100, c.initial * x - c.decline * x * x) },
-      { id: "mu", label: "Marginal utility", color: curveColors[1], fn: (x) => Math.max(0, c.initial - 2 * c.decline * x) },
-      { id: "zero", label: "MU = 0", color: "#64748b", fn: () => 0, dashed: true },
-    ],
+    curves: () => [],
     interpretation: [
-      "Marginal utility is the additional utility obtained from one more unit of consumption.",
-      "Under diminishing MU, marginal utility falls as consumption increases.",
-      "For a single good, utility is maximised when MU reaches zero. For many goods, the consumer-equilibrium condition also uses MU per unit of price.",
+      "MU is the additional utility from consuming one more unit. With diminishing MU, successive units add less utility.",
+      "TU rises while MU is positive, reaches its maximum when MU becomes zero, and falls when MU becomes negative.",
+      "Consumer equilibrium for one good occurs where MU = 0; for multiple goods the condition also involves MU per rupee spent.",
     ],
+    diagram: "mu-tu",
   },
-
   {
     id: "indifference-map",
     title: "Indifference Map",
@@ -354,8 +308,8 @@ const presets: Preset[] = [
     unit: "Consumer Behaviour",
     description:
       "Compare several indifference curves and see how higher curves represent higher levels of satisfaction.",
-    xLabel: "Good X",
-    yLabel: "Good Y",
+    xLabel: "Good X (units)",
+    yLabel: "Good Y (units)",
     xMin: 0,
     xMax: 100,
     yMin: 0,
@@ -383,8 +337,8 @@ const presets: Preset[] = [
     unit: "Market Forms",
     description:
       "Show the competitive firm's horizontal AR/MR/P line together with AC and MC, including the equilibrium output and profit/loss reading.",
-    xLabel: "Output",
-    yLabel: "Cost / Revenue",
+    xLabel: "Output (units)",
+    yLabel: "Cost / Revenue (₹)",
     xMin: 1,
     xMax: 100,
     yMin: 0,
@@ -498,145 +452,63 @@ const presets: Preset[] = [
 
   {
     id: "price-ceiling",
-    title: "Price Ceiling",
+    title: "Price Ceiling · Government Intervention",
     className: "XI",
     unit: "Government Intervention",
-    description:
-      "Set a maximum legal price and observe the resulting shortage.",
-    xLabel: "Quantity",
-    yLabel: "Price",
-    xMin: 0,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
-    controls: [
-      {
-        key: "ceiling",
-        label: "Maximum price",
-        min: 10,
-        max: 80,
-        step: 1,
-        value: 45,
-      },
-    ],
+    description: "Set the maximum legal price and automatically compare it with equilibrium, quantity demanded, quantity supplied and shortage.",
+    xLabel: "Quantity (in units)",
+    yLabel: "Price (₹ per unit)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
+    controls: [{ key: "ceiling", label: "Maximum legal price (₹)", min: 10, max: 80, step: 1, value: 45 }],
     curves: (c) => [
-      {
-        id: "d",
-        label: "Demand",
-        color: curveColors[0],
-        fn: (x) => 90 - 0.75 * x,
-      },
-      {
-        id: "s",
-        label: "Supply",
-        color: curveColors[1],
-        fn: (x) => 10 + 0.65 * x,
-      },
-      {
-        id: "ceiling",
-        label: "Price ceiling",
-        color: curveColors[2],
-        fn: () => c.ceiling,
-        dashed: true,
-      },
+      { id: "d", label: "D", color: curveColors[0], fn: (x) => 90-0.75*x },
+      { id: "s", label: "S", color: curveColors[1], fn: (x) => 10+0.65*x },
+      { id: "ceiling", label: "Price ceiling", color: curveColors[2], fn: () => c.ceiling, dashed: true },
     ],
     interpretation: [
-      "A binding price ceiling is below the equilibrium price.",
-      "At the controlled price, quantity demanded exceeds quantity supplied.",
-      "The horizontal gap between Qd and Qs represents the shortage.",
+      "The equilibrium price is determined where demand equals supply.",
+      "If the ceiling is below equilibrium, it is binding: Qd > Qs and the shortage equals Qd − Qs.",
+      "If the ceiling is at or above equilibrium, it is non-binding and does not constrain the market equilibrium.",
     ],
   },
-
   {
     id: "price-floor",
-    title: "Price Floor",
+    title: "Price Floor · Government Intervention",
     className: "XI",
     unit: "Government Intervention",
-    description:
-      "Set a minimum legal price and observe the resulting surplus.",
-    xLabel: "Quantity",
-    yLabel: "Price",
-    xMin: 0,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
-    controls: [
-      {
-        key: "floor",
-        label: "Minimum price",
-        min: 20,
-        max: 90,
-        step: 1,
-        value: 65,
-      },
-    ],
+    description: "Set the minimum legal price and automatically compare it with equilibrium, quantity demanded, quantity supplied and surplus.",
+    xLabel: "Quantity (in units)",
+    yLabel: "Price (₹ per unit)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
+    controls: [{ key: "floor", label: "Minimum legal price (₹)", min: 20, max: 90, step: 1, value: 65 }],
     curves: (c) => [
-      {
-        id: "d",
-        label: "Demand",
-        color: curveColors[0],
-        fn: (x) => 90 - 0.75 * x,
-      },
-      {
-        id: "s",
-        label: "Supply",
-        color: curveColors[1],
-        fn: (x) => 10 + 0.65 * x,
-      },
-      {
-        id: "floor",
-        label: "Price floor",
-        color: curveColors[2],
-        fn: () => c.floor,
-        dashed: true,
-      },
+      { id: "d", label: "D", color: curveColors[0], fn: (x) => 90-0.75*x },
+      { id: "s", label: "S", color: curveColors[1], fn: (x) => 10+0.65*x },
+      { id: "floor", label: "Price floor", color: curveColors[2], fn: () => c.floor, dashed: true },
     ],
     interpretation: [
-      "A binding price floor is above the equilibrium price.",
-      "At the controlled price, quantity supplied exceeds quantity demanded.",
-      "The horizontal gap between Qs and Qd represents the surplus.",
+      "The equilibrium price is determined where demand equals supply.",
+      "If the floor is above equilibrium, it is binding: Qs > Qd and the surplus equals Qs − Qd.",
+      "If the floor is at or below equilibrium, it is non-binding and does not constrain the market equilibrium.",
     ],
   },
-
   {
     id: "ppc",
     title: "Production Possibility Curve",
     className: "XI",
     unit: "Introduction to Microeconomics",
-    description:
-      "Explore scarcity, efficiency, opportunity cost and unattainable combinations.",
-    xLabel: "Good X",
-    yLabel: "Good Y",
-    xMin: 0,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
-    controls: [
-      {
-        key: "curvature",
-        label: "Curvature",
-        min: 0.55,
-        max: 1.8,
-        step: 0.05,
-        value: 1,
-      },
-    ],
-    curves: (c) => [
-      {
-        id: "ppc",
-        label: "PPC",
-        color: curveColors[0],
-        fn: (x) =>
-          100 * Math.pow(Math.max(0, 1 - x / 100), c.curvature),
-      },
-    ],
+    description: "Complete PPC showing scarcity, efficient, inefficient and unattainable combinations and opportunity cost.",
+    xLabel: "Good X (units)",
+    yLabel: "Good Y (units)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
+    controls: [{ key: "curvature", label: "Opportunity-cost curvature", min: 0.75, max: 1.5, step: 0.05, value: 1 }],
+    curves: (c) => [{ id: "ppc", label: "PPC", color: curveColors[0], fn: (x) => 100*Math.pow(Math.max(0,1-x/100),c.curvature) }],
     interpretation: [
-      "Points on the PPC represent efficient combinations in this simple model.",
-      "Points inside are attainable but inefficient; points outside are unattainable with current resources and technology.",
-      "The slope represents the opportunity cost of producing more of the horizontal-axis good.",
+      "Points on the PPC are efficient combinations of the two goods given current resources and technology.",
+      "A point inside the PPC is attainable but inefficient; a point outside is unattainable with the current resource and technology constraint.",
+      "Moving along the PPC illustrates opportunity cost because producing more of one good requires giving up some of the other good.",
     ],
   },
-
   {
     id: "budget-line",
     title: "Budget Line",
@@ -644,8 +516,8 @@ const presets: Preset[] = [
     unit: "Consumer Equilibrium",
     description:
       "Change income and relative prices to see the budget constraint move.",
-    xLabel: "Good X",
-    yLabel: "Good Y",
+    xLabel: "Good X (units)",
+    yLabel: "Good Y (units)",
     xMin: 0,
     xMax: 100,
     yMin: 0,
@@ -698,8 +570,8 @@ const presets: Preset[] = [
     unit: "Consumer Equilibrium",
     description:
       "Explore a family of indifference curves and diminishing marginal rate of substitution.",
-    xLabel: "Good X",
-    yLabel: "Good Y",
+    xLabel: "Good X (units)",
+    yLabel: "Good Y (units)",
     xMin: 1,
     xMax: 100,
     yMin: 1,
@@ -734,131 +606,71 @@ const presets: Preset[] = [
     title: "Consumer Equilibrium",
     className: "XI",
     unit: "Consumer Equilibrium",
-    description:
-      "See the relationship between a budget line and an indifference curve.",
-    xLabel: "Good X",
-    yLabel: "Good Y",
-    xMin: 1,
-    xMax: 100,
-    yMin: 1,
-    yMax: 100,
+    description: "A textbook indifference-curve and budget-line diagram with an automatically calculated tangency point.",
+    xLabel: "Quantity of Good X (units)",
+    yLabel: "Quantity of Good Y (units)",
+    xMin: 0, xMax: 180, yMin: 0, yMax: 180,
     controls: [
-      {
-        key: "income",
-        label: "Income",
-        min: 70,
-        max: 150,
-        step: 1,
-        value: 100,
-      },
-      {
-        key: "px",
-        label: "Price of X",
-        min: 0.8,
-        max: 1.6,
-        step: 0.05,
-        value: 1,
-      },
-      {
-        key: "py",
-        label: "Price of Y",
-        min: 0.8,
-        max: 1.6,
-        step: 0.05,
-        value: 1,
-      },
+      { key: "income", label: "Consumer income (₹)", min: 60, max: 160, step: 1, value: 100 },
+      { key: "px", label: "Price of Good X (₹)", min: 0.5, max: 2, step: 0.05, value: 1 },
+      { key: "py", label: "Price of Good Y (₹)", min: 0.5, max: 2, step: 0.05, value: 1 },
     ],
-    curves: (c) => [
-      {
-        id: "budget",
-        label: "Budget line",
-        color: curveColors[0],
-        fn: (x) => (c.income - c.px * x) / c.py,
-      },
-      {
-        id: "ic",
-        label: "Indifference curve",
-        color: curveColors[2],
-        fn: (x) =>
-          Math.max(1, 55 / Math.sqrt(Math.max(x, 1))) ** 2,
-      },
-    ],
+    curves: (c) => {
+      const xStar = c.income / (2*c.px);
+      const yStar = c.income / (2*c.py);
+      const utility = Math.sqrt(Math.max(0.1,xStar*yStar));
+      return [
+        { id: "budget", label: "Budget line", color: curveColors[0], fn: (x) => (c.income-c.px*x)/c.py },
+        { id: "ic", label: "IC at equilibrium", color: curveColors[2], fn: (x) => utility*utility/Math.max(x,0.5) },
+      ];
+    },
     interpretation: [
-      "Consumer equilibrium is represented here by the tangency condition between the budget line and an indifference curve.",
-      "At an interior tangency, MRS is equal to the price ratio.",
+      "The budget line shows all affordable combinations of Good X and Good Y.",
+      "The equilibrium bundle is where the highest attainable indifference curve is tangent to the budget line.",
+      "At an interior optimum, MRS = Px / Py. With the Cobb-Douglas illustration used here, the optimum allocates half of income to each good.",
     ],
   },
-
   {
     id: "tp-ap-mp",
     title: "TP, AP & MP",
     className: "XI",
     unit: "Producer Behaviour",
-    description:
-      "Visualise the curriculum relationship between total product, average product and marginal product in the short run.",
-    xLabel: "Variable input",
-    yLabel: "Product",
-    xMin: 0,
-    xMax: 12,
-    yMin: 0,
-    yMax: 100,
+    description: "A mathematically linked production system: MP is the slope of TP and AP is TP divided by the variable input.",
+    xLabel: "Variable input (units)",
+    yLabel: "Product / product per unit of input",
+    xMin: 0, xMax: 12, yMin: 0, yMax: 100,
     controls: [
       { key: "productivity", label: "Productivity scale", min: 0.8, max: 1.2, step: 0.05, value: 1 },
     ],
-    curves: (c) => {
-      const tp = (x) => c.productivity * 0.4 * (18 * x + 2.4 * x * x - 0.2 * x * x * x);
-      const ap = (x) => x <= 0 ? 0 : tp(x) / x;
-      const mp = (x) => c.productivity * 0.4 * (18 + 4.8 * x - 0.6 * x * x);
-      return [
-        { id: "tp", label: "TP", color: curveColors[0], fn: tp },
-        { id: "ap", label: "AP", color: curveColors[1], fn: ap },
-        { id: "mp", label: "MP", color: curveColors[2], fn: mp },
-      ];
-    },
+    curves: () => [],
     interpretation: [
-      "AP = TP / units of the variable input.",
-      "MP is the change in TP caused by an additional unit of the variable input, so MP is the slope of TP.",
-      "MP intersects AP at AP's maximum. TP reaches its maximum where MP = 0.",
+      "MP is the change in total product caused by one additional unit of variable input and equals the slope of TP.",
+      "AP = TP divided by the variable input. MP intersects AP at AP's maximum.",
+      "TP is maximum where MP = 0. Beyond that point MP becomes negative and TP falls.",
     ],
+    diagram: "production-system",
   },
-
   {
     id: "cost-curves",
     title: "Short-Run Cost Curves & Relationships",
     className: "XI",
     unit: "Producer Behaviour",
-    description:
-      "A curriculum-based short-run cost system: AFC, AVC, AC and MC are generated from consistent cost relationships.",
-    xLabel: "Output",
-    yLabel: "Cost",
-    xMin: 1,
-    xMax: 100,
-    yMin: 0,
-    yMax: 100,
+    description: "Complete textbook cost system: TFC, TVC and TC above; AFC, AVC, AC and MC below, with the required relationships marked.",
+    xLabel: "Output (units)",
+    yLabel: "Cost (₹)",
+    xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      { key: "fixed", label: "Total fixed cost", min: 20, max: 60, step: 1, value: 40 },
+      { key: "fixed", label: "Total fixed cost (₹)", min: 20, max: 60, step: 1, value: 40 },
       { key: "scale", label: "Variable-cost scale", min: 0.7, max: 1.3, step: 0.01, value: 1 },
     ],
-    curves: (c) => {
-      const avc = (x) => c.scale * (8 - 0.28 * x + 0.0035 * x * x);
-      const mc = (x) => c.scale * (8 - 0.56 * x + 0.0105 * x * x);
-      const afc = (x) => c.fixed / x;
-      const ac = (x) => afc(x) + avc(x);
-      return [
-        { id: "afc", label: "AFC", color: curveColors[0], fn: afc },
-        { id: "avc", label: "AVC", color: curveColors[1], fn: avc },
-        { id: "ac", label: "AC", color: curveColors[2], fn: ac },
-        { id: "mc", label: "MC", color: curveColors[3], fn: mc },
-      ];
-    },
+    curves: () => [],
     interpretation: [
-      "AFC = TFC / Q, so AFC falls continuously as fixed cost is spread over more output.",
-      "AC = AFC + AVC, so AC lies above AVC and the gap between them equals AFC.",
-      "MC is the change in total cost or total variable cost from an additional unit of output.",
-      "MC cuts AVC at AVC's minimum and AC at AC's minimum in the standard short-run relationship.",
+      "TC = TFC + TVC. TFC is constant, TVC begins at the origin, and TC begins at the TFC intercept.",
+      "AFC = TFC/Q, so AFC continuously falls. AC = AFC + AVC, so AC lies above AVC by the AFC amount.",
+      "MC is the change in TC or TVC from one more unit of output. MC cuts AVC at AVC's minimum and AC at AC's minimum.",
     ],
+    diagram: "cost-system",
   },
-
   {
     id: "revenue",
     title: "TR, AR & MR under Perfect Competition",
@@ -866,8 +678,8 @@ const presets: Preset[] = [
     unit: "Producer Behaviour",
     description:
       "Use the competitive-firm revenue identities TR = P × Q and AR = MR = P on a common revenue scale.",
-    xLabel: "Output",
-    yLabel: "Revenue / Price",
+    xLabel: "Output (units)",
+    yLabel: "Revenue / Price (₹)",
     xMin: 0,
     xMax: 10,
     yMin: 0,
@@ -894,8 +706,8 @@ const presets: Preset[] = [
     unit: "Determination of Income and Employment",
     description:
       "Explore consumption, autonomous consumption and saving as income changes.",
-    xLabel: "Income",
-    yLabel: "Consumption / Saving",
+    xLabel: "Income (₹)",
+    yLabel: "Consumption / Saving (₹)",
     xMin: 0,
     xMax: 100,
     yMin: -40,
@@ -954,8 +766,8 @@ const presets: Preset[] = [
     unit: "Determination of Income and Employment",
     description:
       "Change autonomous expenditure and MPC to see equilibrium income move.",
-    xLabel: "Income",
-    yLabel: "Aggregate expenditure",
+    xLabel: "Income / Output (₹)",
+    yLabel: "Aggregate Expenditure (₹)",
     xMin: 0,
     xMax: 120,
     yMin: 0,
@@ -1034,8 +846,8 @@ const presets: Preset[] = [
     unit: "Money and Banking",
     description:
       "Use the liquidity-preference framework with quantity of money on the horizontal axis and a fixed money supply as a vertical line.",
-    xLabel: "Quantity of Money",
-    yLabel: "Interest rate",
+    xLabel: "Quantity of Money (₹ crore)",
+    yLabel: "Rate of Interest (%)",
     xMin: 0,
     xMax: 100,
     yMin: 0,
@@ -1062,8 +874,8 @@ const presets: Preset[] = [
     unit: "Balance of Payments",
     description:
       "Explore exchange-rate determination using demand and supply of foreign currency.",
-    xLabel: "Quantity of Foreign Exchange",
-    yLabel: "Exchange rate",
+    xLabel: "Quantity of Foreign Exchange (units)",
+    yLabel: "Exchange Rate (₹ per unit of foreign currency)",
     xMin: 0,
     xMax: 100,
     yMin: 0,
@@ -1247,50 +1059,145 @@ function intersections(
 
 function graphAnnotations(preset: Preset, controls: Record<string, number>, curves: Curve[], view: {xMin:number;xMax:number;yMin:number;yMax:number}): Annotation[] {
   const a: Annotation[] = [];
-  const midX = (view.xMin + view.xMax) / 2;
-  const midY = (view.yMin + view.yMax) / 2;
+  const dEqQ = (dShift=0,sShift=0) => (80+dShift-sShift)/1.4;
+  const dEqP = (dShift=0,sShift=0) => 90-0.75*dEqQ(dShift,sShift)+dShift;
+
+  if (preset.id === "demand-supply") {
+    const q0=dEqQ(), p0=dEqP();
+    const q1=dEqQ(controls.dShift,controls.sShift), p1=dEqP(controls.dShift,controls.sShift);
+    a.push({id:"eq-guide-x",x1:q1,y1:0,x2:q1,y2:p1,text:"Qe₁",tone:"guide"});
+    a.push({id:"eq-guide-y",x1:0,y1:p1,x2:q1,y2:p1,text:"Pe₁",tone:"guide"});
+    a.push({id:"eq",x1:q1,y1:p1,x2:q1,y2:p1,text:"E₁: New equilibrium",tone:"label"});
+    if (controls.dShift > 0) a.push({id:"d-shift-arrow",x1:28,y1:90-0.75*28,x2:40,y2:90-0.75*40+controls.dShift,text:"Increase in demand",tone:"arrow"});
+    if (controls.dShift < 0) a.push({id:"d-shift-arrow",x1:40,y1:90-0.75*40+controls.dShift,x2:28,y2:90-0.75*28,text:"Decrease in demand",tone:"arrow"});
+    if (controls.sShift < 0) a.push({id:"s-shift-arrow",x1:28,y1:10+0.65*28+controls.sShift,x2:40,y2:10+0.65*40+controls.sShift,text:"Increase in supply",tone:"arrow"});
+    if (controls.sShift > 0) a.push({id:"s-shift-arrow",x1:40,y1:10+0.65*40+controls.sShift,x2:28,y2:10+0.65*28,text:"Decrease in supply",tone:"arrow"});
+    if (Math.abs(q1-q0)>0.25 || Math.abs(p1-p0)>0.25) {
+      a.push({id:"old-eq",x1:q0,y1:p0,x2:q0,y2:p0,text:"E₀",tone:"label"});
+      a.push({id:"eq-arrow",x1:q0,y1:p0,x2:q1,y2:p1,text:"Equilibrium shifts",tone:"arrow"});
+    }
+  }
+
   if (preset.id === "demand-movement-shift") {
-    const price = controls.price;
-    const shift = (controls.income + controls.substitutes - controls.complements + controls.tastes + controls.expectations + controls.buyers) / 6;
-    const q0 = Math.max(0, (90 - price) / 0.72);
-    const q1 = Math.max(0, (90 + shift - price) / 0.72);
-    a.push({id:"move",x1:q0,y1:price,x2:Math.max(0,q0-14),y2:price,text:"Movement along D",tone:"arrow"});
-    if (Math.abs(shift)>0.5) a.push({id:"shift",x1:55,y1:90-0.72*55,x2:55,y2:90-0.72*55+shift,text:shift>0?"Increase in demand":"Decrease in demand",tone:"arrow"});
-    if (Math.abs(q1-q0)>1) a.push({id:"gap",x1:q0,y1:price,x2:q1,y2:price,text:"Change in quantity demanded",tone:"guide"});
+    const determinantSum=controls.income+controls.substitutes-controls.complements+controls.tastes+controls.expectations+controls.buyers;
+    const shift=determinantSum*5;
+    const d0=(x:number)=>90-0.72*x;
+    const d1=(x:number)=>d0(x)+shift;
+    const refPrice=60;
+    const qA=Math.max(0,(90-refPrice)/0.72), qB=Math.max(0,(90-controls.price)/0.72);
+    const qC=Math.max(0,(90+shift-controls.price)/0.72);
+    if(Math.abs(shift)<0.01){
+      a.push({id:"A",x1:qA,y1:refPrice,x2:qA,y2:refPrice,text:"A",tone:"label"});
+      a.push({id:"B",x1:qB,y1:controls.price,x2:qB,y2:controls.price,text:"B",tone:"label"});
+      a.push({id:"movement",x1:qA,y1:refPrice,x2:qB,y2:controls.price,text:"Movement along D₀",tone:"arrow"});
+      a.push({id:"qA",x1:qA,y1:0,x2:qA,y2:refPrice,text:"Q₁",tone:"guide"});
+      a.push({id:"qB",x1:qB,y1:0,x2:qB,y2:controls.price,text:"Q₂",tone:"guide"});
+    } else {
+      const q0=Math.max(0,(90-controls.price)/0.72);
+      a.push({id:"A",x1:q0,y1:controls.price,x2:q0,y2:controls.price,text:"A on D₀",tone:"label"});
+      a.push({id:"B",x1:qC,y1:controls.price,x2:qC,y2:controls.price,text:"B on D₁/D₂",tone:"label"});
+      a.push({id:"shift",x1:q0,y1:controls.price+5,x2:qC,y2:controls.price+5,text:shift>0?"Increase in demand →":"← Decrease in demand",tone:"arrow"});
+      a.push({id:"q0",x1:q0,y1:0,x2:q0,y2:controls.price,text:"Q₁",tone:"guide"});
+      a.push({id:"qc",x1:qC,y1:0,x2:qC,y2:controls.price,text:"Q₂",tone:"guide"});
+    }
   }
+
   if (preset.id === "supply-movement-shift") {
-    const price = controls.price;
-    const shift = (controls.input + controls.related - controls.technology + controls.tax - controls.subsidy + controls.expectations - controls.firms) / 7;
-    const q0 = Math.max(0, (price-8)/0.72);
-    const q1 = Math.max(0, (price-8-shift)/0.72);
-    a.push({id:"move",x1:q0,y1:price,x2:Math.min(100,q0+14),y2:price,text:"Movement along S",tone:"arrow"});
-    if (Math.abs(shift)>0.5) a.push({id:"shift",x1:55,y1:8+0.72*55,x2:55,y2:8+0.72*55+shift,text:shift<0?"Increase in supply":"Decrease in supply",tone:"arrow"});
-    if (Math.abs(q1-q0)>1) a.push({id:"gap",x1:q0,y1:price,x2:q1,y2:price,text:"Change in quantity supplied",tone:"guide"});
+    const determinantSum=controls.input+controls.related-controls.technology+controls.tax-controls.subsidy+controls.expectations-controls.firms;
+    const shift=determinantSum*5;
+    const refPrice=40;
+    const qA=Math.max(0,(refPrice-8)/0.72), qB=Math.max(0,(controls.price-8)/0.72);
+    const qC=Math.max(0,(controls.price-8-shift)/0.72);
+    if(Math.abs(shift)<0.01){
+      a.push({id:"A",x1:qA,y1:refPrice,x2:qA,y2:refPrice,text:"A",tone:"label"});
+      a.push({id:"B",x1:qB,y1:controls.price,x2:qB,y2:controls.price,text:"B",tone:"label"});
+      a.push({id:"movement",x1:qA,y1:refPrice,x2:qB,y2:controls.price,text:"Movement along S₀",tone:"arrow"});
+      a.push({id:"qA",x1:qA,y1:0,x2:qA,y2:refPrice,text:"Q₁",tone:"guide"});
+      a.push({id:"qB",x1:qB,y1:0,x2:qB,y2:controls.price,text:"Q₂",tone:"guide"});
+    } else {
+      const q0=Math.max(0,(controls.price-8)/0.72);
+      a.push({id:"A",x1:q0,y1:controls.price,x2:q0,y2:controls.price,text:"A on S₀",tone:"label"});
+      a.push({id:"B",x1:qC,y1:controls.price,x2:qC,y2:controls.price,text:"B on S₁/S₂",tone:"label"});
+      a.push({id:"shift",x1:q0,y1:controls.price+5,x2:qC,y2:controls.price+5,text:shift<0?"Increase in supply →":"← Decrease in supply",tone:"arrow"});
+      a.push({id:"q0",x1:q0,y1:0,x2:q0,y2:controls.price,text:"Q₁",tone:"guide"});
+      a.push({id:"qc",x1:qC,y1:0,x2:qC,y2:controls.price,text:"Q₂",tone:"guide"});
+    }
   }
-  if (preset.id === "price-ceiling") a.push({id:"binding",x1:18,y1:controls.ceiling,x2:35,y2:controls.ceiling,text:"Binding ceiling if below equilibrium",tone:"label"});
-  if (preset.id === "price-floor") a.push({id:"binding",x1:18,y1:controls.floor,x2:35,y2:controls.floor,text:"Binding floor if above equilibrium",tone:"label"});
-  if (preset.id === "producer-equilibrium" || preset.id === "perfect-competition-firm") a.push({id:"eq",x1:30,y1:controls.price,x2:42,y2:controls.price,text:"Equilibrium: MR = MC",tone:"arrow"});
-  if (preset.id === "cost-curves") {
-    a.push({id:"mcavc",x1:35,y1:10,x2:48,y2:10,text:"MC cuts AVC at AVC minimum",tone:"label"});
-    a.push({id:"mcac",x1:65,y1:35,x2:80,y2:35,text:"MC cuts AC at AC minimum",tone:"label"});
+
+  if (preset.id === "price-ceiling") {
+    const qe=dEqQ(), pe=dEqP(), qd=Math.max(0,(90-controls.ceiling)/0.75), qs=Math.max(0,(controls.ceiling-10)/0.65);
+    const binding=controls.ceiling<pe;
+    a.push({id:"eq",x1:qe,y1:pe,x2:qe,y2:pe,text:"E: Pe = " + fmt(pe) + ", Qe = " + fmt(qe),tone:"label"});
+    a.push({id:"ceiling-guide",x1:0,y1:controls.ceiling,x2:Math.max(qd,qs),y2:controls.ceiling,text:binding?"Binding price ceiling":"Non-binding price ceiling",tone:"label"});
+    if(binding){
+      a.push({id:"qd",x1:qd,y1:0,x2:qd,y2:controls.ceiling,text:"Qd = " + fmt(qd),tone:"guide"});
+      a.push({id:"qs",x1:qs,y1:0,x2:qs,y2:controls.ceiling,text:"Qs = " + fmt(qs),tone:"guide"});
+      a.push({id:"shortage",x1:qs,y1:controls.ceiling-4,x2:qd,y2:controls.ceiling-4,text:"Shortage = " + fmt(qd-qs) + " units",tone:"arrow"});
+    }
   }
+
+  if (preset.id === "price-floor") {
+    const qe=dEqQ(), pe=dEqP(), qd=Math.max(0,(90-controls.floor)/0.75), qs=Math.max(0,(controls.floor-10)/0.65);
+    const binding=controls.floor>pe;
+    a.push({id:"eq",x1:qe,y1:pe,x2:qe,y2:pe,text:"E: Pe = " + fmt(pe) + ", Qe = " + fmt(qe),tone:"label"});
+    a.push({id:"floor-guide",x1:0,y1:controls.floor,x2:Math.max(qd,qs),y2:controls.floor,text:binding?"Binding price floor":"Non-binding price floor",tone:"label"});
+    if(binding){
+      a.push({id:"qd",x1:qd,y1:0,x2:qd,y2:controls.floor,text:"Qd = " + fmt(qd),tone:"guide"});
+      a.push({id:"qs",x1:qs,y1:0,x2:qs,y2:controls.floor,text:"Qs = " + fmt(qs),tone:"guide"});
+      a.push({id:"surplus",x1:qd,y1:controls.floor+4,x2:qs,y2:controls.floor+4,text:"Surplus = " + fmt(qs-qd) + " units",tone:"arrow"});
+    }
+  }
+
+  if (preset.id === "consumer-equilibrium") {
+    const xStar=controls.income/(2*controls.px), yStar=controls.income/(2*controls.py);
+    const xIntercept=controls.income/controls.px, yIntercept=controls.income/controls.py;
+    a.push({id:"xint",x1:xIntercept,y1:0,x2:xIntercept,y2:0,text:"X-intercept = I / Px",tone:"label"});
+    a.push({id:"yint",x1:0,y1:yIntercept,x2:0,y2:yIntercept,text:"Y-intercept = I / Py",tone:"label"});
+    a.push({id:"ce",x1:xStar,y1:yStar,x2:xStar+10,y2:yStar+10,text:"E: Consumer equilibrium",tone:"label"});
+    a.push({id:"tangent",x1:xStar-12,y1:yStar+(controls.px/controls.py)*12,x2:xStar+12,y2:yStar-(controls.px/controls.py)*12,text:"Tangency: MRS = Px / Py",tone:"guide"});
+  }
+
+  if (preset.id === "ppc") {
+    a.push({id:"xIntercept",x1:100,y1:0,x2:100,y2:0,text:"X-intercept: maximum Good X",tone:"label"});
+    a.push({id:"yIntercept",x1:0,y1:100,x2:0,y2:100,text:"Y-intercept: maximum Good Y",tone:"label"});
+    a.push({id:"inside",x1:35,y1:30,x2:48,y2:30,text:"B: attainable but inefficient",tone:"label"});
+    a.push({id:"outside",x1:70,y1:75,x2:82,y2:75,text:"C: unattainable",tone:"label"});
+    a.push({id:"efficient",x1:52,y1:48,x2:64,y2:42,text:"A: efficient combination",tone:"label"});
+    a.push({id:"opp",x1:50,y1:0,x2:58,y2:0,text:"Opportunity cost of more Good X",tone:"arrow"});
+  }
+
   if (preset.id === "tp-ap-mp") {
-    a.push({id:"mp0",x1:10.78,y1:0,x2:10.78,y2:24,text:"TP maximum: MP = 0",tone:"label"});
-    a.push({id:"apmp",x1:6,y1:20,x2:7.5,y2:28,text:"MP = AP at AP maximum",tone:"label"});
+    const tp=(x)=>controls.productivity*(10*x+4*x*x-0.35*x*x*x);
+    const mp=(x)=>controls.productivity*(10+8*x-1.05*x*x);
+    const xTP=(8+Math.sqrt(64+42))/2.1;
+    a.push({id:"tpmax",x1:xTP,y1:0,x2:xTP,y2:tp(xTP),text:"TP maximum: MP = 0",tone:"guide"});
+    const apx=4/0.7;
+    a.push({id:"apmax",x1:apx,y1:0,x2:apx,y2:tp(apx)/apx,text:"AP maximum: MP = AP",tone:"guide"});
+    a.push({id:"negative",x1:10.5,y1:10,x2:9.5,y2:2,text:"MP < 0 after TP maximum",tone:"arrow"});
   }
-  if (preset.id === "demand-supply" || preset.id === "forex") a.push({id:"eq",x1:midX-15,y1:midY+15,x2:midX,y2:midY,text:"Market equilibrium",tone:"arrow"});
-  if (preset.id === "total-expenditure") {
-    const unitPrice = 47.5;
-    a.push({id:"unit",x1:unitPrice,y1:5,x2:unitPrice,y2:60,text:"Unit elastic point",tone:"guide"});
-    a.push({id:"elastic",x1:18,y1:45,x2:30,y2:58,text:"Elastic region",tone:"label"});
-    a.push({id:"inelastic",x1:68,y1:48,x2:82,y2:58,text:"Inelastic region",tone:"label"});
+
+  if (preset.id === "producer-equilibrium" || preset.id === "perfect-competition-firm") {
+    const price=controls.price;
+    const scale=controls.scale ?? 1;
+    const mc=(x)=>scale*(8-0.56*x+0.0105*x*x);
+    const roots=[]; for(let i=1;i<100;i+=0.25){const a1=mc(i)-price,b1=mc(i+0.25)-price;if(a1*b1<=0) roots.push(i+0.25*Math.abs(a1)/(Math.abs(a1)+Math.abs(b1)||1));}
+    const q=roots.find(x=>x>25) ?? roots[0] ?? 50;
+    a.push({id:"pe",x1:q,y1:price,x2:q,y2:0,text:"Equilibrium output Q* = " + fmt(q),tone:"guide"});
+    a.push({id:"mceq",x1:q-12,y1:price+10,x2:q,y2:price,text:"MR = MC",tone:"arrow"});
   }
-  if (preset.id === "money-demand") a.push({id:"ms",x1:controls.supply,y1:25,x2:controls.supply,y2:55,text:"Fixed money supply",tone:"label"});
-  if (preset.id === "excess-deficient-demand") a.push({id:"fe",x1:controls.fullEmployment,y1:15,x2:controls.fullEmployment,y2:45,text:"Full-employment output",tone:"label"});
-  if (preset.id === "multiplier") a.push({id:"k",x1:0.75,y1:4,x2:0.82,y2:5.5,text:"Higher MPC → higher k",tone:"arrow"});
+
+  if (preset.id === "money-demand") {
+    const q=controls.supply, r=92-0.85*q+controls.demandShift;
+    a.push({id:"moneyeq",x1:q,y1:r,x2:q,y2:0,text:"Money-market equilibrium: i = " + fmt(r) + "%",tone:"guide"});
+  }
+
+  if (preset.id === "income-equilibrium") {
+    const q=controls.autonomous/(1-controls.mpc);
+    a.push({id:"incomeeq",x1:q,y1:q,x2:q,y2:0,text:"Equilibrium income Y* = " + fmt(q),tone:"guide"});
+  }
+
   return a;
 }
-
 function CircularFlowDiagram() {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -1338,6 +1245,142 @@ function CircularFlowDiagram() {
   );
 }
 
+function MarginalUtilityDiagram({ controls }: { controls: Record<string, number> }) {
+  const W=900,H=600,P=70;
+  const innerW=W-2*P, panelH=210;
+  const x=(q:number)=>P+(q/10)*innerW;
+  const y=(u:number, top:number)=>top+panelH-(Math.max(0,Math.min(150,u))/150)*panelH;
+  const initial=controls.initial, decline=controls.decline;
+  const mu=(q:number)=>initial-decline*q;
+  const tu=(q:number)=>initial*q-0.5*decline*q*q;
+  const path=(fn:(q:number)=>number,top:number)=>{let d='';for(let i=0;i<=220;i++){const q=i/22;const px=x(q),py=y(fn(q),top);d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
+  const qMax=Math.min(10,initial/decline);
+  return <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Marginal utility and total utility">
+      <line x1={P} x2={W-P} y1={60} y2={60} stroke="#334155" strokeWidth="2" markerEnd="url(#econ-arrow)"/>
+      <text x={W/2} y={42} textAnchor="middle" fontSize="15" fontWeight="700" fill="#334155">Marginal Utility (MU) · Units consumed</text>
+      <line x1={P} x2={W-P} y1={60+panelH} y2={60+panelH} stroke="#334155" strokeWidth="2" markerEnd="url(#econ-arrow)"/>
+      <text x={W/2} y={60+panelH+28} textAnchor="middle" fontSize="15" fontWeight="700" fill="#334155">Total Utility (TU) · Units consumed</text>
+      <line x1={P} x2={P} y1={60} y2={60+2*panelH+45} stroke="#334155" strokeWidth="2" markerEnd="url(#econ-arrow)"/>
+      <text x={20} y={300} transform="rotate(-90 20 300)" textAnchor="middle" fontSize="15" fontWeight="700" fill="#334155">Utility (utils)</text>
+      {[0,2,4,6,8,10].map(q=><g key={q}><text x={x(q)} y={54} textAnchor="middle" fontSize="11" fill="#64748b">{q}</text><text x={x(q)} y={60+panelH-6} textAnchor="middle" fontSize="11" fill="#64748b">{q}</text></g>)}
+      {[0,30,60,90,120,150].map(u=><text key={u} x={P-10} y={y(u,60)+4} textAnchor="end" fontSize="11" fill="#64748b">{u}</text>)}
+      <path d={path(mu,60)} fill="none" stroke="#2563eb" strokeWidth="4"/>
+      <path d={path(tu,60+panelH)} fill="none" stroke="#dc2626" strokeWidth="4"/>
+      <line x1={x(qMax)} x2={x(qMax)} y1={60} y2={60+2*panelH} stroke="#94a3b8" strokeDasharray="5 5"/>
+      <text x={x(qMax)+8} y={94} fontSize="12" fontWeight="700" fill="#2563eb">MU = 0</text>
+      <text x={x(qMax)+8} y={60+panelH+40} fontSize="12" fontWeight="700" fill="#dc2626">TU maximum</text>
+      <text x={P+10} y={y(mu(2),60)-12} fontSize="13" fontWeight="700" fill="#2563eb">MU curve</text>
+      <text x={P+10} y={y(tu(2),60+panelH)-12} fontSize="13" fontWeight="700" fill="#dc2626">TU curve</text>
+    </svg>
+  </div>;
+}
+
+function ProductionSystemDiagram({ controls }: { controls: Record<string, number> }) {
+  const W=900,H=720,P=72, plotW=W-2*P;
+  const productivity=controls.productivity ?? 1;
+  const x=(q:number)=>P+(q/12)*plotW;
+  const tp=(q:number)=>productivity*(10*q+4*q*q-0.35*q*q*q);
+  const ap=(q:number)=>q<=0?0:tp(q)/q;
+  const mp=(q:number)=>productivity*(10+8*q-1.05*q*q);
+  const yTop=(v:number)=>55+245-(Math.max(0,Math.min(170,v))/170)*245;
+  const yBot=(v:number)=>410+245-(Math.max(0,Math.min(35,v))/35)*245;
+  const path=(fn:(q:number)=>number,yf:(v:number)=>number)=>{let d='';for(let i=0;i<=240;i++){const q=i/20;const px=x(q),py=yf(fn(q));d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
+  const qTP=(8+Math.sqrt(106))/2.1;
+  const qAP=4/0.7;
+  return <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="TP, AP and MP production relationship">
+      <defs><marker id="production-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
+      <text x={W/2} y="27" textAnchor="middle" fontSize="17" fontWeight="800" fill="#0f172a">Total Product (TP)</text>
+      <line x1={P} x2={W-P} y1="300" y2="300" stroke="#334155" strokeWidth="2" markerEnd="url(#production-arrow)"/>
+      <line x1={P} x2={P} y1="55" y2="300" stroke="#334155" strokeWidth="2" markerEnd="url(#production-arrow)"/>
+      <text x={W/2} y="322" textAnchor="middle" fontSize="13" fontWeight="700">Variable input (units)</text>
+      <text x="18" y="177" transform="rotate(-90 18 177)" textAnchor="middle" fontSize="13" fontWeight="700">Total product (units)</text>
+      <path d={path(tp,yTop)} fill="none" stroke={curveColors[0]} strokeWidth="4"/>
+      <line x1={x(qTP)} x2={x(qTP)} y1={yTop(tp(qTP))} y2="300" stroke="#94a3b8" strokeDasharray="5 5"/>
+      <circle cx={x(qTP)} cy={yTop(tp(qTP))} r="6" fill="#0f172a"/>
+      <text x={x(qTP)+9} y={yTop(tp(qTP))-12} fontSize="12" fontWeight="700" fill="#0f172a">TP maximum</text>
+      <text x={x(qTP)+9} y={yTop(tp(qTP))+5} fontSize="11" fill="#475569">MP = 0</text>
+      <text x={x(7.4)} y={yTop(tp(7.4))-10} fontSize="13" fontWeight="700" fill={curveColors[0]}>TP</text>
+      <text x={x(9.3)} y={yTop(tp(9.3))+28} fontSize="12" fill="#475569">TP falls when MP becomes negative</text>
+
+      <text x={W/2} y="382" textAnchor="middle" fontSize="17" fontWeight="800" fill="#0f172a">Average Product (AP) and Marginal Product (MP)</text>
+      <line x1={P} x2={W-P} y1="655" y2="655" stroke="#334155" strokeWidth="2" markerEnd="url(#production-arrow)"/>
+      <line x1={P} x2={P} y1="410" y2="655" stroke="#334155" strokeWidth="2" markerEnd="url(#production-arrow)"/>
+      <text x={W/2} y="677" textAnchor="middle" fontSize="13" fontWeight="700">Variable input (units)</text>
+      <text x="18" y="532" transform="rotate(-90 18 532)" textAnchor="middle" fontSize="13" fontWeight="700">Product per unit of input</text>
+      <path d={path(ap,yBot)} fill="none" stroke={curveColors[1]} strokeWidth="4"/>
+      <path d={path(mp,yBot)} fill="none" stroke={curveColors[2]} strokeWidth="4"/>
+      <line x1={x(qAP)} x2={x(qAP)} y1={yBot(ap(qAP))} y2="655" stroke="#94a3b8" strokeDasharray="5 5"/>
+      <circle cx={x(qAP)} cy={yBot(ap(qAP))} r="6" fill="#0f172a"/>
+      <text x={x(qAP)+9} y={yBot(ap(qAP))-13} fontSize="12" fontWeight="700" fill="#0f172a">AP maximum</text>
+      <text x={x(qAP)+9} y={yBot(ap(qAP))+4} fontSize="11" fill="#475569">MP = AP</text>
+      <text x={x(qAP/2)} y="430" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage I · Increasing returns</text>
+      <text x={x((qAP+qTP)/2)} y="430" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage II · Diminishing returns</text>
+      <text x={x((qTP+12)/2)} y="430" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475569">Stage III · Negative returns</text>
+      <text x={x(8.2)} y={yBot(ap(8.2))-10} fontSize="13" fontWeight="700" fill={curveColors[1]}>AP</text>
+      <text x={x(8.2)} y={yBot(mp(8.2))+18} fontSize="13" fontWeight="700" fill={curveColors[2]}>MP</text>
+    </svg>
+  </div>;
+}
+
+function CostSystemDiagram({ controls }: { controls: Record<string, number> }) {
+  const W=900,H=760,P=72,plotW=W-2*P;
+  const fixed=controls.fixed ?? 40, scale=controls.scale ?? 1;
+  const x=(q:number)=>P+(q/80)*plotW;
+  const tvc=(q:number)=>scale*(0.8*q-0.025*q*q+0.0005*q*q*q);
+  const tc=(q:number)=>fixed+tvc(q);
+  const avc=(q:number)=>scale*(0.8-0.025*q+0.0005*q*q);
+  const afc=(q:number)=>q<5?6:fixed/q;
+  const ac=(q:number)=>avc(q)+afc(q);
+  const mc=(q:number)=>scale*(0.8-0.05*q+0.0015*q*q);
+  const yTop=(v:number)=>55+245-(Math.max(0,Math.min(130,v))/130)*245;
+  const yBot=(v:number)=>405+285-(Math.max(0,Math.min(6,v))/6)*285;
+  const path=(fn:(q:number)=>number,yf:(v:number)=>number)=>{let d='';for(let i=0;i<=240;i++){const q=i/3;const px=x(q),py=yf(fn(q));d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
+  const qAVC=25;
+  const qAC=44.87;
+  return <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Short-run total and per-unit cost relationships">
+      <defs><marker id="cost-system-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
+      <text x={W/2} y="27" textAnchor="middle" fontSize="17" fontWeight="800">Total Cost Curves</text>
+      <line x1={P} x2={W-P} y1="300" y2="300" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-system-arrow)"/>
+      <line x1={P} x2={P} y1="55" y2="300" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-system-arrow)"/>
+      <text x={W/2} y="322" textAnchor="middle" fontSize="13" fontWeight="700">Output (units)</text>
+      <text x="18" y="178" transform="rotate(-90 18 178)" textAnchor="middle" fontSize="13" fontWeight="700">Total cost (₹)</text>
+      <path d={path(()=>fixed,yTop)} fill="none" stroke="#16a34a" strokeWidth="4"/>
+      <path d={path(tvc,yTop)} fill="none" stroke="#2563eb" strokeWidth="4"/>
+      <path d={path(tc,yTop)} fill="none" stroke="#dc2626" strokeWidth="4"/>
+      <text x={x(66)} y={yTop(fixed)-9} fill="#16a34a" fontSize="12" fontWeight="700">TFC</text>
+      <text x={x(58)} y={yTop(tvc(58))-9} fill="#2563eb" fontSize="12" fontWeight="700">TVC</text>
+      <text x={x(50)} y={yTop(tc(50))-10} fill="#dc2626" fontSize="12" fontWeight="700">TC = TFC + TVC</text>
+      <line x1={x(40)} x2={x(40)} y1={yTop(fixed)} y2={yTop(tvc(40))} stroke="#64748b" strokeDasharray="5 5"/>
+      <text x={x(40)+8} y={(yTop(fixed)+yTop(tvc(40)))/2} fontSize="11" fill="#475569">Vertical distance = TFC</text>
+      <text x={x(3)} y={yTop(fixed)-8} fontSize="11" fill="#475569">TFC is constant</text>
+      <text x={x(3)} y={yTop(tvc(3))+22} fontSize="11" fill="#475569">TVC starts from origin</text>
+      <text x={W/2} y="367" textAnchor="middle" fontSize="17" fontWeight="800">Average and Marginal Cost Curves</text>
+      <line x1={P} x2={W-P} y1="690" y2="690" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-system-arrow)"/>
+      <line x1={P} x2={P} y1="405" y2="690" stroke="#334155" strokeWidth="2" markerEnd="url(#cost-system-arrow)"/>
+      <text x={W/2} y="713" textAnchor="middle" fontSize="13" fontWeight="700">Output (units)</text>
+      <text x="18" y="548" transform="rotate(-90 18 548)" textAnchor="middle" fontSize="13" fontWeight="700">Cost per unit (₹)</text>
+      <path d={path(afc,yBot)} fill="none" stroke="#2563eb" strokeWidth="4"/>
+      <path d={path(avc,yBot)} fill="none" stroke="#16a34a" strokeWidth="4"/>
+      <path d={path(ac,yBot)} fill="none" stroke="#dc2626" strokeWidth="4"/>
+      <path d={path(mc,yBot)} fill="none" stroke="#9333ea" strokeWidth="4"/>
+      <line x1={x(qAVC)} x2={x(qAVC)} y1={yBot(avc(qAVC))} y2="690" stroke="#94a3b8" strokeDasharray="5 5"/>
+      <line x1={x(qAC)} x2={x(qAC)} y1={yBot(ac(qAC))} y2="690" stroke="#94a3b8" strokeDasharray="5 5"/>
+      <circle cx={x(qAVC)} cy={yBot(avc(qAVC))} r="6" fill="#0f172a"/>
+      <circle cx={x(qAC)} cy={yBot(ac(qAC))} r="6" fill="#0f172a"/>
+      <text x={x(64)} y={yBot(afc(64))-10} fill="#2563eb" fontSize="12" fontWeight="700">AFC: continuously falling</text>
+      <text x={x(57)} y={yBot(avc(57))-10} fill="#16a34a" fontSize="12" fontWeight="700">AVC</text>
+      <text x={x(58)} y={yBot(ac(58))-10} fill="#dc2626" fontSize="12" fontWeight="700">AC = AFC + AVC</text>
+      <text x={x(68)} y={yBot(mc(68))-10} fill="#9333ea" fontSize="12" fontWeight="700">MC</text>
+      <text x={x(qAVC)+8} y={yBot(avc(qAVC))+26} fontSize="11" fill="#475569">MC cuts AVC at AVC minimum</text>
+      <text x={x(qAC)+8} y={yBot(ac(qAC))+26} fontSize="11" fill="#475569">MC cuts AC at AC minimum</text>
+      <text x={x(10)} y={yBot(ac(10))+42} fontSize="11" fill="#475569">AC lies above AVC by AFC</text>
+    </svg>
+  </div>;
+}
+
 function EconomicsGraph({
   preset,
   controls,
@@ -1368,6 +1411,15 @@ function EconomicsGraph({
 
   if (preset.diagram === "circular-flow") {
     return <CircularFlowDiagram />;
+  }
+  if (preset.diagram === "mu-tu") {
+    return <MarginalUtilityDiagram controls={controls} />;
+  }
+  if (preset.diagram === "cost-system") {
+    return <CostSystemDiagram controls={controls} />;
+  }
+  if (preset.diagram === "production-system") {
+    return <ProductionSystemDiagram controls={controls} />;
   }
 
   const W = 900;
@@ -1437,10 +1489,10 @@ function EconomicsGraph({
     view.yMax
   );
 
-  const points = useMemo(
-    () => intersections(curves, view),
-    [curves, view.xMin, view.xMax, view.yMin, view.yMax]
-  );
+  const points = useMemo(() => {
+    const marked = new Set(["demand-supply", "money-demand", "forex", "income-equilibrium"]);
+    return marked.has(preset.id) ? intersections(curves.filter((c) => !c.dashed), view).slice(0, 1) : [];
+  }, [preset.id, curves, view.xMin, view.xMax, view.yMin, view.yMax]);
 
   const pathFor = (curve: Curve) => {
     const sampled = sampleCurve(curve, view);
@@ -1809,11 +1861,7 @@ function EconomicsGraph({
                   </span>
 
                   <span className="font-mono text-slate-900">
-                    {fmt(
-                      controls[
-                        control.key
-                      ]
-                    )}
+                    {controlDisplayValue(control, controls[control.key])}
                   </span>
                 </div>
 
