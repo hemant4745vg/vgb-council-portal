@@ -672,33 +672,170 @@ function ProjectileTool() {
 function ForceTool() {
   const [m, setM] = useState(5);
   const [F, setF] = useState(20);
-  const [mu, setMu] = useState(0.2);
+  const [muS, setMuS] = useState(0.4);
+  const [muK, setMuK] = useState(0.2);
   const [g, setG] = useState(9.8);
-  const N=m*g, friction=mu*N, net=Math.max(0,F-friction), a=net/m;
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  const N = m * g;
+  const maxStatic = muS * N;
+  const moving = F > maxStatic;
+  const friction = moving ? muK * N : F;
+  const net = moving ? F - friction : 0;
+  const a = net / m;
+  const v = a * time;
+  const x = 0.5 * a * time * time;
+  const kineticFriction = muK * N;
+  const maxTime = 8;
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setInterval(() => {
+      setTime((t) => {
+        const next = t + 0.04;
+        if (next >= maxTime) {
+          setPlaying(false);
+          return maxTime;
+        }
+        return next;
+      });
+    }, 40);
+    return () => window.clearInterval(id);
+  }, [playing]);
+
+  const reset = () => {
+    setTime(0);
+    setPlaying(false);
+  };
+
+  const forcePoints = Array.from({ length: 101 }, (_, i) => {
+    const applied = i * 100 / 100;
+    const forceN = applied;
+    const forceAcceleration = forceN > maxStatic ? (forceN - kineticFriction) / m : 0;
+    return { x: applied, y: Math.max(0, forceAcceleration) };
+  });
+
+  const motionScale = 420;
+  const blockX = Math.min(72, x * motionScale);
+  const netDirection = moving ? "right" : "balanced";
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[300px_1fr]">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
-        <Slider label="Mass" value={m} min={1} max={20} step={0.5} unit="kg" onChange={setM} />
-        <Slider label="Applied force" value={F} min={0} max={100} step={1} unit="N" onChange={setF} />
-        <Slider label="Coefficient of friction" value={mu} min={0} max={1} step={0.01} onChange={setMu} />
-        <Slider label="Gravity" value={g} min={8} max={10} step={0.1} unit="m/s²" onChange={setG} />
-      </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <div className="relative mx-auto mt-8 h-48 max-w-xl">
-          <div className="absolute bottom-7 left-[35%] h-20 w-32 rounded-xl border-2 border-slate-800 bg-slate-50 text-center pt-7 text-sm font-bold">{fmt(m)} kg</div>
-          <div className="absolute bottom-2 left-[18%] right-[18%] border-b-4 border-slate-800" />
-          <div className="absolute bottom-[67px] left-[55%] h-0 w-[30%] border-t-4 border-slate-900" />
-          <div className="absolute bottom-[73px] left-[76%] text-xs font-semibold">F = {fmt(F)} N →</div>
-          <div className="absolute bottom-[75px] left-[20%] h-0 w-[14%] border-t-4 border-slate-500" />
-          <div className="absolute bottom-[81px] left-[4%] text-xs font-semibold text-slate-500">← f = {fmt(friction)} N</div>
-          <div className="absolute bottom-[87px] left-[42%] h-[70px] border-l-4 border-slate-700" />
-          <div className="absolute left-[43%] top-0 text-xs font-semibold">N = {fmt(N)} N ↑</div>
-          <div className="absolute left-[43%] bottom-[0] text-xs font-semibold">W = {fmt(N)} N ↓</div>
+    <div className="space-y-5">
+      <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Controls</div>
+            <div className="mt-1 text-sm font-semibold">Newton's Second Law</div>
+          </div>
+          <Slider label="Mass" value={m} min={1} max={20} step={0.5} unit="kg" onChange={(n) => { setM(n); reset(); }} />
+          <Slider label="Applied force" value={F} min={0} max={100} step={1} unit="N" onChange={(n) => { setF(n); reset(); }} />
+          <Slider label="Static friction μₛ" value={muS} min={0} max={1} step={0.01} onChange={(n) => { setMuS(n); reset(); }} />
+          <Slider label="Kinetic friction μₖ" value={muK} min={0} max={0.8} step={0.01} unit="" onChange={(n) => { setMuK(n); reset(); }} />
+          <Slider label="Gravity" value={g} min={8} max={10} step={0.1} unit="m/s²" onChange={(n) => { setG(n); reset(); }} />
+
+          <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+            <div className="font-semibold text-slate-900">Friction model</div>
+            <div className="mt-1">At rest: fₛ adjusts up to μₛN. Once the applied force exceeds μₛN, the block moves and fₖ = μₖN.</div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => { if (time >= maxTime) setTime(0); setPlaying((p) => !p); }}
+              className="flex-1 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              {playing ? "Pause" : time >= maxTime ? "Replay" : "Run simulation"}
+            </button>
+            <button onClick={reset} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</button>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="Normal" value={fmt(N)} unit="N" />
-          <Stat label="Friction" value={fmt(friction)} unit="N" />
-          <Stat label="Acceleration" value={fmt(a)} unit="m/s²" />
+
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Free-body diagram</div>
+                <div className="mt-1 text-sm font-semibold">Forces acting on the block</div>
+              </div>
+              <div className={`rounded-full px-3 py-1.5 text-xs font-semibold ${moving ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"}`}>
+                {moving ? "Block is moving" : "Block remains at rest"}
+              </div>
+            </div>
+
+            <div className="relative mx-auto mt-5 h-64 max-w-2xl overflow-hidden rounded-xl bg-slate-50">
+              <div className="absolute bottom-9 left-8 right-8 border-b-4 border-slate-800" />
+              <div className="absolute bottom-[45px] left-1/2 h-20 w-32 -translate-x-1/2 rounded-xl border-2 border-slate-800 bg-white text-center pt-7 text-sm font-bold transition-transform duration-75" style={{ transform: `translateX(calc(-50% + ${blockX}px))` }}>
+                {fmt(m)} kg
+              </div>
+
+              <div className="absolute left-1/2 top-3 -translate-x-1/2 text-xs font-semibold text-slate-700">N = {fmt(N)} N ↑</div>
+              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs font-semibold text-slate-700">W = {fmt(N)} N ↓</div>
+
+              <div className="absolute bottom-[118px] left-1/2 h-0 w-[26%] border-t-4 border-slate-900" />
+              <div className="absolute bottom-[126px] left-[76%] text-xs font-semibold">F = {fmt(F)} N →</div>
+
+              <div className="absolute bottom-[96px] left-[24%] h-0 w-[24%] border-t-4 border-slate-500" />
+              <div className="absolute bottom-[104px] left-[4%] text-xs font-semibold text-slate-500">← f = {fmt(friction)} N</div>
+
+              <div className="absolute bottom-3 left-3 text-[10px] font-bold uppercase tracking-[.15em] text-slate-400">horizontal surface</div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat label="Normal" value={fmt(N)} unit="N" />
+              <Stat label="Friction" value={fmt(friction)} unit="N" />
+              <Stat label="Net force" value={fmt(net)} unit="N" />
+              <Stat label="Acceleration" value={fmt(a)} unit="m/s²" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Motion readout</div>
+                <div className="mt-1 text-sm font-semibold">Position and velocity during the simulation</div>
+              </div>
+              <div className="font-mono text-xs text-slate-500">t = {fmt(time, 2)} s</div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <Stat label="Displacement" value={fmt(x, 2)} unit="m" />
+              <Stat label="Velocity" value={fmt(v, 2)} unit="m/s" />
+              <Stat label="Net force" value={fmt(net, 2)} unit="N" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Graph
+          points={forcePoints}
+          xMin={0}
+          xMax={100}
+          yMin={0}
+          yMax={Math.max(5, Math.max(...forcePoints.map((p) => p.y)) * 1.12)}
+          xLabel="Applied force F (N)"
+          yLabel="Acceleration a (m/s²)"
+          marker={{ x: F, y: a }}
+          markerLabel={`a = ${fmt(a)} m/s²`}
+          annotations={[{ x: maxStatic, y: 0, label: `μₛN = ${fmt(maxStatic)} N` }]}
+          hoverLabel={(xv, yv) => `F = ${fmt(xv)} N · a = ${fmt(yv)} m/s²`}
+        />
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">What the graph means</div>
+          <h3 className="mt-1 text-lg font-semibold">From force to acceleration</h3>
+          <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+            <p><strong className="text-slate-900">Before motion:</strong> static friction balances the applied force, so acceleration stays zero.</p>
+            <p><strong className="text-slate-900">At the threshold:</strong> the applied force reaches μₛN, the maximum static friction.</p>
+            <p><strong className="text-slate-900">After motion begins:</strong> kinetic friction is approximately μₖN, so the net force is F − μₖN and <strong className="text-slate-900">a = (F − μₖN)/m</strong>.</p>
+            <div className="rounded-xl bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700">
+              ΣF = ma<br />
+              N = mg<br />
+              fₛ ≤ μₛN<br />
+              fₖ = μₖN
+            </div>
+          </div>
+          <div className="mt-4 rounded-xl border border-slate-200 p-3 text-xs text-slate-500">
+            Current state: <span className="font-semibold text-slate-900">{netDirection === "right" ? `net force ${fmt(net)} N to the right` : "horizontal forces balance"}</span>.
+          </div>
         </div>
       </div>
     </div>
