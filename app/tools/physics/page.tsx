@@ -173,98 +173,493 @@ function Graph({
   hoverLabel?: (x: number, y: number) => string;
   annotations?: { x: number; y: number; label: string }[];
 }) {
-  const W = 760, H = 390;
-  const pad = { l: 64, r: 24, t: 28, b: 52 };
-  const safeX = xMax === xMin ? xMax + 1 : xMax;
-  const safeY = yMax === yMin ? yMax + 1 : yMax;
-  const sx = (x: number) => pad.l + ((x - xMin) / (safeX - xMin)) * (W - pad.l - pad.r);
-  const sy = (y: number) => H - pad.b - ((y - yMin) / (safeY - yMin)) * (H - pad.t - pad.b);
-  const path = points.map((p, i) => `${i ? "L" : "M"} ${sx(p.x).toFixed(2)} ${sy(p.y).toFixed(2)}`).join(" ");
-  const xTicks = 8;
-  const yTicks = 6;
-  const [hover, setHover] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
+  const W = 760;
+  const H = 390;
+  const pad = { l: 58, r: 24, t: 26, b: 48 };
 
-  const nearest = (value: number, axis: "x" | "y"): { x: number; y: number } | null => {
-    if (!points.length) return null;
-    let best = points[0];
-    let distance = Infinity;
-    for (const p of points) {
-      const d = Math.abs((axis === "x" ? p.x : p.y) - value);
-      if (d < distance) { distance = d; best = p; }
+  const safeXMin = Number.isFinite(xMin) ? xMin : 0;
+  const safeXMax =
+    Number.isFinite(xMax) && xMax !== safeXMin ? xMax : safeXMin + 1;
+  const safeYMin = Number.isFinite(yMin) ? yMin : 0;
+  const safeYMax =
+    Number.isFinite(yMax) && yMax !== safeYMin ? yMax : safeYMin + 1;
+
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+
+  const sx = (x: number) =>
+    pad.l + ((x - safeXMin) / (safeXMax - safeXMin)) * plotW;
+
+  const sy = (y: number) =>
+    H - pad.b - ((y - safeYMin) / (safeYMax - safeYMin)) * plotH;
+
+  const finitePoints = points.filter(
+    (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+  );
+
+  /*
+    Build the path in segments. This matters for functions that contain
+    undefined/discontinuous values. A graph should not draw a giant diagonal
+    line across an asymptote just because one sample was invalid.
+  */
+  const path = finitePoints
+    .map((p, i) => {
+      const previous = finitePoints[i - 1];
+      const isBreak =
+        !previous ||
+        Math.abs(sx(p.x) - sx(previous.x)) > plotW * 0.18 ||
+        Math.abs(sy(p.y) - sy(previous.y)) > plotH * 0.9;
+
+      return `${isBreak ? "M" : "L"} ${sx(p.x).toFixed(2)} ${sy(p.y).toFixed(2)}`;
+    })
+    .join(" ");
+
+  const makeTicks = (min: number, max: number, count: number) => {
+    const span = Math.abs(max - min);
+    if (!Number.isFinite(span) || span <= 0) return [min];
+
+    const rawStep = span / count;
+    const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+    const normalized = rawStep / magnitude;
+
+    const nice =
+      normalized >= 5 ? 5 : normalized >= 2 ? 2 : normalized >= 1 ? 1 : 0.5;
+
+    const step = nice * magnitude;
+    const first = Math.ceil(min / step - 1e-10) * step;
+    const ticks: number[] = [];
+
+    for (let value = first; value <= max + step * 0.001; value += step) {
+      ticks.push(Number(value.toPrecision(12)));
+      if (ticks.length > 20) break;
     }
+
+    if (!ticks.length) ticks.push(min, max);
+    return ticks;
+  };
+
+  const xTicks = makeTicks(safeXMin, safeXMax, 8);
+  const yTicks = makeTicks(safeYMin, safeYMax, 6);
+
+  const xZeroVisible = safeXMin <= 0 && safeXMax >= 0;
+  const yZeroVisible = safeYMin <= 0 && safeYMax >= 0;
+
+  const axisX = yZeroVisible ? sy(0) : H - pad.b;
+  const axisY = xZeroVisible ? sx(0) : pad.l;
+
+  const [hover, setHover] = useState<{
+    x: number;
+    y: number;
+    px: number;
+    py: number;
+  } | null>(null);
+
+  const [hoveredAnnotation, setHoveredAnnotation] = useState<
+    { x: number; y: number; label: string } | null
+  >(null);
+
+  const nearest = (value: number): { x: number; y: number } | null => {
+    if (!finitePoints.length) return null;
+
+    let best = finitePoints[0];
+    let distance = Infinity;
+
+    for (const point of finitePoints) {
+      const distanceToPoint = Math.abs(point.x - value);
+      if (distanceToPoint < distance) {
+        distance = distanceToPoint;
+        best = point;
+      }
+    }
+
     return best;
   };
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const localX = ((e.clientX - rect.left) / rect.width) * W;
-    const valueX = xMin + ((localX - pad.l) / (W - pad.l - pad.r)) * (safeX - xMin);
-    const p = nearest(clamp(valueX, xMin, safeX), "x");
-    if (!p) return;
-    setHover({ x: p.x, y: p.y, px: sx(p.x), py: sy(p.y) });
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
+    const localX = (e.clientX - rect.left) * scaleX;
+    const localY = (e.clientY - rect.top) * scaleY;
+
+    if (
+      localX < pad.l ||
+      localX > W - pad.r ||
+      localY < pad.t ||
+      localY > H - pad.b
+    ) {
+      setHover(null);
+      setHoveredAnnotation(null);
+      return;
+    }
+
+    const valueX =
+      safeXMin + ((localX - pad.l) / plotW) * (safeXMax - safeXMin);
+
+    const point = nearest(clamp(valueX, safeXMin, safeXMax));
+
+    if (point) {
+      setHover({
+        x: point.x,
+        y: point.y,
+        px: sx(point.x),
+        py: sy(point.y),
+      });
+    }
+
+    let closestAnnotation: {
+      x: number;
+      y: number;
+      label: string;
+    } | null = null;
+    let closestDistance = 16;
+
+    for (const annotation of annotations) {
+      if (
+        !Number.isFinite(annotation.x) ||
+        !Number.isFinite(annotation.y)
+      ) {
+        continue;
+      }
+
+      const dx = sx(annotation.x) - localX;
+      const dy = sy(annotation.y) - localY;
+      const distanceToAnnotation = Math.hypot(dx, dy);
+
+      if (distanceToAnnotation < closestDistance) {
+        closestDistance = distanceToAnnotation;
+        closestAnnotation = annotation;
+      }
+    }
+
+    setHoveredAnnotation(closestAnnotation);
   };
+
+  const labelBox = (
+    px: number,
+    py: number,
+    width: number,
+    height: number
+  ) => ({
+    x: clamp(px + 10, 8, W - width - 8),
+    y: clamp(py - height - 10, 8, H - height - 8),
+  });
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-auto w-full"
+        role="img"
+        aria-label={`${yLabel} against ${xLabel}`}
+        onMouseMove={onMove}
+        onMouseLeave={() => {
+          setHover(null);
+          setHoveredAnnotation(null);
+        }}
+      >
         <rect width={W} height={H} fill="white" />
-        {Array.from({ length: xTicks + 1 }).map((_, i) => {
-          const x = xMin + (i / xTicks) * (safeX - xMin);
+
+        {/* Grid and x-axis tick labels */}
+        {xTicks.map((x, i) => {
+          const px = sx(x);
+          const isAxis = xZeroVisible && Math.abs(x) < 1e-10;
+
           return (
-            <g key={`x-${i}`}>
-              <line x1={sx(x)} x2={sx(x)} y1={pad.t} y2={H - pad.b} stroke="#e2e8f0" />
-              <text x={sx(x)} y={H - 28} textAnchor="middle" fontSize="11" fill="#64748b">{fmt(x, 1)}</text>
+            <g key={`x-${i}-${x}`}>
+              {!isAxis && (
+                <line
+                  x1={px}
+                  x2={px}
+                  y1={pad.t}
+                  y2={H - pad.b}
+                  stroke="#e2e8f0"
+                />
+              )}
+              <line
+                x1={px}
+                x2={px}
+                y1={axisX - 4}
+                y2={axisX + 4}
+                stroke="#475569"
+                strokeWidth="1.25"
+              />
+              <text
+                x={px}
+                y={clamp(axisX + 17, pad.t + 12, H - 22)}
+                textAnchor="middle"
+                fontSize="11"
+                fill="#475569"
+              >
+                {fmt(x, Math.abs(x) >= 100 ? 0 : 2)}
+              </text>
             </g>
           );
         })}
-        {Array.from({ length: yTicks + 1 }).map((_, i) => {
-          const y = yMin + (i / yTicks) * (safeY - yMin);
+
+        {/* Grid and y-axis tick labels */}
+        {yTicks.map((y, i) => {
+          const py = sy(y);
+          const isAxis = yZeroVisible && Math.abs(y) < 1e-10;
+
           return (
-            <g key={`y-${i}`}>
-              <line x1={pad.l} x2={W - pad.r} y1={sy(y)} y2={sy(y)} stroke="#e2e8f0" />
-              <text x={pad.l - 10} y={sy(y) + 4} textAnchor="end" fontSize="11" fill="#64748b">{fmt(y, 1)}</text>
+            <g key={`y-${i}-${y}`}>
+              {!isAxis && (
+                <line
+                  x1={pad.l}
+                  x2={W - pad.r}
+                  y1={py}
+                  y2={py}
+                  stroke="#e2e8f0"
+                />
+              )}
+              <line
+                x1={axisY - 4}
+                x2={axisY + 4}
+                y1={py}
+                y2={py}
+                stroke="#475569"
+                strokeWidth="1.25"
+              />
+              <text
+                x={clamp(axisY - 9, 24, W - 24)}
+                y={py + 4}
+                textAnchor="end"
+                fontSize="11"
+                fill="#475569"
+              >
+                {fmt(y, Math.abs(y) >= 100 ? 0 : 2)}
+              </text>
             </g>
           );
         })}
-        {yMin < 0 && yMax > 0 && <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} stroke="#334155" strokeWidth="1.5" />}
-        {xMin < 0 && xMax > 0 && <line x1={sx(0)} x2={sx(0)} y1={pad.t} y2={H - pad.b} stroke="#334155" strokeWidth="1.5" />}
 
-        <path d={path} fill="none" stroke="#0f172a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Main coordinate axes */}
+        <line
+          x1={pad.l}
+          x2={W - pad.r}
+          y1={axisX}
+          y2={axisX}
+          stroke="#334155"
+          strokeWidth="1.7"
+        />
+        <line
+          x1={axisY}
+          x2={axisY}
+          y1={pad.t}
+          y2={H - pad.b}
+          stroke="#334155"
+          strokeWidth="1.7"
+        />
 
-        {annotations.map((a) => (
-          <g key={`${a.label}-${a.x}-${a.y}`}>
-            <circle cx={sx(a.x)} cy={sy(a.y)} r="5" fill="white" stroke="#0f172a" strokeWidth="2.5" />
-            <text x={sx(a.x) + 8} y={sy(a.y) - 8} fontSize="11" fontWeight="700" fill="#334155">{a.label}</text>
-          </g>
-        ))}
+        {/* Small axis direction indicators */}
+        <text
+          x={W - pad.r - 3}
+          y={axisX - 8}
+          textAnchor="end"
+          fontSize="11"
+          fontWeight="700"
+          fill="#334155"
+        >
+          x
+        </text>
+        <text
+          x={axisY + 8}
+          y={pad.t + 10}
+          fontSize="11"
+          fontWeight="700"
+          fill="#334155"
+        >
+          y
+        </text>
 
-        {marker && (
-          <g>
-            <line x1={sx(marker.x)} x2={sx(marker.x)} y1={sy(marker.y)} y2={H - pad.b} stroke="#94a3b8" strokeDasharray="4 4" />
-            <line x1={pad.l} x2={sx(marker.x)} y1={sy(marker.y)} y2={sy(marker.y)} stroke="#94a3b8" strokeDasharray="4 4" />
-            <circle cx={sx(marker.x)} cy={sy(marker.y)} r="7" fill="white" stroke="#0f172a" strokeWidth="3" />
-            {markerLabel && (
-              <g>
-                <rect x={clamp(sx(marker.x) + 10, 8, W - 148)} y={clamp(sy(marker.y) - 34, 8, H - 42)} width="138" height="26" rx="7" fill="#0f172a" />
-                <text x={clamp(sx(marker.x) + 20, 18, W - 138)} y={clamp(sy(marker.y) - 17, 25, H - 25)} fontSize="11" fill="white">{markerLabel}</text>
-              </g>
-            )}
-          </g>
+        {/* Function / data curve */}
+        {path && (
+          <path
+            d={path}
+            fill="none"
+            stroke="#0f172a"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         )}
 
+        {/* Important points */}
+        {annotations.map((annotation) => {
+          const px = sx(annotation.x);
+          const py = sy(annotation.y);
+          const active =
+            hoveredAnnotation?.x === annotation.x &&
+            hoveredAnnotation?.y === annotation.y &&
+            hoveredAnnotation?.label === annotation.label;
+
+          return (
+            <g key={`${annotation.label}-${annotation.x}-${annotation.y}`}>
+              {active && (
+                <circle
+                  cx={px}
+                  cy={py}
+                  r="11"
+                  fill="none"
+                  stroke="#64748b"
+                  strokeWidth="2"
+                />
+              )}
+              <circle
+                cx={px}
+                cy={py}
+                r={active ? 6.5 : 5}
+                fill="white"
+                stroke="#0f172a"
+                strokeWidth={active ? 3 : 2.5}
+              />
+              <text
+                x={px + 9}
+                y={py - 9}
+                fontSize="11"
+                fontWeight="700"
+                fill="#334155"
+              >
+                {annotation.label}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Current selected marker */}
+        {marker &&
+          Number.isFinite(marker.x) &&
+          Number.isFinite(marker.y) && (
+            <g>
+              <line
+                x1={sx(marker.x)}
+                x2={sx(marker.x)}
+                y1={sy(marker.y)}
+                y2={axisX}
+                stroke="#94a3b8"
+                strokeDasharray="4 4"
+              />
+              <line
+                x1={axisY}
+                x2={sx(marker.x)}
+                y1={sy(marker.y)}
+                y2={sy(marker.y)}
+                stroke="#94a3b8"
+                strokeDasharray="4 4"
+              />
+              <circle
+                cx={sx(marker.x)}
+                cy={sy(marker.y)}
+                r="7"
+                fill="white"
+                stroke="#0f172a"
+                strokeWidth="3"
+              />
+              {markerLabel &&
+                (() => {
+                  const box = labelBox(sx(marker.x), sy(marker.y), 138, 26);
+                  return (
+                    <g>
+                      <rect
+                        x={box.x}
+                        y={box.y}
+                        width="138"
+                        height="26"
+                        rx="7"
+                        fill="#0f172a"
+                      />
+                      <text
+                        x={box.x + 10}
+                        y={box.y + 17}
+                        fontSize="11"
+                        fill="white"
+                      >
+                        {markerLabel}
+                      </text>
+                    </g>
+                  );
+                })()}
+            </g>
+          )}
+
+        {/* Hover readout */}
         {hover && (
           <g pointerEvents="none">
-            <line x1={hover.px} x2={hover.px} y1={pad.t} y2={H - pad.b} stroke="#64748b" strokeDasharray="3 4" />
-            <circle cx={hover.px} cy={hover.py} r="5" fill="white" stroke="#0f172a" strokeWidth="2.5" />
-            <rect x={clamp(hover.px + 10, 8, W - 190)} y={clamp(hover.py - 34, 8, H - 42)} width="180" height="26" rx="7" fill="#0f172a" />
-            <text x={clamp(hover.px + 20, 18, W - 180)} y={clamp(hover.py - 17, 25, H - 25)} fontSize="11" fill="white">
-              {hoverLabel ? hoverLabel(hover.x, hover.y) : `x=${fmt(hover.x)} · y=${fmt(hover.y)}`}
-            </text>
+            <line
+              x1={hover.px}
+              x2={hover.px}
+              y1={pad.t}
+              y2={H - pad.b}
+              stroke="#64748b"
+              strokeDasharray="3 4"
+            />
+            <line
+              x1={pad.l}
+              x2={W - pad.r}
+              y1={hover.py}
+              y2={hover.py}
+              stroke="#cbd5e1"
+              strokeDasharray="3 4"
+            />
+            <circle
+              cx={hover.px}
+              cy={hover.py}
+              r="5"
+              fill="white"
+              stroke="#0f172a"
+              strokeWidth="2.5"
+            />
+
+            {(() => {
+              const box = labelBox(hover.px, hover.py, 190, 28);
+              return (
+                <g>
+                  <rect
+                    x={box.x}
+                    y={box.y}
+                    width="190"
+                    height="28"
+                    rx="7"
+                    fill="#0f172a"
+                  />
+                  <text
+                    x={box.x + 10}
+                    y={box.y + 18}
+                    fontSize="11"
+                    fill="white"
+                  >
+                    {hoverLabel
+                      ? hoverLabel(hover.x, hover.y)
+                      : `x=${fmt(hover.x)} · y=${fmt(hover.y)}`}
+                  </text>
+                </g>
+              );
+            })()}
           </g>
         )}
 
-        <text x={W / 2} y={H - 7} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">{xLabel}</text>
-        <text x="15" y={H / 2} textAnchor="middle" transform={`rotate(-90 15 ${H / 2})`} fontSize="12" fontWeight="600" fill="#334155">{yLabel}</text>
+        <text
+          x={W / 2}
+          y={H - 7}
+          textAnchor="middle"
+          fontSize="12"
+          fontWeight="600"
+          fill="#334155"
+        >
+          {xLabel}
+        </text>
+        <text
+          x="15"
+          y={H / 2}
+          textAnchor="middle"
+          transform={`rotate(-90 15 ${H / 2})`}
+          fontSize="12"
+          fontWeight="600"
+          fill="#334155"
+        >
+          {yLabel}
+        </text>
       </svg>
     </div>
   );
