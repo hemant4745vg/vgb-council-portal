@@ -150,6 +150,7 @@ function Stat({ label, value, unit }: { label: string; value: string; unit?: str
 
 function Graph({
   points,
+  curves,
   xMin,
   xMax,
   yMin,
@@ -160,8 +161,15 @@ function Graph({
   markerLabel,
   hoverLabel,
   annotations = [],
+  cursorX,
 }: {
-  points: { x: number; y: number }[];
+  points?: { x: number; y: number }[];
+  curves?: {
+    id: string;
+    label: string;
+    points: { x: number; y: number }[];
+    dash?: string;
+  }[];
   xMin: number;
   xMax: number;
   yMin: number;
@@ -172,10 +180,11 @@ function Graph({
   markerLabel?: string;
   hoverLabel?: (x: number, y: number) => string;
   annotations?: { x: number; y: number; label: string }[];
+  cursorX?: number;
 }) {
   const W = 760;
   const H = 390;
-  const pad = { l: 58, r: 24, t: 26, b: 48 };
+  const pad = { l: 58, r: 24, t: 30, b: 48 };
 
   const safeXMin = Number.isFinite(xMin) ? xMin : 0;
   const safeXMax =
@@ -193,27 +202,6 @@ function Graph({
   const sy = (y: number) =>
     H - pad.b - ((y - safeYMin) / (safeYMax - safeYMin)) * plotH;
 
-  const finitePoints = points.filter(
-    (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
-  );
-
-  /*
-    Build the path in segments. This matters for functions that contain
-    undefined/discontinuous values. A graph should not draw a giant diagonal
-    line across an asymptote just because one sample was invalid.
-  */
-  const path = finitePoints
-    .map((p, i) => {
-      const previous = finitePoints[i - 1];
-      const isBreak =
-        !previous ||
-        Math.abs(sx(p.x) - sx(previous.x)) > plotW * 0.18 ||
-        Math.abs(sy(p.y) - sy(previous.y)) > plotH * 0.9;
-
-      return `${isBreak ? "M" : "L"} ${sx(p.x).toFixed(2)} ${sy(p.y).toFixed(2)}`;
-    })
-    .join(" ");
-
   const makeTicks = (min: number, max: number, count: number) => {
     const span = Math.abs(max - min);
     if (!Number.isFinite(span) || span <= 0) return [min];
@@ -221,21 +209,22 @@ function Graph({
     const rawStep = span / count;
     const magnitude = 10 ** Math.floor(Math.log10(rawStep));
     const normalized = rawStep / magnitude;
-
     const nice =
       normalized >= 5 ? 5 : normalized >= 2 ? 2 : normalized >= 1 ? 1 : 0.5;
-
     const step = nice * magnitude;
     const first = Math.ceil(min / step - 1e-10) * step;
     const ticks: number[] = [];
 
-    for (let value = first; value <= max + step * 0.001; value += step) {
+    for (
+      let value = first;
+      value <= max + step * 0.001;
+      value += step
+    ) {
       ticks.push(Number(value.toPrecision(12)));
       if (ticks.length > 20) break;
     }
 
-    if (!ticks.length) ticks.push(min, max);
-    return ticks;
+    return ticks.length ? ticks : [min, max];
   };
 
   const xTicks = makeTicks(safeXMin, safeXMax, 8);
@@ -247,28 +236,56 @@ function Graph({
   const axisX = yZeroVisible ? sy(0) : H - pad.b;
   const axisY = xZeroVisible ? sx(0) : pad.l;
 
+  const allCurves = [
+    ...(points ? [{ id: "main", label: yLabel, points }] : []),
+    ...(curves ?? []),
+  ];
+
+  const finiteCurves = allCurves.map((curve) => ({
+    ...curve,
+    points: curve.points.filter(
+      (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+    ),
+  }));
+
   const [hover, setHover] = useState<{
     x: number;
     y: number;
     px: number;
     py: number;
+    label: string;
   } | null>(null);
 
   const [hoveredAnnotation, setHoveredAnnotation] = useState<
     { x: number; y: number; label: string } | null
   >(null);
 
-  const nearest = (value: number): { x: number; y: number } | null => {
-    if (!finitePoints.length) return null;
+  const buildPath = (curvePoints: { x: number; y: number }[]) =>
+    curvePoints
+      .map((p, i) => {
+        const previous = curvePoints[i - 1];
+        const isBreak =
+          !previous ||
+          Math.abs(sx(p.x) - sx(previous.x)) > plotW * 0.18 ||
+          Math.abs(sy(p.y) - sy(previous.y)) > plotH * 0.9;
 
-    let best = finitePoints[0];
-    let distance = Infinity;
+        return `${isBreak ? "M" : "L"} ${sx(p.x).toFixed(2)} ${sy(p.y).toFixed(2)}`;
+      })
+      .join(" ");
 
-    for (const point of finitePoints) {
-      const distanceToPoint = Math.abs(point.x - value);
-      if (distanceToPoint < distance) {
-        distance = distanceToPoint;
-        best = point;
+  const nearest = (valueX: number) => {
+    let best:
+      | { x: number; y: number; label: string }
+      | null = null;
+    let bestDistance = Infinity;
+
+    for (const curve of finiteCurves) {
+      for (const point of curve.points) {
+        const distance = Math.abs(point.x - valueX);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = { ...point, label: curve.label };
+        }
       }
     }
 
@@ -304,6 +321,7 @@ function Graph({
         y: point.y,
         px: sx(point.x),
         py: sy(point.y),
+        label: point.label,
       });
     }
 
@@ -324,10 +342,10 @@ function Graph({
 
       const dx = sx(annotation.x) - localX;
       const dy = sy(annotation.y) - localY;
-      const distanceToAnnotation = Math.hypot(dx, dy);
+      const distance = Math.hypot(dx, dy);
 
-      if (distanceToAnnotation < closestDistance) {
-        closestDistance = distanceToAnnotation;
+      if (distance < closestDistance) {
+        closestDistance = distance;
         closestAnnotation = annotation;
       }
     }
@@ -345,6 +363,11 @@ function Graph({
     y: clamp(py - height - 10, 8, H - height - 8),
   });
 
+  const cursorVisible =
+    Number.isFinite(cursorX) &&
+    (cursorX as number) >= safeXMin &&
+    (cursorX as number) <= safeXMax;
+
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <svg
@@ -360,11 +383,9 @@ function Graph({
       >
         <rect width={W} height={H} fill="white" />
 
-        {/* Grid and x-axis tick labels */}
         {xTicks.map((x, i) => {
           const px = sx(x);
           const isAxis = xZeroVisible && Math.abs(x) < 1e-10;
-
           return (
             <g key={`x-${i}-${x}`}>
               {!isAxis && (
@@ -397,11 +418,9 @@ function Graph({
           );
         })}
 
-        {/* Grid and y-axis tick labels */}
         {yTicks.map((y, i) => {
           const py = sy(y);
           const isAxis = yZeroVisible && Math.abs(y) < 1e-10;
-
           return (
             <g key={`y-${i}-${y}`}>
               {!isAxis && (
@@ -434,7 +453,6 @@ function Graph({
           );
         })}
 
-        {/* Main coordinate axes */}
         <line
           x1={pad.l}
           x2={W - pad.r}
@@ -452,7 +470,6 @@ function Graph({
           strokeWidth="1.7"
         />
 
-        {/* Small axis direction indicators */}
         <text
           x={W - pad.r - 3}
           y={axisX - 8}
@@ -473,22 +490,56 @@ function Graph({
           y
         </text>
 
-        {/* Function / data curve */}
-        {path && (
-          <path
-            d={path}
-            fill="none"
-            stroke="#0f172a"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+        {finiteCurves.map((curve, index) => {
+          const path = buildPath(curve.points);
+          return path ? (
+            <path
+              key={curve.id}
+              d={path}
+              fill="none"
+              stroke="#0f172a"
+              strokeWidth={index === 0 ? 3 : 2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={curve.dash}
+              opacity={index === 0 ? 1 : 0.72}
+            />
+          ) : null;
+        })}
+
+        {finiteCurves.length > 1 && (
+          <g transform={`translate(${pad.l + 8}, ${pad.t + 2})`}>
+            {finiteCurves.map((curve, i) => (
+              <g key={`legend-${curve.id}`} transform={`translate(${i * 125}, 0)`}>
+                <line
+                  x1="0"
+                  x2="20"
+                  y1="6"
+                  y2="6"
+                  stroke="#0f172a"
+                  strokeWidth="2.5"
+                  strokeDasharray={curve.dash}
+                />
+                <text x="26" y="10" fontSize="10" fill="#475569">
+                  {curve.label}
+                </text>
+              </g>
+            ))}
+          </g>
         )}
 
-        {/* Important points */}
         {annotations.map((annotation) => {
           const px = sx(annotation.x);
           const py = sy(annotation.y);
+          if (
+            px < pad.l - 8 ||
+            px > W - pad.r + 8 ||
+            py < pad.t - 8 ||
+            py > H - pad.b + 8
+          ) {
+            return null;
+          }
+
           const active =
             hoveredAnnotation?.x === annotation.x &&
             hoveredAnnotation?.y === annotation.y &&
@@ -500,7 +551,7 @@ function Graph({
                 <circle
                   cx={px}
                   cy={py}
-                  r="11"
+                  r="12"
                   fill="none"
                   stroke="#64748b"
                   strokeWidth="2"
@@ -527,7 +578,18 @@ function Graph({
           );
         })}
 
-        {/* Current selected marker */}
+        {cursorVisible && (
+          <line
+            x1={sx(cursorX as number)}
+            x2={sx(cursorX as number)}
+            y1={pad.t}
+            y2={H - pad.b}
+            stroke="#64748b"
+            strokeDasharray="4 4"
+            strokeWidth="1.5"
+          />
+        )}
+
         {marker &&
           Number.isFinite(marker.x) &&
           Number.isFinite(marker.y) && (
@@ -558,13 +620,13 @@ function Graph({
               />
               {markerLabel &&
                 (() => {
-                  const box = labelBox(sx(marker.x), sy(marker.y), 138, 26);
+                  const box = labelBox(sx(marker.x), sy(marker.y), 170, 26);
                   return (
                     <g>
                       <rect
                         x={box.x}
                         y={box.y}
-                        width="138"
+                        width="170"
                         height="26"
                         rx="7"
                         fill="#0f172a"
@@ -583,7 +645,6 @@ function Graph({
             </g>
           )}
 
-        {/* Hover readout */}
         {hover && (
           <g pointerEvents="none">
             <line
@@ -612,20 +673,29 @@ function Graph({
             />
 
             {(() => {
-              const box = labelBox(hover.px, hover.py, 190, 28);
+              const box = labelBox(hover.px, hover.py, 210, 42);
               return (
                 <g>
                   <rect
                     x={box.x}
                     y={box.y}
-                    width="190"
-                    height="28"
+                    width="210"
+                    height="42"
                     rx="7"
                     fill="#0f172a"
                   />
                   <text
                     x={box.x + 10}
-                    y={box.y + 18}
+                    y={box.y + 16}
+                    fontSize="10"
+                    fontWeight="700"
+                    fill="#cbd5e1"
+                  >
+                    {hover.label}
+                  </text>
+                  <text
+                    x={box.x + 10}
+                    y={box.y + 31}
                     fontSize="11"
                     fill="white"
                   >
@@ -737,10 +807,13 @@ function KinematicsTool() {
   const [tMax, setTMax] = useState(10);
   const [time, setTime] = useState(5.5);
   const [playing, setPlaying] = useState(false);
-  const [view, setView] = useState<"x" | "v" | "a">("x");
+  const [showPosition, setShowPosition] = useState(true);
+  const [showVelocity, setShowVelocity] = useState(true);
+  const [showAcceleration, setShowAcceleration] = useState(true);
 
   useEffect(() => {
     if (!playing) return;
+
     const id = window.setInterval(() => {
       setTime((t) => {
         const next = t + Math.max(0.03, tMax / 180);
@@ -751,13 +824,23 @@ function KinematicsTool() {
         return next;
       });
     }, 30);
+
     return () => window.clearInterval(id);
   }, [playing, tMax]);
 
-  const points = Array.from({ length: 181 }, (_, i) => {
-    const t = (i / 180) * tMax;
-    return { t, x: u * t + 0.5 * a * t * t, v: u + a * t, a };
-  });
+  const points = useMemo(
+    () =>
+      Array.from({ length: 241 }, (_, i) => {
+        const t = (i / 240) * tMax;
+        return {
+          t,
+          x: u * t + 0.5 * a * t * t,
+          v: u + a * t,
+          a,
+        };
+      }),
+    [u, a, tMax]
+  );
 
   const selectedX = u * time + 0.5 * a * time * time;
   const selectedV = u + a * time;
@@ -765,31 +848,89 @@ function KinematicsTool() {
 
   const allX = points.map((p) => p.x);
   const allV = points.map((p) => p.v);
-  const allA = points.map((p) => p.a);
-  const selected =
-    view === "x"
-      ? { points: points.map((p) => ({ x: p.t, y: p.x })), y: selectedX, label: "Position x (m)", yMin: Math.min(0, ...allX), yMax: Math.max(10, ...allX) }
-      : view === "v"
-        ? { points: points.map((p) => ({ x: p.t, y: p.v })), y: selectedV, label: "Velocity v (m/s)", yMin: Math.min(0, ...allV), yMax: Math.max(10, ...allV) }
-        : { points: points.map((p) => ({ x: p.t, y: p.a })), y: selectedA, label: "Acceleration a (m/s²)", yMin: Math.min(-10, ...allA), yMax: Math.max(10, ...allA) };
+
+  const range = (values: number[], minimumSpan: number) => {
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = Math.max(max - min, minimumSpan);
+    const pad = span * 0.12;
+    return {
+      min: min - pad,
+      max: max + pad,
+    };
+  };
+
+  const xRange = range(allX, 10);
+  const vRange = range(allV, 10);
+  const aRange = range([a], 10);
+
+  const positionPoints = points.map((p) => ({ x: p.t, y: p.x }));
+  const velocityPoints = points.map((p) => ({ x: p.t, y: p.v }));
+  const accelerationPoints = points.map((p) => ({ x: p.t, y: p.a }));
 
   const reset = () => {
     setTime(0);
     setPlaying(false);
   };
 
+  const jumpTo = (next: number) => {
+    setTime(clamp(next, 0, tMax));
+  };
+
+  const activeGraphCount =
+    Number(showPosition) + Number(showVelocity) + Number(showAcceleration);
+
   return (
     <div className="space-y-5">
       <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="mb-4 text-xs font-bold uppercase tracking-[.14em] text-slate-500">Controls</div>
-            <div className="space-y-5">
-              <Slider label="Initial velocity u" value={u} min={-20} max={20} step={0.5} unit="m/s" onChange={setU} />
-              <Slider label="Acceleration a" value={a} min={-10} max={10} step={0.5} unit="m/s²" onChange={setA} />
-              <Slider label="Time range" value={tMax} min={4} max={20} step={1} unit="s" onChange={(n) => { setTMax(n); setTime((t) => Math.min(t, n)); }} />
-              <Slider label="Inspect time" value={time} min={0} max={tMax} step={Math.max(0.01, tMax / 200)} unit="s" onChange={setTime} />
+            <div className="mb-4 text-xs font-bold uppercase tracking-[.14em] text-slate-500">
+              Motion controls
             </div>
+
+            <div className="space-y-5">
+              <Slider
+                label="Initial velocity u"
+                value={u}
+                min={-20}
+                max={20}
+                step={0.5}
+                unit="m/s"
+                onChange={setU}
+              />
+              <Slider
+                label="Acceleration a"
+                value={a}
+                min={-10}
+                max={10}
+                step={0.5}
+                unit="m/s²"
+                onChange={setA}
+              />
+              <Slider
+                label="Time range"
+                value={tMax}
+                min={4}
+                max={20}
+                step={1}
+                unit="s"
+                onChange={(n) => {
+                  setTMax(n);
+                  setTime((t) => Math.min(t, n));
+                }}
+              />
+              <Slider
+                label="Inspect time"
+                value={time}
+                min={0}
+                max={tMax}
+                step={Math.max(0.01, tMax / 240)}
+                unit="s"
+                onChange={setTime}
+              />
+            </div>
+
             <div className="mt-5 flex gap-2">
               <button
                 onClick={() => setPlaying((p) => !p)}
@@ -797,61 +938,195 @@ function KinematicsTool() {
               >
                 {playing ? "Pause" : "Play motion"}
               </button>
-              <button onClick={reset} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+              <button
+                onClick={reset}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+              >
                 Reset
               </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {[0, tMax / 2, tMax].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => jumpTo(t)}
+                  className="rounded-lg border border-slate-200 px-2 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  t = {fmt(t, 1)} s
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white">
-            <div className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">At t = {fmt(time, 2)} s</div>
+            <div className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">
+              Synchronized state · t = {fmt(time, 2)} s
+            </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-white/10 p-3"><div className="text-[10px] text-slate-400">x</div><div className="mt-1 font-mono text-sm">{fmt(selectedX)} m</div></div>
-              <div className="rounded-xl bg-white/10 p-3"><div className="text-[10px] text-slate-400">v</div><div className="mt-1 font-mono text-sm">{fmt(selectedV)} m/s</div></div>
-              <div className="rounded-xl bg-white/10 p-3"><div className="text-[10px] text-slate-400">a</div><div className="mt-1 font-mono text-sm">{fmt(selectedA)} m/s²</div></div>
-              <div className="rounded-xl bg-white/10 p-3"><div className="text-[10px] text-slate-400">Δx from start</div><div className="mt-1 font-mono text-sm">{fmt(selectedX)} m</div></div>
+              <div className="rounded-xl bg-white/10 p-3">
+                <div className="text-[10px] text-slate-400">Position</div>
+                <div className="mt-1 font-mono text-sm">{fmt(selectedX)} m</div>
+              </div>
+              <div className="rounded-xl bg-white/10 p-3">
+                <div className="text-[10px] text-slate-400">Velocity</div>
+                <div className="mt-1 font-mono text-sm">{fmt(selectedV)} m/s</div>
+              </div>
+              <div className="rounded-xl bg-white/10 p-3">
+                <div className="text-[10px] text-slate-400">Acceleration</div>
+                <div className="mt-1 font-mono text-sm">{fmt(selectedA)} m/s²</div>
+              </div>
+              <div className="rounded-xl bg-white/10 p-3">
+                <div className="text-[10px] text-slate-400">Displacement</div>
+                <div className="mt-1 font-mono text-sm">{fmt(selectedX)} m</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-xs font-bold uppercase tracking-[.14em] text-slate-500">
+              Graphs
+            </div>
+            <div className="mt-3 space-y-2">
+              {[
+                { label: "Position–time", enabled: showPosition, set: setShowPosition },
+                { label: "Velocity–time", enabled: showVelocity, set: setShowVelocity },
+                { label: "Acceleration–time", enabled: showAcceleration, set: setShowAcceleration },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => item.set((v) => !v)}
+                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm font-semibold ${
+                    item.enabled
+                      ? "border-slate-300 bg-slate-50 text-slate-950"
+                      : "border-slate-200 text-slate-400"
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  <span>{item.enabled ? "Shown" : "Hidden"}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {(["x", "v", "a"] as const).map((key) => (
-              <button
-                key={key}
-                onClick={() => setView(key)}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold ${view === key ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-600"}`}
-              >
-                {key === "x" ? "Position–time" : key === "v" ? "Velocity–time" : "Acceleration–time"}
-              </button>
-            ))}
-          </div>
-
-          <Graph
-            points={selected.points}
-            xMin={0}
-            xMax={tMax}
-            yMin={selected.yMin}
-            yMax={selected.yMax}
-            xLabel="Time t (s)"
-            yLabel={selected.label}
-            marker={{ x: time, y: selected.y }}
-            markerLabel={`t=${fmt(time, 1)} s`}
-            hoverLabel={(x, y) => `t = ${fmt(x, 2)} s · ${fmt(y)} `}
-          />
-
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="mb-3 text-xs font-bold uppercase tracking-[.14em] text-slate-500">Motion snapshot</div>
-            <div className="relative h-20 overflow-hidden rounded-xl bg-slate-50">
-              <div className="absolute bottom-5 left-5 right-5 h-px bg-slate-300" />
-              <div
-                className="absolute bottom-[18px] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-slate-950 bg-white transition-[left] duration-75"
-                style={{ left: `${5 + (clamp(time / tMax, 0, 1) * 90)}%` }}
-              />
-              <div className="absolute bottom-1 left-5 text-[10px] text-slate-400">t = 0</div>
-              <div className="absolute bottom-1 right-5 text-[10px] text-slate-400">t = {fmt(tMax, 1)} s</div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-slate-950">
+                  Synchronized motion graphs
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  The vertical cursor represents the same instant on every graph.
+                </div>
+              </div>
+              <div className="rounded-lg bg-slate-100 px-3 py-1.5 font-mono text-xs text-slate-600">
+                t = {fmt(time, 2)} s
+              </div>
             </div>
           </div>
+
+          {activeGraphCount === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+              Turn on at least one graph.
+            </div>
+          ) : (
+            <>
+              {showPosition && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <div className="text-xs font-bold uppercase tracking-[.12em] text-slate-500">
+                      Position x(t)
+                    </div>
+                    <div className="font-mono text-xs text-slate-500">
+                      x = {fmt(selectedX)} m
+                    </div>
+                  </div>
+                  <Graph
+                    points={positionPoints}
+                    xMin={0}
+                    xMax={tMax}
+                    yMin={xRange.min}
+                    yMax={xRange.max}
+                    xLabel="Time t (s)"
+                    yLabel="Position x (m)"
+                    marker={{ x: time, y: selectedX }}
+                    markerLabel={`t=${fmt(time, 2)} s · x=${fmt(selectedX)} m`}
+                    cursorX={time}
+                    hoverLabel={(x, y) =>
+                      `t = ${fmt(x, 2)} s · x = ${fmt(y)} m`
+                    }
+                    annotations={[
+                      { x: 0, y: u * 0, label: "Start" },
+                    ]}
+                  />
+                </div>
+              )}
+
+              {showVelocity && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <div className="text-xs font-bold uppercase tracking-[.12em] text-slate-500">
+                      Velocity v(t)
+                    </div>
+                    <div className="font-mono text-xs text-slate-500">
+                      v = {fmt(selectedV)} m/s
+                    </div>
+                  </div>
+                  <Graph
+                    points={velocityPoints}
+                    xMin={0}
+                    xMax={tMax}
+                    yMin={vRange.min}
+                    yMax={vRange.max}
+                    xLabel="Time t (s)"
+                    yLabel="Velocity v (m/s)"
+                    marker={{ x: time, y: selectedV }}
+                    markerLabel={`t=${fmt(time, 2)} s · v=${fmt(selectedV)} m/s`}
+                    cursorX={time}
+                    hoverLabel={(x, y) =>
+                      `t = ${fmt(x, 2)} s · v = ${fmt(y)} m/s`
+                    }
+                    annotations={[
+                      { x: 0, y: u, label: "u" },
+                    ]}
+                  />
+                </div>
+              )}
+
+              {showAcceleration && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <div className="text-xs font-bold uppercase tracking-[.12em] text-slate-500">
+                      Acceleration a(t)
+                    </div>
+                    <div className="font-mono text-xs text-slate-500">
+                      a = {fmt(selectedA)} m/s²
+                    </div>
+                  </div>
+                  <Graph
+                    points={accelerationPoints}
+                    xMin={0}
+                    xMax={tMax}
+                    yMin={aRange.min}
+                    yMax={aRange.max}
+                    xLabel="Time t (s)"
+                    yLabel="Acceleration a (m/s²)"
+                    marker={{ x: time, y: selectedA }}
+                    markerLabel={`t=${fmt(time, 2)} s · a=${fmt(selectedA)} m/s²`}
+                    cursorX={time}
+                    hoverLabel={(x, y) =>
+                      `t = ${fmt(x, 2)} s · a = ${fmt(y)} m/s²`
+                    }
+                    annotations={[
+                      { x: 0, y: a, label: "a" },
+                    ]}
+                  />
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -863,11 +1138,38 @@ function KinematicsTool() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="text-sm font-semibold">Motion snapshot</div>
+        <div className="relative mt-4 h-20 overflow-hidden rounded-xl bg-slate-50">
+          <div className="absolute bottom-5 left-5 right-5 h-px bg-slate-300" />
+          <div
+            className="absolute bottom-[18px] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-slate-950 bg-white"
+            style={{ left: `${5 + clamp(time / tMax, 0, 1) * 90}%` }}
+          />
+          <div className="absolute bottom-1 left-5 text-[10px] text-slate-400">
+            t = 0
+          </div>
+          <div className="absolute bottom-1 right-5 text-[10px] text-slate-400">
+            t = {fmt(tMax, 1)} s
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="text-sm font-semibold">What to notice</div>
         <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-3">
-          <div><span className="font-semibold text-slate-950">x–t:</span> its slope at a point gives instantaneous velocity.</div>
-          <div><span className="font-semibold text-slate-950">v–t:</span> its slope gives acceleration and its area gives displacement.</div>
-          <div><span className="font-semibold text-slate-950">a–t:</span> its area gives change in velocity.</div>
+          <div>
+            <span className="font-semibold text-slate-950">x–t:</span> the slope
+            at an instant represents instantaneous velocity.
+          </div>
+          <div>
+            <span className="font-semibold text-slate-950">v–t:</span> the
+            slope represents acceleration, while signed area represents
+            displacement.
+          </div>
+          <div>
+            <span className="font-semibold text-slate-950">a–t:</span> signed
+            area represents the change in velocity.
+          </div>
         </div>
       </div>
     </div>
