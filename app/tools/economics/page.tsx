@@ -1336,43 +1336,91 @@ function CircularFlowDiagram() {
 }
 
 function MarginalUtilityDiagram({ controls }: { controls: Record<string, number> }) {
-  // Textbook-style MU/TU relationship: two aligned quantity axes, one shared utility axis.
-  // The upper quantity axis belongs to MU and the lower quantity axis belongs to TU.
-  // The curves are generated from the same discrete utility schedule, rather than
-  // treating their geometric intersection as an equilibrium.
-  const W = 920, H = 620;
-  const L = 92, R = 54;
+  // Textbook presentation: TU and MU are shown in two separate, vertically
+  // aligned graphs. Each graph has its own Y-axis, while both use the same
+  // quantity scale on the X-axis. MU = 0 occurs exactly where TU is maximum.
+  const W = 920;
+  const H = 720;
+  const L = 92;
+  const R = 54;
   const plotW = W - L - R;
-  const qMax = 6;
-  const initial = Math.max(10, Math.min(30, controls.initial ?? 24));
-  const decline = Math.max(1, Math.min(5, controls.decline ?? 1.8));
 
-  // MU at successive units. A linear declining schedule is used so the
-  // textbook relationships remain exact: MU > 0 => TU rises, MU = 0 => TU max,
-  // MU < 0 => TU falls.
-  const muAt = (q: number) => initial - decline * (q - 1);
-  const muValues = Array.from({ length: qMax }, (_, i) => muAt(i + 1));
-  const tuValues = muValues.map((_, i) => muValues.slice(0, i + 1).reduce((a, b) => a + b, 0));
-  const zeroIndex = muValues.findIndex(v => v <= 0);
-  const qPeak = zeroIndex >= 0 ? zeroIndex : qMax - 1;
-  const tuMax = Math.max(...tuValues, 1);
-  const maxUtility = Math.max(30, Math.ceil((tuMax * 1.18) / 10) * 10);
-  const minUtility = Math.min(0, Math.floor(Math.min(...muValues) / 10) * 10);
+  const initial = Math.max(40, Math.min(80, controls.initial ?? 60));
+  const decline = Math.max(3, Math.min(5, controls.decline ?? 4));
 
-  const x = (q: number) => L + ((q - 0.5) / qMax) * plotW;
-  const y = (u: number) => 72 + ((maxUtility - u) / (maxUtility - minUtility)) * 405;
-  const upperAxisY = y(0);
-  const lowerAxisY = 548;
+  // MU(q) declines linearly. TU is the accumulated MU, so its slope is MU.
+  // q = initial / decline is therefore the exact point where MU = 0 and TU
+  // reaches its maximum.
+  const qZero = initial / decline;
+  const qMax = Math.max(6, Math.ceil(qZero) + 2);
+  const qEnd = qMax;
 
-  const linePath = (points: Array<{ q: number; u: number }>) =>
-    points.map((p, i) => `${i ? "L" : "M"} ${x(p.q).toFixed(2)} ${y(p.u).toFixed(2)}`).join(" ");
+  const mu = (q: number) => initial - decline * q;
+  const tu = (q: number) => initial * q - 0.5 * decline * q * q;
 
-  const muPoints = muValues.map((u, i) => ({ q: i + 1, u }));
-  const tuPoints = tuValues.map((u, i) => ({ q: i + 1, u }));
-  const qTicks = Array.from({ length: qMax }, (_, i) => i + 1);
-  const utilityTicks = Array.from(
-    new Set([0, Math.round(tuMax / 2), Math.round(tuMax), Math.round(Math.min(...muValues) / 5) * 5])
-  ).sort((a, b) => a - b);
+  const tuMax = tu(qZero);
+  const muMin = mu(qEnd);
+
+  const niceStep = (range: number, target = 5) => {
+    const raw = range / target;
+    const power = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+    const normalized = raw / power;
+    const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return step * power;
+  };
+
+  const tuStep = niceStep(tuMax, 5);
+  const muAbs = Math.max(Math.abs(muMin), initial);
+  const muStep = niceStep(muAbs * 2, 5);
+  const tuYMax = Math.ceil((tuMax * 1.12) / tuStep) * tuStep;
+  const muYMax = Math.ceil(initial / muStep) * muStep;
+  const muYMin = Math.floor(muMin / muStep) * muStep;
+
+  const top = {
+    y0: 72,
+    y1: 330,
+  };
+  const bottom = {
+    y0: 402,
+    y1: 660,
+  };
+
+  const x = (q: number) => L + (q / qEnd) * plotW;
+  const yTU = (u: number) =>
+    top.y1 - (Math.max(0, Math.min(tuYMax, u)) / tuYMax) * (top.y1 - top.y0);
+  const yMU = (u: number) =>
+    bottom.y1 - ((u - muYMin) / (muYMax - muYMin)) * (bottom.y1 - bottom.y0);
+
+  const makePath = (
+    fn: (q: number) => number,
+    yMap: (v: number) => number,
+  ) => {
+    const steps = 260;
+    const parts: string[] = [];
+    for (let i = 0; i <= steps; i += 1) {
+      const q = (qEnd * i) / steps;
+      const px = x(q);
+      const py = yMap(fn(q));
+      parts.push(`${i === 0 ? "M" : "L"} ${px.toFixed(2)} ${py.toFixed(2)}`);
+    }
+    return parts.join(" ");
+  };
+
+  const quantityTicks = Array.from({ length: qEnd + 1 }, (_, i) => i);
+  const tuTicks = Array.from(
+    { length: Math.floor(tuYMax / tuStep) + 1 },
+    (_, i) => i * tuStep,
+  );
+  const muTicks: number[] = [];
+  for (let v = muYMin; v <= muYMax + muStep / 2; v += muStep) {
+    muTicks.push(Number(v.toFixed(6)));
+  }
+
+  const markerId = "mu-tu-textbook-arrow";
+  const zeroX = x(qZero);
+  const zeroY = yMU(0);
+  const maxTUX = zeroX;
+  const maxTUY = yTU(tuMax);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -1380,86 +1428,339 @@ function MarginalUtilityDiagram({ controls }: { controls: Record<string, number>
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
         role="img"
-        aria-label="Textbook marginal utility and total utility relationship with separate aligned quantity axes"
+        aria-label="Textbook-style separate total utility and marginal utility graphs"
       >
         <defs>
-          <marker id="mu-tu-v11-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+          <marker
+            id={markerId}
+            markerWidth="10"
+            markerHeight="10"
+            refX="8"
+            refY="3"
+            orient="auto"
+          >
             <path d="M0,0 L0,6 L9,3 z" fill="#334155" />
           </marker>
         </defs>
 
-        <text x={W / 2} y="28" textAnchor="middle" fontSize="18" fontWeight="800" fill="#0f172a">
+        <text
+          x={W / 2}
+          y="30"
+          textAnchor="middle"
+          fontSize="18"
+          fontWeight="800"
+          fill="#0f172a"
+        >
           Marginal Utility (MU) and Total Utility (TU)
         </text>
 
-        {/* Shared utility axis */}
-        <line x1={L} x2={L} y1="62" y2="565" stroke="#334155" strokeWidth="2" markerEnd="url(#mu-tu-v11-arrow)" />
-        {utilityTicks.map(v => (
-          <g key={v}>
-            <line x1={L - 5} x2={L + 5} y1={y(v)} y2={y(v)} stroke="#334155" />
-            <text x={L - 12} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#475569">{v}</text>
-          </g>
-        ))}
-        <text x="25" y="315" transform="rotate(-90 25 315)" textAnchor="middle" fontSize="13" fontWeight="700" fill="#0f172a">
-          Utility (utils)
+        {/* ===================== TU GRAPH ===================== */}
+        <text
+          x={W / 2}
+          y="55"
+          textAnchor="middle"
+          fontSize="15"
+          fontWeight="800"
+          fill="#dc2626"
+        >
+          Total Utility (TU)
         </text>
 
-        {/* MU quantity axis: upper */}
-        <line x1={L} x2={W - R} y1={upperAxisY} y2={upperAxisY} stroke="#334155" strokeWidth="2" markerEnd="url(#mu-tu-v11-arrow)" />
-        <text x={W / 2} y={upperAxisY - 28} textAnchor="middle" fontSize="13" fontWeight="700" fill="#2563eb">
-          MU: Units of commodity consumed
-        </text>
-        {qTicks.map(q => (
-          <g key={`mu-q-${q}`}>
-            <line x1={x(q)} x2={x(q)} y1={upperAxisY - 4} y2={upperAxisY + 4} stroke="#334155" />
-            <text x={x(q)} y={upperAxisY + 18} textAnchor="middle" fontSize="11" fill="#475569">{q}</text>
-          </g>
-        ))}
+        <line
+          x1={L}
+          x2={W - R}
+          y1={top.y1}
+          y2={top.y1}
+          stroke="#334155"
+          strokeWidth="2"
+          markerEnd={`url(#${markerId})`}
+        />
+        <line
+          x1={L}
+          x2={L}
+          y1={top.y1}
+          y2={top.y0 - 8}
+          stroke="#334155"
+          strokeWidth="2"
+          markerEnd={`url(#${markerId})`}
+        />
 
-        {/* TU quantity axis: lower */}
-        <line x1={L} x2={W - R} y1={lowerAxisY} y2={lowerAxisY} stroke="#334155" strokeWidth="2" markerEnd="url(#mu-tu-v11-arrow)" />
-        <text x={W / 2} y={lowerAxisY + 30} textAnchor="middle" fontSize="13" fontWeight="700" fill="#dc2626">
-          TU: Units of commodity consumed
-        </text>
-        {qTicks.map(q => (
-          <g key={`tu-q-${q}`}>
-            <line x1={x(q)} x2={x(q)} y1={lowerAxisY - 4} y2={lowerAxisY + 4} stroke="#334155" />
-            <text x={x(q)} y={lowerAxisY - 10} textAnchor="middle" fontSize="11" fill="#475569">{q}</text>
-          </g>
-        ))}
-
-        {/* MU schedule: connected discrete points, with dotted construction lines */}
-        <path d={linePath(muPoints)} fill="none" stroke="#2563eb" strokeWidth="3.5" />
-        {muPoints.map((p, i) => (
-          <circle key={`mu-${i}`} cx={x(p.q)} cy={y(p.u)} r="4" fill="#2563eb" />
-        ))}
-        <text x={x(1) + 10} y={y(muValues[0]) - 10} fontSize="12" fontWeight="700" fill="#2563eb">MU</text>
-
-        {/* TU schedule */}
-        <path d={linePath(tuPoints)} fill="none" stroke="#dc2626" strokeWidth="3.5" />
-        {tuPoints.map((p, i) => (
-          <circle key={`tu-${i}`} cx={x(p.q)} cy={y(p.u)} r="4" fill="#dc2626" />
-        ))}
-        <text x={x(4) + 10} y={y(tuValues[3]) - 10} fontSize="12" fontWeight="700" fill="#dc2626">TU</text>
-
-        {/* Exact textbook relationship: TU maximum occurs where MU becomes zero. */}
-        {zeroIndex >= 0 && muValues[zeroIndex] <= 0 && (
-          <>
-            <line x1={x(qPeak + 1)} x2={x(qPeak + 1)} y1={y(tuValues[qPeak])} y2={lowerAxisY - 8} stroke="#64748b" strokeDasharray="6 5" />
-            <line x1={L} x2={x(qPeak + 1)} y1={y(tuValues[qPeak])} y2={y(tuValues[qPeak])} stroke="#94a3b8" strokeDasharray="5 5" />
-            <circle cx={x(qPeak + 1)} cy={y(tuValues[qPeak])} r="5.5" fill="#0f172a" />
-            <text x={x(qPeak + 1) + 10} y={y(tuValues[qPeak]) - 10} fontSize="11" fontWeight="700" fill="#0f172a">
-              TU maximum; MU = 0
+        {tuTicks.map((v) => (
+          <g key={`tu-y-${v}`}>
+            <line
+              x1={L - 5}
+              x2={L + 5}
+              y1={yTU(v)}
+              y2={yTU(v)}
+              stroke="#334155"
+            />
+            <text
+              x={L - 12}
+              y={yTU(v) + 4}
+              textAnchor="end"
+              fontSize="11"
+              fill="#475569"
+            >
+              {Number.isInteger(v) ? v : v.toFixed(1)}
             </text>
-          </>
-        )}
+          </g>
+        ))}
 
-        <text x={L + 10} y={upperAxisY - 10} fontSize="11" fill="#475569">MU falls as consumption rises</text>
-        {zeroIndex >= 0 && (
-          <text x={x(qPeak + 1) + 10} y={upperAxisY + 34} fontSize="11" fill="#475569">
-            After MU = 0, MU becomes negative and TU falls
-          </text>
-        )}
+        <text
+          x="24"
+          y={(top.y0 + top.y1) / 2}
+          transform={`rotate(-90 24 ${(top.y0 + top.y1) / 2})`}
+          textAnchor="middle"
+          fontSize="13"
+          fontWeight="700"
+          fill="#0f172a"
+        >
+          Total Utility (utils)
+        </text>
+
+        {quantityTicks.map((q) => (
+          <g key={`tu-x-${q}`}>
+            <line
+              x1={x(q)}
+              x2={x(q)}
+              y1={top.y1 - 5}
+              y2={top.y1 + 5}
+              stroke="#334155"
+            />
+            <text
+              x={x(q)}
+              y={top.y1 + 21}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#475569"
+            >
+              {q}
+            </text>
+          </g>
+        ))}
+
+        <text
+          x={W / 2}
+          y={top.y1 + 42}
+          textAnchor="middle"
+          fontSize="13"
+          fontWeight="700"
+          fill="#dc2626"
+        >
+          Units of commodity consumed
+        </text>
+
+        <path
+          d={makePath(tu, yTU)}
+          fill="none"
+          stroke="#ef4444"
+          strokeWidth="3.5"
+        />
+
+        {quantityTicks
+          .filter((q) => q > 0)
+          .map((q) => (
+            <circle
+              key={`tu-point-${q}`}
+              cx={x(q)}
+              cy={yTU(tu(q))}
+              r="4"
+              fill="#111827"
+            />
+          ))}
+
+        <text
+          x={x(Math.min(qEnd - 1, qZero + 0.8))}
+          y={yTU(tu(Math.min(qEnd - 1, qZero + 0.8))) + 28}
+          fontSize="13"
+          fontWeight="700"
+          fill="#dc2626"
+        >
+          TU
+        </text>
+
+        {/* ===================== LINKING LINE ===================== */}
+        <line
+          x1={maxTUX}
+          x2={maxTUX}
+          y1={maxTUY}
+          y2={zeroY}
+          stroke="#111827"
+          strokeWidth="2"
+          strokeDasharray="7 5"
+        />
+        <circle cx={maxTUX} cy={maxTUY} r="5" fill="#111827" />
+        <text
+          x={maxTUX + 10}
+          y={maxTUY - 12}
+          fontSize="12"
+          fontWeight="700"
+          fill="#111827"
+        >
+          Maximum TU
+        </text>
+
+        {/* ===================== MU GRAPH ===================== */}
+        <text
+          x={W / 2}
+          y="388"
+          textAnchor="middle"
+          fontSize="15"
+          fontWeight="800"
+          fill="#2563eb"
+        >
+          Marginal Utility (MU)
+        </text>
+
+        <line
+          x1={L}
+          x2={W - R}
+          y1={zeroY}
+          y2={zeroY}
+          stroke="#334155"
+          strokeWidth="2"
+          markerEnd={`url(#${markerId})`}
+        />
+        <line
+          x1={L}
+          x2={L}
+          y1={bottom.y1}
+          y2={bottom.y0 - 8}
+          stroke="#334155"
+          strokeWidth="2"
+          markerEnd={`url(#${markerId})`}
+        />
+
+        {muTicks.map((v) => (
+          <g key={`mu-y-${v}`}>
+            <line
+              x1={L - 5}
+              x2={L + 5}
+              y1={yMU(v)}
+              y2={yMU(v)}
+              stroke="#334155"
+            />
+            <text
+              x={L - 12}
+              y={yMU(v) + 4}
+              textAnchor="end"
+              fontSize="11"
+              fill="#475569"
+            >
+              {Number.isInteger(v) ? v : v.toFixed(1)}
+            </text>
+          </g>
+        ))}
+
+        <text
+          x="24"
+          y={(bottom.y0 + bottom.y1) / 2}
+          transform={`rotate(-90 24 ${(bottom.y0 + bottom.y1) / 2})`}
+          textAnchor="middle"
+          fontSize="13"
+          fontWeight="700"
+          fill="#0f172a"
+        >
+          Marginal Utility (utils)
+        </text>
+
+        {quantityTicks.map((q) => (
+          <g key={`mu-x-${q}`}>
+            <line
+              x1={x(q)}
+              x2={x(q)}
+              y1={zeroY - 5}
+              y2={zeroY + 5}
+              stroke="#334155"
+            />
+            <text
+              x={x(q)}
+              y={zeroY + 21}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#475569"
+            >
+              {q}
+            </text>
+          </g>
+        ))}
+
+        <text
+          x={W / 2}
+          y={bottom.y1 + 28}
+          textAnchor="middle"
+          fontSize="13"
+          fontWeight="700"
+          fill="#2563eb"
+        >
+          Units of commodity consumed
+        </text>
+
+        <path
+          d={makePath(mu, yMU)}
+          fill="none"
+          stroke="#2563eb"
+          strokeWidth="3.5"
+        />
+
+        {quantityTicks
+          .filter((q) => q > 0)
+          .map((q) => (
+            <circle
+              key={`mu-point-${q}`}
+              cx={x(q)}
+              cy={yMU(mu(q))}
+              r="4"
+              fill="#111827"
+            />
+          ))}
+
+        <circle cx={zeroX} cy={zeroY} r="5" fill="#111827" />
+        <text
+          x={zeroX + 10}
+          y={zeroY - 10}
+          fontSize="12"
+          fontWeight="700"
+          fill="#111827"
+        >
+          Zero MU
+        </text>
+        <text
+          x={zeroX + 10}
+          y={zeroY + 25}
+          fontSize="11"
+          fill="#475569"
+        >
+          MU = 0 at Q = {qZero.toFixed(1)}
+        </text>
+
+        <text
+          x={x(Math.min(qEnd - 0.5, qZero + 1.2))}
+          y={yMU(mu(Math.min(qEnd - 0.5, qZero + 1.2))) - 12}
+          fontSize="13"
+          fontWeight="700"
+          fill="#2563eb"
+        >
+          MU Curve
+        </text>
+        <text
+          x={x(Math.min(qEnd - 0.5, qZero + 0.9))}
+          y={yMU(mu(Math.min(qEnd - 0.5, qZero + 0.9))) + 24}
+          fontSize="11"
+          fill="#475569"
+        >
+          Negative MU
+        </text>
+
+        <text
+          x={W - R - 4}
+          y={zeroY - 10}
+          textAnchor="end"
+          fontSize="11"
+          fill="#475569"
+        >
+          MU falls as consumption rises
+        </text>
       </svg>
     </div>
   );
