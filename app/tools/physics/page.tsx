@@ -843,29 +843,252 @@ function ForceTool() {
 }
 
 function EnergyTool() {
-  const [F, setF] = useState(10);
-  const [d, setD] = useState(8);
+  const [mode, setMode] = useState<"work" | "energy" | "power">("work");
+  const [force, setForce] = useState(10);
+  const [distance, setDistance] = useState(8);
   const [angle, setAngle] = useState(0);
   const [mass, setMass] = useState(2);
-  const work=F*d*Math.cos(angle*Math.PI/180);
-  const v=Math.sqrt(Math.max(0,2*work/mass));
-  const points=Array.from({length:81},(_,i)=>{const x=i*d/80;return{x,y:F*x*Math.cos(angle*Math.PI/180)}});
+  const [friction, setFriction] = useState(0);
+  const [height, setHeight] = useState(10);
+  const [time, setTime] = useState(4);
+  const [playing, setPlaying] = useState(false);
+
+  const g = 9.8;
+  const theta = (angle * Math.PI) / 180;
+  const appliedWork = force * distance * Math.cos(theta);
+  const frictionWork = -friction * mass * g * distance;
+  const netWork = appliedWork + frictionWork;
+  const initialPE = mass * g * height;
+  const fallTime = Math.sqrt((2 * height) / g);
+  const kineticGain = Math.max(0, netWork);
+  const finalSpeed = Math.sqrt(Math.max(0, (2 * kineticGain) / mass));
+  const averagePower = time > 0 ? netWork / time : 0;
+  const maxTime = 8;
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setInterval(() => {
+      setTime((t) => {
+        const next = t + 0.05;
+        const endTime = mode === "energy" ? fallTime : maxTime;
+        if (next >= endTime) {
+          setPlaying(false);
+          return endTime;
+        }
+        return next;
+      });
+    }, 50);
+    return () => window.clearInterval(id);
+  }, [playing, mode, fallTime]);
+
+  const reset = () => {
+    setTime(0);
+    setPlaying(false);
+  };
+
+  const workPoints = Array.from({ length: 101 }, (_, i) => {
+    const x = (i / 100) * distance;
+    const applied = force * x * Math.cos(theta);
+    const frictionW = -friction * mass * g * x;
+    return { x, y: applied + frictionW };
+  });
+
+  const energyTime = clamp(time, 0, fallTime);
+  const fallingHeight = Math.max(0, height - 0.5 * g * energyTime * energyTime);
+  const potential = mass * g * fallingHeight;
+  const totalMechanical = initialPE;
+  const kinetic = Math.max(0, totalMechanical - potential);
+  const energySpeed = Math.sqrt(Math.max(0, (2 * kinetic) / mass));
+
+  const powerPoints = Array.from({ length: 81 }, (_, i) => {
+    const t = (i / 80) * maxTime;
+    const p = t <= 0 ? 0 : netWork / maxTime;
+    return { x: t, y: p };
+  });
+
+  const barWidth = (value: number, total: number) => `${clamp(total > 0 ? (value / total) * 100 : 0, 0, 100)}%`;
+
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 lg:grid-cols-[300px_1fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
-          <Slider label="Force" value={F} min={0} max={50} step={1} unit="N" onChange={setF} />
-          <Slider label="Displacement" value={d} min={0.5} max={20} step={0.5} unit="m" onChange={setD} />
-          <Slider label="Angle" value={angle} min={0} max={180} step={1} unit="°" onChange={setAngle} />
-          <Slider label="Mass" value={mass} min={0.5} max={10} step={0.5} unit="kg" onChange={setMass} />
+      <div className="flex flex-wrap gap-2">
+        <SectionButton active={mode === "work"} onClick={() => setMode("work")}>Force → Work</SectionButton>
+        <SectionButton active={mode === "energy"} onClick={() => setMode("energy")}>Energy Conservation</SectionButton>
+        <SectionButton active={mode === "power"} onClick={() => setMode("power")}>Power</SectionButton>
+      </div>
+
+      {mode === "work" && (
+        <div className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Work simulator</div>
+                <div className="mt-1 text-sm font-semibold">Move an object under an applied force</div>
+              </div>
+              <Slider label="Applied force" value={force} min={0} max={50} step={1} unit="N" onChange={setForce} />
+              <Slider label="Displacement" value={distance} min={0.5} max={20} step={0.5} unit="m" onChange={setDistance} />
+              <Slider label="Force angle" value={angle} min={0} max={180} step={1} unit="°" onChange={setAngle} />
+              <Slider label="Mass" value={mass} min={0.5} max={10} step={0.5} unit="kg" onChange={setMass} />
+              <Slider label="Friction coefficient" value={friction} min={0} max={0.8} step={0.01} onChange={setFriction} />
+              <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                Applied work: <span className="font-mono text-slate-900">W = Fs cosθ</span>. Friction does negative work when it opposes motion.
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Force and displacement</div>
+                <div className="mt-1 text-sm font-semibold">The horizontal component of force does the work</div>
+                <div className="relative mt-5 h-52 overflow-hidden rounded-xl bg-slate-50">
+                  <div className="absolute bottom-10 left-8 right-8 border-b-4 border-slate-800" />
+                  <div className="absolute bottom-[46px] left-10 h-16 w-24 rounded-xl border-2 border-slate-800 bg-white text-center pt-5 text-sm font-bold">
+                    {fmt(mass)} kg
+                  </div>
+                  <div className="absolute bottom-[110px] left-[16%] h-0 w-[24%] origin-left border-t-4 border-slate-900" style={{ transform: `rotate(${-angle}deg)` }} />
+                  <div className="absolute left-[39%] top-[32%] text-xs font-semibold">F = {fmt(force)} N</div>
+                  <div className="absolute bottom-2 left-8 text-[10px] font-bold uppercase tracking-[.15em] text-slate-400">0 m</div>
+                  <div className="absolute bottom-2 right-8 text-[10px] font-bold uppercase tracking-[.15em] text-slate-400">{fmt(distance)} m</div>
+                  <div className="absolute bottom-5 left-[32%] text-xs font-semibold text-slate-600">displacement →</div>
+                </div>
+              </div>
+
+              <Graph
+                points={workPoints}
+                xMin={0}
+                xMax={Math.max(distance, 1)}
+                yMin={Math.min(0, Math.min(...workPoints.map((p) => p.y)) * 1.12)}
+                yMax={Math.max(10, Math.max(...workPoints.map((p) => p.y)) * 1.12)}
+                xLabel="Displacement x (m)"
+                yLabel="Net work W (J)"
+                marker={{ x: distance, y: netWork }}
+                markerLabel={`W = ${fmt(netWork)} J`}
+                hoverLabel={(x, y) => `x = ${fmt(x)} m · W = ${fmt(y)} J`}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Stat label="Applied work" value={fmt(appliedWork)} unit="J" />
+            <Stat label="Friction work" value={fmt(frictionWork)} unit="J" />
+            <Stat label="Net work" value={fmt(netWork)} unit="J" />
+            <Stat label="Final speed" value={fmt(finalSpeed)} unit="m/s" />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="text-sm font-semibold">Work–energy theorem</div>
+            <div className="mt-3 grid gap-3 md:grid-cols-3 text-sm leading-6 text-slate-600">
+              <div><span className="font-semibold text-slate-950">Applied work:</span> changes the object's kinetic energy when there are no other effects.</div>
+              <div><span className="font-semibold text-slate-950">Friction:</span> removes mechanical energy because its work is negative.</div>
+              <div><span className="font-semibold text-slate-950">Net work:</span> equals the change in kinetic energy, <span className="font-mono">W<sub>net</sub> = ΔK</span>.</div>
+            </div>
+          </div>
         </div>
-        <Graph points={points} xMin={0} xMax={d} yMin={0} yMax={Math.max(10,work*1.1)} xLabel="Displacement x (m)" yLabel="Work W (J)" marker={{x:d,y:Math.max(0,work)}} markerLabel={`W=${fmt(work)} J`} />
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <Stat label="Work" value={fmt(work)} unit="J" />
-        <Stat label="Kinetic energy gained" value={fmt(Math.max(0,work))} unit="J" />
-        <Stat label="Final speed from rest" value={fmt(v)} unit="m/s" />
-      </div>
+      )}
+
+      {mode === "energy" && (
+        <div className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Energy conservation</div>
+                <div className="mt-1 text-sm font-semibold">Watch potential energy become kinetic energy</div>
+              </div>
+              <Slider label="Mass" value={mass} min={0.5} max={10} step={0.5} unit="kg" onChange={setMass} />
+              <Slider label="Initial height" value={height} min={1} max={20} step={0.5} unit="m" onChange={setHeight} />
+              <div className="flex gap-2">
+                <button onClick={() => { if (time >= fallTime) setTime(0); setPlaying((p) => !p); }} className="flex-1 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
+                  {playing ? "Pause" : time >= fallTime ? "Replay" : "Run simulation"}
+                </button>
+                <button onClick={reset} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</button>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                Ignoring air resistance, total mechanical energy stays constant: <span className="font-mono text-slate-900">K + U = constant</span>.
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Energy transfer</div>
+                  <div className="mt-1 text-sm font-semibold">A falling object converts gravitational potential energy into kinetic energy</div>
+                </div>
+                <div className="font-mono text-xs text-slate-500">t = {fmt(time, 2)} s</div>
+              </div>
+
+              <div className="relative mt-5 h-64 overflow-hidden rounded-xl bg-slate-50">
+                <div className="absolute bottom-7 left-8 right-8 border-b-4 border-slate-800" />
+                <div className="absolute bottom-9 left-1/2 h-44 w-px -translate-x-1/2 border-l border-dashed border-slate-300" />
+                <div className="absolute left-1/2 h-7 w-7 -translate-x-1/2 rounded-full border-2 border-slate-900 bg-white transition-[bottom] duration-75" style={{ bottom: `${36 + (fallingHeight / Math.max(height, 1)) * 170}px` }} />
+                <div className="absolute left-3 top-3 text-xs text-slate-500">height = {fmt(fallingHeight)} m</div>
+                <div className="absolute bottom-2 left-3 text-[10px] font-bold uppercase tracking-[.15em] text-slate-400">ground</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Stat label="Potential energy" value={fmt(potential)} unit="J" />
+            <Stat label="Kinetic energy" value={fmt(kinetic)} unit="J" />
+            <Stat label="Mechanical energy" value={fmt(totalMechanical)} unit="J" />
+            <Stat label="Speed" value={fmt(energySpeed)} unit="m/s" />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="text-sm font-semibold">Live energy bars</div>
+            <div className="mt-4 space-y-4">
+              <div>
+                <div className="mb-1 flex justify-between text-xs font-semibold"><span>Potential energy</span><span>{fmt(potential)} J</span></div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-slate-700 transition-[width] duration-75" style={{ width: barWidth(potential, totalMechanical) }} /></div>
+              </div>
+              <div>
+                <div className="mb-1 flex justify-between text-xs font-semibold"><span>Kinetic energy</span><span>{fmt(kinetic)} J</span></div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-slate-400 transition-[width] duration-75" style={{ width: barWidth(kinetic, totalMechanical) }} /></div>
+              </div>
+              <div>
+                <div className="mb-1 flex justify-between text-xs font-semibold"><span>Total mechanical energy</span><span>{fmt(totalMechanical)} J</span></div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-slate-950" style={{ width: "100%" }} /></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mode === "power" && (
+        <div className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Power calculator</div>
+                <div className="mt-1 text-sm font-semibold">How quickly is work being done?</div>
+              </div>
+              <Slider label="Force" value={force} min={0} max={50} step={1} unit="N" onChange={setForce} />
+              <Slider label="Displacement" value={distance} min={0.5} max={20} step={0.5} unit="m" onChange={setDistance} />
+              <Slider label="Time" value={time} min={0.1} max={8} step={0.1} unit="s" onChange={(n) => { setTime(n); setPlaying(false); }} />
+              <Slider label="Force angle" value={angle} min={0} max={180} step={1} unit="°" onChange={setAngle} />
+              <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                Average power is <span className="font-mono text-slate-900">P = W/t</span>. For constant force and velocity, <span className="font-mono text-slate-900">P = Fv</span>.
+              </div>
+            </div>
+
+            <Graph
+              points={powerPoints}
+              xMin={0}
+              xMax={maxTime}
+              yMin={0}
+              yMax={Math.max(10, averagePower * 1.2)}
+              xLabel="Time t (s)"
+              yLabel="Power P (W)"
+              marker={{ x: time, y: averagePower }}
+              markerLabel={`P = ${fmt(averagePower)} W`}
+              hoverLabel={(x, y) => `t = ${fmt(x)} s · P = ${fmt(y)} W`}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <Stat label="Work" value={fmt(appliedWork)} unit="J" />
+            <Stat label="Time" value={fmt(time)} unit="s" />
+            <Stat label="Average power" value={fmt(averagePower)} unit="W" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
