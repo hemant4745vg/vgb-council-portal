@@ -1,6 +1,6 @@
  "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 /*
   VGB Physics Tools
@@ -158,6 +158,8 @@ function Graph({
   yLabel,
   marker,
   markerLabel,
+  hoverLabel,
+  annotations = [],
 }: {
   points: { x: number; y: number }[];
   xMin: number;
@@ -168,30 +170,54 @@ function Graph({
   yLabel: string;
   marker?: { x: number; y: number };
   markerLabel?: string;
+  hoverLabel?: (x: number, y: number) => string;
+  annotations?: { x: number; y: number; label: string }[];
 }) {
-  const W = 760, H = 360;
-  const pad = { l: 58, r: 24, t: 24, b: 48 };
-  const sx = (x: number) => pad.l + ((x - xMin) / (xMax - xMin)) * (W - pad.l - pad.r);
-  const sy = (y: number) => H - pad.b - ((y - yMin) / (yMax - yMin)) * (H - pad.t - pad.b);
+  const W = 760, H = 390;
+  const pad = { l: 64, r: 24, t: 28, b: 52 };
+  const safeX = xMax === xMin ? xMax + 1 : xMax;
+  const safeY = yMax === yMin ? yMax + 1 : yMax;
+  const sx = (x: number) => pad.l + ((x - xMin) / (safeX - xMin)) * (W - pad.l - pad.r);
+  const sy = (y: number) => H - pad.b - ((y - yMin) / (safeY - yMin)) * (H - pad.t - pad.b);
   const path = points.map((p, i) => `${i ? "L" : "M"} ${sx(p.x).toFixed(2)} ${sy(p.y).toFixed(2)}`).join(" ");
   const xTicks = 8;
   const yTicks = 6;
+  const [hover, setHover] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
+
+  const nearest = (value: number, axis: "x" | "y") => {
+    if (!points.length) return 0;
+    let best = points[0];
+    let distance = Infinity;
+    for (const p of points) {
+      const d = Math.abs((axis === "x" ? p.x : p.y) - value);
+      if (d < distance) { distance = d; best = p; }
+    }
+    return best;
+  };
+
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const localX = ((e.clientX - rect.left) / rect.width) * W;
+    const valueX = xMin + ((localX - pad.l) / (W - pad.l - pad.r)) * (safeX - xMin);
+    const p = nearest(clamp(valueX, xMin, safeX), "x");
+    setHover({ x: p.x, y: p.y, px: sx(p.x), py: sy(p.y) });
+  };
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
         <rect width={W} height={H} fill="white" />
         {Array.from({ length: xTicks + 1 }).map((_, i) => {
-          const x = xMin + (i / xTicks) * (xMax - xMin);
+          const x = xMin + (i / xTicks) * (safeX - xMin);
           return (
             <g key={`x-${i}`}>
               <line x1={sx(x)} x2={sx(x)} y1={pad.t} y2={H - pad.b} stroke="#e2e8f0" />
-              <text x={sx(x)} y={H - 25} textAnchor="middle" fontSize="11" fill="#64748b">{fmt(x, 1)}</text>
+              <text x={sx(x)} y={H - 28} textAnchor="middle" fontSize="11" fill="#64748b">{fmt(x, 1)}</text>
             </g>
           );
         })}
         {Array.from({ length: yTicks + 1 }).map((_, i) => {
-          const y = yMin + (i / yTicks) * (yMax - yMin);
+          const y = yMin + (i / yTicks) * (safeY - yMin);
           return (
             <g key={`y-${i}`}>
               <line x1={pad.l} x2={W - pad.r} y1={sy(y)} y2={sy(y)} stroke="#e2e8f0" />
@@ -199,21 +225,44 @@ function Graph({
             </g>
           );
         })}
-        {yMin < 0 && yMax > 0 && <line x1={sx(xMin)} x2={sx(xMax)} y1={sy(0)} y2={sy(0)} stroke="#334155" strokeWidth="1.5" />}
-        {xMin < 0 && xMax > 0 && <line x1={sx(0)} x2={sx(0)} y1={sy(yMin)} y2={sy(yMax)} stroke="#334155" strokeWidth="1.5" />}
+        {yMin < 0 && yMax > 0 && <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} stroke="#334155" strokeWidth="1.5" />}
+        {xMin < 0 && xMax > 0 && <line x1={sx(0)} x2={sx(0)} y1={pad.t} y2={H - pad.b} stroke="#334155" strokeWidth="1.5" />}
+
         <path d={path} fill="none" stroke="#0f172a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
+        {annotations.map((a) => (
+          <g key={`${a.label}-${a.x}-${a.y}`}>
+            <circle cx={sx(a.x)} cy={sy(a.y)} r="5" fill="white" stroke="#0f172a" strokeWidth="2.5" />
+            <text x={sx(a.x) + 8} y={sy(a.y) - 8} fontSize="11" fontWeight="700" fill="#334155">{a.label}</text>
+          </g>
+        ))}
+
         {marker && (
-          <>
-            <circle cx={sx(marker.x)} cy={sy(marker.y)} r="6" fill="white" stroke="#0f172a" strokeWidth="3" />
+          <g>
+            <line x1={sx(marker.x)} x2={sx(marker.x)} y1={sy(marker.y)} y2={H - pad.b} stroke="#94a3b8" strokeDasharray="4 4" />
+            <line x1={pad.l} x2={sx(marker.x)} y1={sy(marker.y)} y2={sy(marker.y)} stroke="#94a3b8" strokeDasharray="4 4" />
+            <circle cx={sx(marker.x)} cy={sy(marker.y)} r="7" fill="white" stroke="#0f172a" strokeWidth="3" />
             {markerLabel && (
               <g>
-                <rect x={sx(marker.x) + 10} y={sy(marker.y) - 30} width="130" height="26" rx="7" fill="#0f172a" />
-                <text x={sx(marker.x) + 20} y={sy(marker.y) - 13} fontSize="11" fill="white">{markerLabel}</text>
+                <rect x={clamp(sx(marker.x) + 10, 8, W - 148)} y={clamp(sy(marker.y) - 34, 8, H - 42)} width="138" height="26" rx="7" fill="#0f172a" />
+                <text x={clamp(sx(marker.x) + 20, 18, W - 138)} y={clamp(sy(marker.y) - 17, 25, H - 25)} fontSize="11" fill="white">{markerLabel}</text>
               </g>
             )}
-          </>
+          </g>
         )}
-        <text x={W / 2} y={H - 6} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">{xLabel}</text>
+
+        {hover && (
+          <g pointerEvents="none">
+            <line x1={hover.px} x2={hover.px} y1={pad.t} y2={H - pad.b} stroke="#64748b" strokeDasharray="3 4" />
+            <circle cx={hover.px} cy={hover.py} r="5" fill="white" stroke="#0f172a" strokeWidth="2.5" />
+            <rect x={clamp(hover.px + 10, 8, W - 190)} y={clamp(hover.py - 34, 8, H - 42)} width="180" height="26" rx="7" fill="#0f172a" />
+            <text x={clamp(hover.px + 20, 18, W - 180)} y={clamp(hover.py - 17, 25, H - 25)} fontSize="11" fill="white">
+              {hoverLabel ? hoverLabel(hover.x, hover.y) : `x=${fmt(hover.x)} · y=${fmt(hover.y)}`}
+            </text>
+          </g>
+        )}
+
+        <text x={W / 2} y={H - 7} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">{xLabel}</text>
         <text x="15" y={H / 2} textAnchor="middle" transform={`rotate(-90 15 ${H / 2})`} fontSize="12" fontWeight="600" fill="#334155">{yLabel}</text>
       </svg>
     </div>
@@ -290,41 +339,140 @@ function KinematicsTool() {
   const [u, setU] = useState(5);
   const [a, setA] = useState(2);
   const [tMax, setTMax] = useState(10);
-  const points = Array.from({ length: 101 }, (_, i) => {
-    const t = (i / 100) * tMax;
-    return { t, x: u * t + 0.5 * a * t * t, v: u + a * t };
+  const [time, setTime] = useState(5.5);
+  const [playing, setPlaying] = useState(false);
+  const [view, setView] = useState<"x" | "v" | "a">("x");
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setInterval(() => {
+      setTime((t) => {
+        const next = t + Math.max(0.03, tMax / 180);
+        if (next >= tMax) {
+          setPlaying(false);
+          return tMax;
+        }
+        return next;
+      });
+    }, 30);
+    return () => window.clearInterval(id);
+  }, [playing, tMax]);
+
+  const points = Array.from({ length: 181 }, (_, i) => {
+    const t = (i / 180) * tMax;
+    return { t, x: u * t + 0.5 * a * t * t, v: u + a * t, a };
   });
-  const xMax = Math.max(10, ...points.map(p => p.x));
-  const vMax = Math.max(10, ...points.map(p => p.v));
-  const selectedT = tMax * 0.55;
-  const selectedX = u * selectedT + 0.5 * a * selectedT * selectedT;
-  const selectedV = u + a * selectedT;
+
+  const selectedX = u * time + 0.5 * a * time * time;
+  const selectedV = u + a * time;
+  const selectedA = a;
+
+  const allX = points.map((p) => p.x);
+  const allV = points.map((p) => p.v);
+  const allA = points.map((p) => p.a);
+  const selected =
+    view === "x"
+      ? { points: points.map((p) => ({ x: p.t, y: p.x })), y: selectedX, label: "Position x (m)", yMin: Math.min(0, ...allX), yMax: Math.max(10, ...allX) }
+      : view === "v"
+        ? { points: points.map((p) => ({ x: p.t, y: p.v })), y: selectedV, label: "Velocity v (m/s)", yMin: Math.min(0, ...allV), yMax: Math.max(10, ...allV) }
+        : { points: points.map((p) => ({ x: p.t, y: p.a })), y: selectedA, label: "Acceleration a (m/s²)", yMin: Math.min(-10, ...allA), yMax: Math.max(10, ...allA) };
+
+  const reset = () => {
+    setTime(0);
+    setPlaying(false);
+  };
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
-          <Slider label="Initial velocity u" value={u} min={-20} max={20} step={0.5} unit="m/s" onChange={setU} />
-          <Slider label="Acceleration a" value={a} min={-10} max={10} step={0.5} unit="m/s²" onChange={setA} />
-          <Slider label="Time range" value={tMax} min={4} max={20} step={1} unit="s" onChange={setTMax} />
-          <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-            <strong>Relationships:</strong><br />
-            x = ut + ½at²<br />
-            v = u + at<br />
-            slope of x–t = velocity<br />
-            slope of v–t = acceleration
+      <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="mb-4 text-xs font-bold uppercase tracking-[.14em] text-slate-500">Controls</div>
+            <div className="space-y-5">
+              <Slider label="Initial velocity u" value={u} min={-20} max={20} step={0.5} unit="m/s" onChange={setU} />
+              <Slider label="Acceleration a" value={a} min={-10} max={10} step={0.5} unit="m/s²" onChange={setA} />
+              <Slider label="Time range" value={tMax} min={4} max={20} step={1} unit="s" onChange={(n) => { setTMax(n); setTime((t) => Math.min(t, n)); }} />
+              <Slider label="Inspect time" value={time} min={0} max={tMax} step={Math.max(0.01, tMax / 200)} unit="s" onChange={setTime} />
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setPlaying((p) => !p)}
+                className="flex-1 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white"
+              >
+                {playing ? "Pause" : "Play motion"}
+              </button>
+              <button onClick={reset} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white">
+            <div className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">At t = {fmt(time, 2)} s</div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/10 p-3"><div className="text-[10px] text-slate-400">x</div><div className="mt-1 font-mono text-sm">{fmt(selectedX)} m</div></div>
+              <div className="rounded-xl bg-white/10 p-3"><div className="text-[10px] text-slate-400">v</div><div className="mt-1 font-mono text-sm">{fmt(selectedV)} m/s</div></div>
+              <div className="rounded-xl bg-white/10 p-3"><div className="text-[10px] text-slate-400">a</div><div className="mt-1 font-mono text-sm">{fmt(selectedA)} m/s²</div></div>
+              <div className="rounded-xl bg-white/10 p-3"><div className="text-[10px] text-slate-400">Δx from start</div><div className="mt-1 font-mono text-sm">{fmt(selectedX)} m</div></div>
+            </div>
           </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Graph points={points.map(p => ({x:p.t,y:p.x}))} xMin={0} xMax={tMax} yMin={Math.min(0, ...points.map(p=>p.x))} yMax={xMax} xLabel="Time t (s)" yLabel="Position x (m)" marker={{x:selectedT,y:selectedX}} markerLabel={`t=${fmt(selectedT,1)} s`} />
-          <Graph points={points.map(p => ({x:p.t,y:p.v}))} xMin={0} xMax={tMax} yMin={Math.min(0, ...points.map(p=>p.v))} yMax={vMax} xLabel="Time t (s)" yLabel="Velocity v (m/s)" marker={{x:selectedT,y:selectedV}} markerLabel={`v=${fmt(selectedV)} m/s`} />
+
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {(["x", "v", "a"] as const).map((key) => (
+              <button
+                key={key}
+                onClick={() => setView(key)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold ${view === key ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-600"}`}
+              >
+                {key === "x" ? "Position–time" : key === "v" ? "Velocity–time" : "Acceleration–time"}
+              </button>
+            ))}
+          </div>
+
+          <Graph
+            points={selected.points}
+            xMin={0}
+            xMax={tMax}
+            yMin={selected.yMin}
+            yMax={selected.yMax}
+            xLabel="Time t (s)"
+            yLabel={selected.label}
+            marker={{ x: time, y: selected.y }}
+            markerLabel={`t=${fmt(time, 1)} s`}
+            hoverLabel={(x, y) => `t = ${fmt(x, 2)} s · ${fmt(y)} `}
+          />
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-3 text-xs font-bold uppercase tracking-[.14em] text-slate-500">Motion snapshot</div>
+            <div className="relative h-20 overflow-hidden rounded-xl bg-slate-50">
+              <div className="absolute bottom-5 left-5 right-5 h-px bg-slate-300" />
+              <div
+                className="absolute bottom-[18px] h-5 w-5 -translate-x-1/2 rounded-full border-2 border-slate-950 bg-white transition-[left] duration-75"
+                style={{ left: `${5 + (clamp(time / tMax, 0, 1) * 90)}%` }}
+              />
+              <div className="absolute bottom-1 left-5 text-[10px] text-slate-400">t = 0</div>
+              <div className="absolute bottom-1 right-5 text-[10px] text-slate-400">t = {fmt(tMax, 1)} s</div>
+            </div>
+          </div>
         </div>
       </div>
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="At selected t" value={fmt(selectedT)} unit="s" />
-        <Stat label="Position" value={fmt(selectedX)} unit="m" />
-        <Stat label="Velocity" value={fmt(selectedV)} unit="m/s" />
+        <Stat label="Initial velocity" value={fmt(u)} unit="m/s" />
         <Stat label="Acceleration" value={fmt(a)} unit="m/s²" />
+        <Stat label="Position at t" value={fmt(selectedX)} unit="m" />
+        <Stat label="Velocity at t" value={fmt(selectedV)} unit="m/s" />
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="text-sm font-semibold">What to notice</div>
+        <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-3">
+          <div><span className="font-semibold text-slate-950">x–t:</span> its slope at a point gives instantaneous velocity.</div>
+          <div><span className="font-semibold text-slate-950">v–t:</span> its slope gives acceleration and its area gives displacement.</div>
+          <div><span className="font-semibold text-slate-950">a–t:</span> its area gives change in velocity.</div>
+        </div>
       </div>
     </div>
   );
@@ -387,34 +535,134 @@ function ProjectileTool() {
   const [u, setU] = useState(20);
   const [angle, setAngle] = useState(45);
   const [g, setG] = useState(9.8);
-  const rad = angle*Math.PI/180;
-  const T = 2*u*Math.sin(rad)/g;
-  const R = u*u*Math.sin(2*rad)/g;
-  const H = u*u*Math.sin(rad)**2/(2*g);
-  const points = Array.from({length:121},(_,i)=>{
-    const t=(i/120)*T;
-    return {x:u*Math.cos(rad)*t,y:u*Math.sin(rad)*t-0.5*g*t*t};
+  const [height0, setHeight0] = useState(0);
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  const rad = angle * Math.PI / 180;
+  const vy0 = u * Math.sin(rad);
+  const vx0 = u * Math.cos(rad);
+  const discriminant = vy0 * vy0 + 2 * g * height0;
+  const T = (vy0 + Math.sqrt(Math.max(0, discriminant))) / g;
+  const R = vx0 * T;
+  const H = height0 + (vy0 * vy0) / (2 * g);
+  const tPeak = vy0 / g;
+  const xPeak = vx0 * tPeak;
+  const tInspect = clamp(time, 0, T);
+  const xInspect = vx0 * tInspect;
+  const yInspect = Math.max(0, height0 + vy0 * tInspect - 0.5 * g * tInspect * tInspect);
+  const vyInspect = vy0 - g * tInspect;
+  const speedInspect = Math.hypot(vx0, vyInspect);
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setInterval(() => {
+      setTime((t) => {
+        const next = t + Math.max(0.02, T / 180);
+        if (next >= T) {
+          setPlaying(false);
+          return T;
+        }
+        return next;
+      });
+    }, 30);
+    return () => window.clearInterval(id);
+  }, [playing, T]);
+
+  const points = Array.from({ length: 181 }, (_, i) => {
+    const t = (i / 180) * T;
+    return { x: vx0 * t, y: Math.max(0, height0 + vy0 * t - 0.5 * g * t * t) };
   });
-  const xMax=Math.max(R,1), yMax=Math.max(H,1);
+
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
-          <Slider label="Initial speed" value={u} min={1} max={50} step={1} unit="m/s" onChange={setU} />
-          <Slider label="Launch angle" value={angle} min={5} max={85} step={1} unit="°" onChange={setAngle} />
-          <Slider label="Gravity" value={g} min={1} max={12} step={0.1} unit="m/s²" onChange={setG} />
-          <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-            R = u²sin(2θ)/g<br />
-            H = u²sin²θ/(2g)<br />
-            T = 2usinθ/g
+      <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="mb-4 text-xs font-bold uppercase tracking-[.14em] text-slate-500">Launch controls</div>
+            <div className="space-y-5">
+              <Slider label="Initial speed u" value={u} min={1} max={50} step={1} unit="m/s" onChange={(n) => { setU(n); setTime(0); }} />
+              <Slider label="Launch angle θ" value={angle} min={5} max={85} step={1} unit="°" onChange={(n) => { setAngle(n); setTime(0); }} />
+              <Slider label="Initial height" value={height0} min={0} max={20} step={1} unit="m" onChange={(n) => { setHeight0(n); setTime(0); }} />
+              <Slider label="Gravity g" value={g} min={1} max={12} step={0.1} unit="m/s²" onChange={(n) => { setG(n); setTime(0); }} />
+              <Slider label="Inspect time" value={tInspect} min={0} max={Math.max(T, 0.01)} step={Math.max(0.01, T / 200)} unit="s" onChange={setTime} />
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button onClick={() => setPlaying((p) => !p)} className="flex-1 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white">
+                {playing ? "Pause" : "Animate throw"}
+              </button>
+              <button onClick={() => { setPlaying(false); setTime(0); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-600">
+            <div className="font-semibold text-slate-950">Model assumptions</div>
+            <ul className="mt-2 list-disc space-y-1 pl-4">
+              <li>Air resistance is ignored.</li>
+              <li>Horizontal acceleration is zero.</li>
+              <li>Vertical acceleration is −g.</li>
+            </ul>
           </div>
         </div>
-        <Graph points={points} xMin={0} xMax={xMax} yMin={0} yMax={yMax*1.12} xLabel="Horizontal distance x (m)" yLabel="Height y (m)" marker={{x:R/2,y:H}} markerLabel="Maximum height" />
+
+        <div className="space-y-4">
+          <Graph
+            points={points}
+            xMin={0}
+            xMax={Math.max(R, 1)}
+            yMin={0}
+            yMax={Math.max(H * 1.15, 1)}
+            xLabel="Horizontal distance x (m)"
+            yLabel="Height y (m)"
+            marker={{ x: xInspect, y: yInspect }}
+            markerLabel={`t=${fmt(tInspect, 1)} s`}
+            hoverLabel={(x, y) => `x=${fmt(x, 1)} m · y=${fmt(y, 1)} m`}
+            annotations={[
+              { x: xPeak, y: H, label: "Hmax" },
+              { x: R, y: 0, label: "Range" },
+            ]}
+          />
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-3 text-xs font-bold uppercase tracking-[.14em] text-slate-500">Projectile snapshot</div>
+            <div className="relative h-24 overflow-hidden rounded-xl bg-slate-50">
+              <div className="absolute bottom-5 left-4 right-4 h-px bg-slate-300" />
+              <div
+                className="absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-950 bg-white transition-[left,top] duration-75"
+                style={{
+                  left: `${5 + clamp((xInspect / Math.max(R, 0.001)) * 90, 0, 90)}%`,
+                  bottom: `${18 + clamp((yInspect / Math.max(H, 0.001)) * 55, 0, 55)}px`,
+                }}
+              />
+              <div className="absolute bottom-1 left-4 text-[10px] text-slate-400">launch</div>
+              <div className="absolute bottom-1 right-4 text-[10px] text-slate-400">landing</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Range" value={fmt(R)} unit="m" />
         <Stat label="Maximum height" value={fmt(H)} unit="m" />
         <Stat label="Time of flight" value={fmt(T)} unit="s" />
+        <Stat label="Peak time" value={fmt(tPeak)} unit="s" />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Stat label="Horizontal velocity" value={fmt(vx0)} unit="m/s" />
+        <Stat label="Vertical velocity now" value={fmt(vyInspect)} unit="m/s" />
+        <Stat label="Speed now" value={fmt(speedInspect)} unit="m/s" />
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="text-sm font-semibold">Key observations</div>
+        <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-3">
+          <div><span className="font-semibold text-slate-950">Horizontal:</span> velocity stays constant when air resistance is ignored.</div>
+          <div><span className="font-semibold text-slate-950">Vertical:</span> velocity decreases by g each second until the highest point.</div>
+          <div><span className="font-semibold text-slate-950">Trajectory:</span> the path is parabolic because x is linear in time while y is quadratic.</div>
+        </div>
       </div>
     </div>
   );
