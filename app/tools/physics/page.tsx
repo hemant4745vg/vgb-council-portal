@@ -184,8 +184,8 @@ function Graph({
   const yTicks = 6;
   const [hover, setHover] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
 
-  const nearest = (value: number, axis: "x" | "y") => {
-    if (!points.length) return 0;
+  const nearest = (value: number, axis: "x" | "y"): { x: number; y: number } | null => {
+    if (!points.length) return null;
     let best = points[0];
     let distance = Infinity;
     for (const p of points) {
@@ -200,6 +200,7 @@ function Graph({
     const localX = ((e.clientX - rect.left) / rect.width) * W;
     const valueX = xMin + ((localX - pad.l) / (W - pad.l - pad.r)) * (safeX - xMin);
     const p = nearest(clamp(valueX, xMin, safeX), "x");
+    if (!p) return;
     setHover({ x: p.x, y: p.y, px: sx(p.x), py: sy(p.y) });
   };
 
