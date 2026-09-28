@@ -71,6 +71,72 @@ const games = [
   ],
 ] as const;
 
+const subjectTools = [
+  {
+    href: "/tools/mathematics",
+    icon: "∑",
+    title: "Mathematics",
+    tag: "Class XI–XII",
+    description:
+      "Graphs, equations, functions, probability and interactive mathematical tools.",
+    available: true,
+  },
+  {
+    href: "/tools/physics",
+    icon: "⚛️",
+    title: "Physics",
+    tag: "Class XI–XII",
+    description:
+      "Interactive simulations, graphs, formulas and virtual physics labs.",
+    available: true,
+  },
+  {
+    href: "/tools/chemistry",
+    icon: "🧪",
+    title: "Chemistry",
+    tag: "Class XI–XII",
+    description:
+      "Molecules, reactions, calculations and chemistry learning tools.",
+    available: true,
+  },
+  {
+    href: "/tools/economics",
+    icon: "📈",
+    title: "Economics",
+    tag: "Class XI–XII",
+    description:
+      "Demand, supply, markets, national income and economic models.",
+    available: true,
+  },
+  {
+    href: "/tools/geography",
+    icon: "🌍",
+    title: "Geography",
+    tag: "Class XI–XII",
+    description:
+      "Interactive maps, CBSE map practice and geographical exploration.",
+    available: true,
+  },
+  {
+    href: "/tools/political-science",
+    icon: "🏛️",
+    title: "Political Science",
+    tag: "Class XI–XII",
+    description:
+      "Constitution, institutions, political concepts and civic learning.",
+    available: false,
+  },
+  {
+    href: "/tools/english",
+    icon: "Aa",
+    title: "English",
+    tag: "Class XI–XII",
+    description:
+      "Language, writing, literature and communication tools.",
+    available: false,
+  },
+] as const;
+
 const typingTexts = [
   "Institutions work best when rules are clear, responsibilities are understood, and decisions can be examined.",
   "A good question does more than test memory. It reveals how a person connects evidence, reasoning, and judgment.",
@@ -316,10 +382,7 @@ function Typing() {
       <div className="mt-4 grid grid-cols-3 gap-3">
         <Stat label="WPM" value={String(wpm)} />
         <Stat label="Accuracy" value={`${acc}%`} />
-        <Stat
-          label="Progress"
-          value={`${v.length}/${text.length}`}
-        />
+        <Stat label="Progress" value={`${v.length}/${text.length}`} />
       </div>
 
       {done && <Result>Race complete.</Result>}
@@ -422,9 +485,7 @@ function Geography() {
             type="button"
             onClick={() => setC(j)}
             className={`rounded-full px-4 py-2 text-sm font-bold ${
-              c === j
-                ? "bg-slate-950 text-white"
-                : "bg-slate-100"
+              c === j ? "bg-slate-950 text-white" : "bg-slate-100"
             }`}
           >
             Clue {j + 1}
@@ -540,9 +601,7 @@ function Constitution() {
           Scenario
         </div>
 
-        <p className="mt-3 text-lg font-bold leading-8">
-          {r[0]}
-        </p>
+        <p className="mt-3 text-lg font-bold leading-8">{r[0]}</p>
       </div>
 
       <div className="mt-5 grid gap-3">
@@ -593,9 +652,8 @@ function Budget() {
   return (
     <>
       <p className="text-slate-600">
-        You are planning a fictional student initiative with a
-        budget of ₹50,000. Allocate the money without exceeding the
-        limit.
+        You are planning a fictional student initiative with a budget of
+        ₹50,000. Allocate the money without exceeding the limit.
       </p>
 
       <div className="mt-5 space-y-4">
@@ -674,11 +732,7 @@ function Market() {
   const [units, setUnits] = useState(100);
   const [cost, setCost] = useState(60);
 
-  const demand = Math.max(
-    0,
-    Math.round(240 - price * 1.4)
-  );
-
+  const demand = Math.max(0, Math.round(240 - price * 1.4));
   const sold = Math.min(units, demand);
   const revenue = sold * price;
   const totalCost = units * cost;
@@ -687,8 +741,8 @@ function Market() {
   return (
     <>
       <p className="text-slate-600">
-        Run a fictional market. Set a price and production level,
-        then see how demand, revenue and profit respond.
+        Run a fictional market. Set a price and production level, then see
+        how demand, revenue and profit respond.
       </p>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
@@ -765,9 +819,7 @@ function Chess() {
   ];
 
   const [b, setB] = useState(initial);
-  const [sel, setSel] = useState<[number, number] | null>(
-    null
-  );
+  const [sel, setSel] = useState<[number, number] | null>(null);
   const [turn, setTurn] = useState<"white" | "black">("white");
 
   const colour = (p: string) =>
@@ -851,8 +903,8 @@ function Chess() {
       </div>
 
       <p className="mt-4 text-center text-xs text-slate-500">
-        Prototype local board. Full legal-move validation will be
-        added before this is presented as complete chess.
+        Prototype local board. Full legal-move validation will be added before
+        this is presented as complete chess.
       </p>
     </>
   );
@@ -871,9 +923,7 @@ function Game({ id }: { id: GameId }) {
 }
 
 function Converter() {
-  const [k, setK] = useState<"length" | "temperature">(
-    "length"
-  );
+  const [k, setK] = useState<"length" | "temperature">("length");
 
   const [v, setV] = useState("1");
   const [f, setF] = useState("km");
@@ -912,22 +962,16 @@ function Converter() {
     return (n * x[f]) / x[t];
   }, [k, v, f, t]);
 
-  const options =
-    k === "length"
-      ? ["m", "km", "cm", "mi", "ft"]
-      : ["C", "F", "K"];
+  const options = k === "length" ? ["m", "km", "cm", "mi", "ft"] : ["C", "F", "K"];
 
   return (
     <>
       <select
         value={k}
         onChange={(e) => {
-          const x = e.target.value as
-            | "length"
-            | "temperature";
+          const x = e.target.value as "length" | "temperature";
 
           setK(x);
-
           setF(x === "length" ? "km" : "C");
           setT(x === "length" ? "mi" : "F");
         }}
@@ -983,13 +1027,7 @@ export default function ToolsPage() {
   const [q, setQ] = useState("");
   const [calc, setCalc] = useState("");
 
-  const [marks, setMarks] = useState([
-    80,
-    80,
-    80,
-    80,
-    80,
-  ]);
+  const [marks, setMarks] = useState([80, 80, 80, 80, 80]);
 
   const [seconds, setSeconds] = useState(300);
   const [running, setRunning] = useState(false);
@@ -1031,16 +1069,10 @@ export default function ToolsPage() {
         throw new Error();
       }
 
-      const value = Function(
-        `"use strict";return (${calc})`
-      )();
+      const value = Function(`"use strict";return (${calc})`)();
 
       setCalc(
-        String(
-          Number.isFinite(value)
-            ? value
-            : "Error"
-        )
+        String(Number.isFinite(value) ? value : "Error")
       );
     } catch {
       setCalc("Error");
@@ -1059,8 +1091,8 @@ export default function ToolsPage() {
         </h1>
 
         <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-          Useful utilities, quick experiments and small games
-          built for the VidyaGyan community.
+          Useful utilities, interactive subject tools and small games built
+          for the VidyaGyan community.
         </p>
 
         <input
@@ -1070,7 +1102,83 @@ export default function ToolsPage() {
           className="mt-8 w-full rounded-2xl border bg-white px-5 py-4 outline-none focus:border-slate-950"
         />
 
+        {/* SUBJECT TOOLS */}
         <section className="mt-12">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.2em] text-slate-500">
+                Academic tools
+              </p>
+
+              <h2 className="mt-2 text-2xl font-black">
+                Subject Tools
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Interactive tools designed around the Class XI–XII curriculum.
+              </p>
+            </div>
+
+            <span className="hidden rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500 sm:block">
+              {subjectTools.filter((x) => x.available).length} available
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {subjectTools.map((subject) => (
+              <a
+                key={subject.title}
+                href={subject.available ? subject.href : undefined}
+                aria-disabled={!subject.available}
+                onClick={(e) => {
+                  if (!subject.available) {
+                    e.preventDefault();
+                  }
+                }}
+                className={`group rounded-3xl border bg-white p-6 text-left transition ${
+                  subject.available
+                    ? "hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
+                    : "cursor-not-allowed opacity-60"
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-white">
+                    {subject.icon}
+                  </div>
+
+                  <span
+                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                      subject.available
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {subject.available ? "Available" : "Coming soon"}
+                  </span>
+                </div>
+
+                <div className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">
+                  {subject.tag}
+                </div>
+
+                <h3 className="mt-2 text-xl font-black">
+                  {subject.title}
+                </h3>
+
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  {subject.description}
+                </p>
+
+                <div className="mt-5 text-sm font-bold">
+                  {subject.available ? "Open tool →" : "In development"}
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        {/* ESSENTIAL TOOLS */}
+        <section className="mt-14">
           <h2 className="text-2xl font-black">
             Essential Tools
           </h2>
@@ -1126,6 +1234,7 @@ export default function ToolsPage() {
           </div>
         </section>
 
+        {/* GAMES */}
         <section className="mt-14">
           <div className="flex items-end justify-between">
             <div>
@@ -1190,9 +1299,7 @@ export default function ToolsPage() {
 
       {game && (
         <Modal
-          title={
-            games.find((g) => g[0] === game)?.[2] ?? "Game"
-          }
+          title={games.find((g) => g[0] === game)?.[2] ?? "Game"}
           close={() => setGame(null)}
         >
           <Game id={game} />
@@ -1200,17 +1307,12 @@ export default function ToolsPage() {
       )}
 
       {tool === "Calculator" && (
-        <Modal
-          title="Calculator"
-          close={() => setTool(null)}
-        >
+        <Modal title="Calculator" close={() => setTool(null)}>
           <input
             autoFocus
             value={calc}
             onChange={(e) => setCalc(e.target.value)}
-            onKeyDown={(e) =>
-              e.key === "Enter" && calculate()
-            }
+            onKeyDown={(e) => e.key === "Enter" && calculate()}
             placeholder="e.g. (250 * 18) / 100"
             className="w-full rounded-2xl border px-4 py-4 text-lg"
           />
@@ -1226,10 +1328,7 @@ export default function ToolsPage() {
       )}
 
       {tool === "Marks Calculator" && (
-        <Modal
-          title="Marks Calculator"
-          close={() => setTool(null)}
-        >
+        <Modal title="Marks Calculator" close={() => setTool(null)}>
           <p className="text-sm text-slate-500">
             Enter marks out of 100.
           </p>
@@ -1248,10 +1347,7 @@ export default function ToolsPage() {
                       j === i
                         ? Math.max(
                             0,
-                            Math.min(
-                              100,
-                              Number(e.target.value)
-                            )
+                            Math.min(100, Number(e.target.value))
                           )
                         : x
                     )
@@ -1263,24 +1359,14 @@ export default function ToolsPage() {
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <Stat
-              label="Average"
-              value={`${avg}%`}
-            />
-
-            <Stat
-              label="Subjects"
-              value="5"
-            />
+            <Stat label="Average" value={`${avg}%`} />
+            <Stat label="Subjects" value="5" />
           </div>
         </Modal>
       )}
 
       {tool === "Unit Converter" && (
-        <Modal
-          title="Unit Converter"
-          close={() => setTool(null)}
-        >
+        <Modal title="Unit Converter" close={() => setTool(null)}>
           <Converter />
         </Modal>
       )}
@@ -1295,11 +1381,7 @@ export default function ToolsPage() {
         >
           <div className="text-center">
             <div className="text-6xl font-black tabular-nums">
-              {String(Math.floor(seconds / 60)).padStart(
-                2,
-                "0"
-              )}
-              :
+              {String(Math.floor(seconds / 60)).padStart(2, "0")}:
               {String(seconds % 60).padStart(2, "0")}
             </div>
 
@@ -1350,10 +1432,7 @@ export default function ToolsPage() {
       )}
 
       {tool === "Text Counter" && (
-        <Modal
-          title="Text Counter"
-          close={() => setTool(null)}
-        >
+        <Modal title="Text Counter" close={() => setTool(null)}>
           <textarea
             autoFocus
             value={text}
@@ -1367,26 +1446,18 @@ export default function ToolsPage() {
               label="Words"
               value={
                 text.trim()
-                  ? String(
-                      text.trim().split(/\s+/).length
-                    )
+                  ? String(text.trim().split(/\s+/).length)
                   : "0"
               }
             />
 
-            <Stat
-              label="Characters"
-              value={String(text.length)}
-            />
+            <Stat label="Characters" value={String(text.length)} />
           </div>
         </Modal>
       )}
 
       {tool === "Randomizer" && (
-        <Modal
-          title="Randomizer"
-          close={() => setTool(null)}
-        >
+        <Modal title="Randomizer" close={() => setTool(null)}>
           <div className="text-center">
             <div className="text-7xl font-black">
               {random ?? "?"}
@@ -1399,9 +1470,7 @@ export default function ToolsPage() {
             <button
               type="button"
               onClick={() =>
-                setRandom(
-                  Math.floor(Math.random() * 100) + 1
-                )
+                setRandom(Math.floor(Math.random() * 100) + 1)
               }
               className="mt-5 rounded-xl bg-slate-950 px-6 py-3 font-bold text-white"
             >
