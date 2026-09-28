@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type Point = { x: number; y: number };
+type Point = { x: number; y: number; label?: string };
 
 type Curve = {
   id: string;
@@ -78,10 +78,25 @@ const presets: Preset[] = [
       { key: "dShift", label: "Demand shift", min: -20, max: 20, step: 1, value: 0 },
       { key: "sShift", label: "Supply shift", min: -20, max: 20, step: 1, value: 0 },
     ],
-    curves: (c) => [
-      { id: "d", label: "D", color: curveColors[0], fn: (x) => 90 - 0.75 * x + c.dShift },
-      { id: "s", label: "S", color: curveColors[1], fn: (x) => 10 + 0.65 * x + c.sShift },
-    ],
+    curves: (c) => {
+      const d0 = (x: number) => 90 - 0.75 * x;
+      const s0 = (x: number) => 10 + 0.65 * x;
+      const d1 = (x: number) => d0(x) + c.dShift;
+      const s1 = (x: number) => s0(x) + c.sShift;
+      const changed = Math.abs(c.dShift) > 0.01 || Math.abs(c.sShift) > 0.01;
+      if (!changed) {
+        return [
+          { id: "d", label: "D", color: curveColors[0], fn: d0 },
+          { id: "s", label: "S", color: curveColors[1], fn: s0 },
+        ];
+      }
+      return [
+        { id: "d0", label: "D₀", color: "#93c5fd", fn: d0, dashed: true },
+        { id: "d1", label: c.dShift > 0 ? "D₁ (increase)" : "D₁ (decrease)", color: curveColors[0], fn: d1 },
+        { id: "s0", label: "S₀", color: "#fca5a5", fn: s0, dashed: true },
+        { id: "s1", label: c.sShift < 0 ? "S₁ (increase)" : "S₁ (decrease)", color: curveColors[1], fn: s1 },
+      ];
+    },
     interpretation: [
       "Equilibrium is the intersection of demand and supply, so equilibrium price and quantity are recalculated whenever either condition changes.",
       "An increase in demand shifts D rightward and, in this model, raises both equilibrium price and quantity.",
@@ -311,10 +326,10 @@ const presets: Preset[] = [
     description: "Two aligned textbook panels show diminishing marginal utility and the corresponding total-utility relationship without treating every crossing as an equilibrium.",
     xLabel: "Units of the commodity consumed",
     yLabel: "Utility (utils)",
-    xMin: 0, xMax: 10, yMin: 0, yMax: 100,
+    xMin: 0, xMax: 20, yMin: 0, yMax: 300,
     controls: [
-      { key: "initial", label: "Initial MU (utils)", min: 15, max: 35, step: 1, value: 30 },
-      { key: "decline", label: "Decline in MU", min: 1, max: 3, step: 0.1, value: 1.8 },
+      { key: "initial", label: "Initial MU (utils)", min: 15, max: 30, step: 1, value: 30 },
+      { key: "decline", label: "Decline in MU", min: 1.5, max: 3, step: 0.1, value: 1.8 },
     ],
     curves: () => [],
     interpretation: [
@@ -1080,29 +1095,76 @@ function intersections(
 /* Economics graph                                                            */
 /* -------------------------------------------------------------------------- */
 
+function dEqQForPoints(dShift = 0, sShift = 0) {
+  return (80 + dShift - sShift) / 1.4;
+}
+
+function dEqPForPoints(dShift = 0, sShift = 0) {
+  const q = dEqQForPoints(dShift, sShift);
+  return 90 - 0.75 * q + dShift;
+}
+
 function graphAnnotations(preset: Preset, controls: Record<string, number>, curves: Curve[], view: {xMin:number;xMax:number;yMin:number;yMax:number}): Annotation[] {
   const a: Annotation[] = [];
   const dEqQ = (dShift=0,sShift=0) => (80+dShift-sShift)/1.4;
   const dEqP = (dShift=0,sShift=0) => 90-0.75*dEqQ(dShift,sShift)+dShift;
 
   if (preset.id === "demand-supply") {
-    const q0=dEqQ(), p0=dEqP();
-    const q1=dEqQ(controls.dShift,controls.sShift), p1=dEqP(controls.dShift,controls.sShift);
-    a.push({id:"eq-guide-x",x1:q1,y1:0,x2:q1,y2:p1,text:"Qe₁ = " + fmt(q1),tone:"guide"});
-    a.push({id:"eq-guide-y",x1:0,y1:p1,x2:q1,y2:p1,text:"Pe₁ = ₹" + fmt(p1),tone:"guide"});
-    a.push({id:"eq0-point",x1:q0,y1:p0,x2:q0,y2:p0,text:"E₀",tone:"label"});
-    a.push({id:"eq1-point",x1:q1,y1:p1,x2:q1,y2:p1,text:"E₁",tone:"label"});
-    if (Math.abs(q1-q0)>0.05 || Math.abs(p1-p0)>0.05) {
-      const mx=(q0+q1)/2, my=(p0+p1)/2;
-      a.push({id:"eq-arrow",x1:q0,y1:p0,x2:q1,y2:p1,text:"Shift in equilibrium",tone:"arrow"});
+    const q0 = dEqQ();
+    const p0 = dEqP();
+    const q1 = dEqQ(controls.dShift, controls.sShift);
+    const p1 = dEqP(controls.dShift, controls.sShift);
+    const changed = Math.abs(q1 - q0) > 0.05 || Math.abs(p1 - p0) > 0.05;
+
+    a.push({ id: "eq-guide-x", x1: q1, y1: 0, x2: q1, y2: p1, text: "Qe₁ = " + fmt(q1), tone: "guide" });
+    a.push({ id: "eq-guide-y", x1: 0, y1: p1, x2: q1, y2: p1, text: "Pe₁ = ₹" + fmt(p1), tone: "guide" });
+    a.push({ id: "eq0-label", x1: q0, y1: p0, x2: q0, y2: p0, text: "E₀", tone: "label" });
+    a.push({ id: "eq1-label", x1: q1, y1: p1, x2: q1, y2: p1, text: changed ? "E₁" : "E", tone: "label" });
+
+    if (changed) {
+      const dx = q1 - q0;
+      const dy = p1 - p0;
+      const length = Math.hypot(dx, dy) || 1;
+      const ux = dx / length;
+      const uy = dy / length;
+      const inset = Math.min(10, length * 0.18);
+      a.push({
+        id: "eq-arrow",
+        x1: q0 + ux * inset,
+        y1: p0 + uy * inset,
+        x2: q1 - ux * inset,
+        y2: p1 - uy * inset,
+        text: "Equilibrium shifts",
+        tone: "arrow",
+      });
     }
-    if (controls.dShift > 0) a.push({id:"d-shift-arrow",x1:28,y1:90-0.75*28,x2:40,y2:90-0.75*40+controls.dShift,text:"Increase in demand",tone:"arrow"});
-    if (controls.dShift < 0) a.push({id:"d-shift-arrow",x1:40,y1:90-0.75*40+controls.dShift,x2:28,y2:90-0.75*28,text:"Decrease in demand",tone:"arrow"});
-    if (controls.sShift < 0) a.push({id:"s-shift-arrow",x1:28,y1:10+0.65*28+controls.sShift,x2:40,y2:10+0.65*40+controls.sShift,text:"Increase in supply",tone:"arrow"});
-    if (controls.sShift > 0) a.push({id:"s-shift-arrow",x1:40,y1:10+0.65*40+controls.sShift,x2:28,y2:10+0.65*28,text:"Decrease in supply",tone:"arrow"});
-    if (Math.abs(q1-q0)>0.25 || Math.abs(p1-p0)>0.25) {
-      a.push({id:"old-eq",x1:q0,y1:p0,x2:q0,y2:p0,text:"E₀",tone:"label"});
-      a.push({id:"eq-arrow",x1:q0,y1:p0,x2:q1,y2:p1,text:"Equilibrium shifts",tone:"arrow"});
+
+    // Curve shifts are shown at a common quantity so the viewer sees the
+    // whole curve moving, not an invented movement along the curve.
+    const xShift = 30;
+    const d0y = 90 - 0.75 * xShift;
+    const s0y = 10 + 0.65 * xShift;
+    if (Math.abs(controls.dShift) > 0.01) {
+      a.push({
+        id: "d-shift-arrow",
+        x1: xShift,
+        y1: d0y,
+        x2: xShift,
+        y2: d0y + controls.dShift,
+        text: controls.dShift > 0 ? "Increase in demand" : "Decrease in demand",
+        tone: "arrow",
+      });
+    }
+    if (Math.abs(controls.sShift) > 0.01) {
+      a.push({
+        id: "s-shift-arrow",
+        x1: xShift + 20,
+        y1: s0y,
+        x2: xShift + 20,
+        y2: s0y + controls.sShift,
+        text: controls.sShift < 0 ? "Increase in supply" : "Decrease in supply",
+        tone: "arrow",
+      });
     }
   }
 
@@ -1279,15 +1341,15 @@ function MarginalUtilityDiagram({ controls }: { controls: Record<string, number>
   const initial=controls.initial ?? 30;
   const decline=controls.decline ?? 1.8;
   const mu=(q:number)=>initial-decline*q;
-  const qMax=Math.min(10,initial/decline);
+  const qMax=Math.min(20,initial/decline);
   const tu=(q:number)=>initial*q-0.5*decline*q*q;
   const tuMax=Math.max(1,tu(qMax));
-  const x=(q:number)=>P+(q/10)*plotW;
+  const x=(q:number)=>P+(q/20)*plotW;
   const yShared=(u:number)=>300-u*0.9;
   const yMu0=yShared(0);
-  const path=(fn:(q:number)=>number)=>{let d='';for(let i=0;i<=240;i++){const q=i/24;const yy=fn(q);const px=x(q),py=yShared(yy);d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
+  const path=(fn:(q:number)=>number)=>{let d='';for(let i=0;i<=240;i++){const q=i/12;const yy=fn(q);const px=x(q),py=yShared(yy);d+=(i?' L ':'M ')+px.toFixed(2)+' '+py.toFixed(2);}return d;};
   return <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Marginal utility and total utility with shared utility axis and two quantity axes">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Textbook marginal utility and total utility diagram with one utility axis and two aligned quantity axes">
       <defs><marker id="mu-tu-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
       <line x1={P} x2={W-P} y1={yMu0} y2={yMu0} stroke="#334155" strokeWidth="2" markerEnd="url(#mu-tu-arrow)"/>
       <line x1={P} x2={W-P} y1={yShared(tuMax)} y2={yShared(tuMax)} stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 4"/>
@@ -1297,8 +1359,8 @@ function MarginalUtilityDiagram({ controls }: { controls: Record<string, number>
       <text x="28" y="315" transform="rotate(-90 28 315)" textAnchor="middle" fontSize="14" fontWeight="700">Utility (utils)</text>
       <text x={W/2} y={yMu0-12} textAnchor="middle" fontSize="13" fontWeight="700" fill="#2563eb">X-axis for MU: Units consumed</text>
       <text x={W/2} y="606" textAnchor="middle" fontSize="13" fontWeight="700" fill="#dc2626">X-axis for TU: Units consumed</text>
-      {[0,2,4,6,8,10].map(q=><g key={q}><text x={x(q)} y={yMu0+22} textAnchor="middle" fontSize="11" fill="#475569">{q}</text><text x={x(q)} y="562" textAnchor="middle" fontSize="11" fill="#475569">{q}</text></g>)}
-      {[0,10,20,30].map(u=><text key={u} x={P-10} y={yShared(u)+4} textAnchor="end" fontSize="11" fill="#475569">{u}</text>)}
+      {[0,4,8,12,16,20].map(q=><g key={q}><text x={x(q)} y={yMu0+22} textAnchor="middle" fontSize="11" fill="#475569">{q}</text><text x={x(q)} y="562" textAnchor="middle" fontSize="11" fill="#475569">{q}</text></g>)}
+      {[0,50,100,150,200,250,300].map(u=><text key={u} x={P-10} y={yShared(u)+4} textAnchor="end" fontSize="11" fill="#475569">{u}</text>)}
       <path d={path(mu)} fill="none" stroke="#2563eb" strokeWidth="4"/>
       <path d={path(tu)} fill="none" stroke="#dc2626" strokeWidth="4"/>
       <line x1={x(qMax)} x2={x(qMax)} y1={yShared(mu(qMax))} y2="570" stroke="#64748b" strokeDasharray="6 5"/>
@@ -1307,8 +1369,8 @@ function MarginalUtilityDiagram({ controls }: { controls: Record<string, number>
       <text x={x(qMax)+10} y={yShared(0)-10} fontSize="12" fontWeight="700" fill="#2563eb">MU = 0</text>
       <text x={x(qMax)+10} y={yShared(tuMax)-10} fontSize="12" fontWeight="700" fill="#dc2626">TU maximum</text>
       <text x={x(1.2)} y={yShared(mu(1.2))-10} fontSize="13" fontWeight="700" fill="#2563eb">MU</text>
-      <text x={x(7)} y={yShared(tu(7))-12} fontSize="13" fontWeight="700" fill="#dc2626">TU</text>
-      <text x={x(7.4)} y={yShared(-8)} fontSize="12" fill="#475569">MU becomes negative after TU maximum</text>
+      <text x={x(12)} y={yShared(tu(12))-12} fontSize="13" fontWeight="700" fill="#dc2626">TU</text>
+      <text x={x(12.5)} y={yShared(-8)} fontSize="12" fill="#475569">MU becomes negative after TU maximum</text>
       <text x={x(0.3)} y={yShared(tu(0))+22} fontSize="11" fill="#475569">TU starts from zero</text>
     </svg>
   </div>;
@@ -1383,7 +1445,15 @@ function CostSystemDiagram({ controls }: { controls: Record<string, number> }) {
   const yUnit=(v:number)=>450+260-(Math.max(0,Math.min(45,v))/45)*260;
   const path=(fn:(q:number)=>number,yf:(v:number)=>number)=>{let d='';for(let i=0;i<=320;i++){const q=i/4;d+=(i?' L ':'M ')+x(q).toFixed(2)+' '+yf(fn(q)).toFixed(2);}return d;};
   const qAVC=30;
-  const qAC=41.57;
+  const acDerivative = (q:number) => -fixed/(q*q) + scale*(-0.06 + 0.002*q);
+  let qACLo=1;
+  let qACHi=80;
+  for(let i=0;i<70;i++){
+    const mid=(qACLo+qACHi)/2;
+    if(acDerivative(mid)<0) qACLo=mid;
+    else qACHi=mid;
+  }
+  const qAC=(qACLo+qACHi)/2;
   return <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Short-run cost curves and mathematical relationships">
       <defs><marker id="cost-v8-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker></defs>
@@ -1478,19 +1548,6 @@ function EconomicsGraph({
     y: number;
   } | null>(null);
 
-  if (preset.diagram === "circular-flow") {
-    return <CircularFlowDiagram />;
-  }
-  if (preset.diagram === "mu-tu") {
-    return <MarginalUtilityDiagram controls={effectiveControls} />;
-  }
-  if (preset.diagram === "cost-system") {
-    return <CostSystemDiagram controls={effectiveControls} />;
-  }
-  if (preset.diagram === "production-system") {
-    return <ProductionSystemDiagram controls={effectiveControls} />;
-  }
-
   const W = 900;
   const H = 560;
   const P = 62;
@@ -1558,10 +1615,31 @@ function EconomicsGraph({
     view.yMax
   );
 
+  const customDiagram =
+    preset.diagram === "circular-flow"
+      ? <CircularFlowDiagram />
+      : preset.diagram === "mu-tu"
+        ? <MarginalUtilityDiagram controls={effectiveControls} />
+        : preset.diagram === "cost-system"
+          ? <CostSystemDiagram controls={effectiveControls} />
+          : preset.diagram === "production-system"
+            ? <ProductionSystemDiagram controls={effectiveControls} />
+            : null;
+
   const points = useMemo(() => {
-    const marked = new Set(["demand-supply", "money-demand", "forex", "income-equilibrium"]);
+    if (preset.id === "demand-supply") {
+      const q0 = dEqQForPoints();
+      const p0 = dEqPForPoints();
+      const q1 = dEqQForPoints(effectiveControls.dShift ?? 0, effectiveControls.sShift ?? 0);
+      const p1 = dEqPForPoints(effectiveControls.dShift ?? 0, effectiveControls.sShift ?? 0);
+      const changed = Math.abs(q1 - q0) > 0.05 || Math.abs(p1 - p0) > 0.05;
+      return changed
+        ? [{ x: q0, y: p0, label: "E₀" }, { x: q1, y: p1, label: "E₁" }]
+        : [{ x: q0, y: p0, label: "E" }];
+    }
+    const marked = new Set(["money-demand", "forex", "income-equilibrium"]);
     return marked.has(preset.id) ? intersections(curves.filter((c) => !c.dashed), view).slice(0, 1) : [];
-  }, [preset.id, curves, view.xMin, view.xMax, view.yMin, view.yMax]);
+  }, [preset.id, curves, effectiveControls, view.xMin, view.xMax, view.yMin, view.yMax]);
 
   const pathFor = (curve: Curve) => {
     const sampled = sampleCurve(curve, view);
@@ -1613,6 +1691,10 @@ function EconomicsGraph({
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
       <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {customDiagram ? (
+          customDiagram
+        ) : (
+          <>
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full touch-none select-none"
@@ -1832,7 +1914,7 @@ function EconomicsGraph({
                   setHover({
                     x: pt.x,
                     y: pt.y,
-                    label: "Intersection / equilibrium",
+                    label: pt.label ?? "Intersection / equilibrium",
                   })
                 }
                 onPointerLeave={() => setHover(null)}
@@ -1851,7 +1933,7 @@ function EconomicsGraph({
                     x: pt.x,
                     y: pt.y,
                     label:
-                      "Intersection / equilibrium",
+                      pt.label ?? "Intersection / equilibrium",
                   })
                 }
                 onPointerLeave={() =>
@@ -1910,6 +1992,8 @@ function EconomicsGraph({
         <div className="absolute bottom-3 left-3 rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] text-slate-500 shadow-sm">
           Drag to pan · scroll to zoom · hover curves and intersections
         </div>
+          </>
+        )}
       </div>
 
       <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1930,7 +2014,7 @@ function EconomicsGraph({
                   </span>
 
                   <span className="font-mono text-slate-900">
-                    {controlDisplayValue(control, controls[control.key])}
+                    {controlDisplayValue(control, effectiveControls[control.key])}
                   </span>
                 </div>
 
