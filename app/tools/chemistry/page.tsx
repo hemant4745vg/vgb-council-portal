@@ -24,6 +24,12 @@ type ToolId =
   | "electro"
   | "organic"
   | "stoich"
+  | "solutions"
+  | "limiting"
+  | "coordination"
+  | "chromatography"
+  | "biomolecules"
+  | "reactions"
   | "practical";
 
 type Element = {
@@ -201,6 +207,12 @@ const toolCards: { id: ToolId; icon: string; title: string; desc: string; tag: s
   { id: "electro", icon: "⚡", title: "Electrochemistry", desc: "Cell potential, Nernst equation and galvanic cells.", tag: "XII · U2" },
   { id: "organic", icon: "⌁", title: "Organic Explorer", desc: "Formula, functional groups, isomerism and IUPAC basics.", tag: "XI · U8/U9" },
   { id: "stoich", icon: "∑", title: "Stoichiometry", desc: "Use reaction ratios and limiting-reagent reasoning.", tag: "XI · U1" },
+  { id: "solutions", icon: "M", title: "Solutions", desc: "Molarity, molality, mole fraction, mass percent and dilution.", tag: "XII · U1" },
+  { id: "limiting", icon: "LR", title: "Limiting Reagent", desc: "Compare reactants, identify the limiting reagent and theoretical yield.", tag: "XI · U1" },
+  { id: "coordination", icon: "◈", title: "Coordination Chemistry", desc: "Oxidation state, coordination number, charge and geometry.", tag: "XII · U5" },
+  { id: "chromatography", icon: "Rf", title: "Chromatography", desc: "Calculate Rf and compare conceptual separation results.", tag: "Practical" },
+  { id: "biomolecules", icon: "DNA", title: "Biomolecules", desc: "Navigate carbohydrates, proteins, nucleic acids and lipids.", tag: "XII · U10" },
+  { id: "reactions", icon: "→", title: "Organic Reaction Map", desc: "Trace common Class XI–XII functional-group transformations.", tag: "XI/XII · Organic" },
   { id: "practical", icon: "🧪", title: "Practical Lab", desc: "Interactive, conceptual versions of core practical skills.", tag: "Practical" },
 ];
 
@@ -229,16 +241,50 @@ const organicExamples = [
 ];
 
 function parseFormula(formula: string) {
-  const clean = formula.replace(/\s+/g, "");
-  const token = /([A-Z][a-z]?)(\d*)/g;
+  const clean = formula.replace(/\s+/g, "").replace(/[·•].*$/, "");
   const result: Record<string, number> = {};
-  let m: RegExpExecArray | null;
-  while ((m = token.exec(clean))) {
-    const symbol = m[1];
-    if (!atomicMasses[symbol]) continue;
-    result[symbol] = (result[symbol] || 0) + Number(m[2] || 1);
-  }
-  return result;
+  let index = 0;
+
+  const merge = (target: Record<string, number>, source: Record<string, number>, multiplier: number) => {
+    Object.entries(source).forEach(([symbol, count]) => {
+      target[symbol] = (target[symbol] || 0) + count * multiplier;
+    });
+  };
+
+  const readNumber = () => {
+    const start = index;
+    while (index < clean.length && /[0-9]/.test(clean[index])) index++;
+    return start === index ? 1 : Number(clean.slice(start, index));
+  };
+
+  const parseGroup = (untilClose = false): Record<string, number> => {
+    const group: Record<string, number> = {};
+    while (index < clean.length) {
+      if (clean[index] === ")") {
+        if (untilClose) index++;
+        break;
+      }
+      if (clean[index] === "(") {
+        index++;
+        const nested = parseGroup(true);
+        const multiplier = readNumber();
+        merge(group, nested, multiplier);
+        continue;
+      }
+      const match = clean.slice(index).match(/^([A-Z][a-z]?)/);
+      if (!match) {
+        index++;
+        continue;
+      }
+      const symbol = match[1];
+      index += symbol.length;
+      const multiplier = readNumber();
+      merge(group, { [symbol]: 1 }, multiplier);
+    }
+    return group;
+  };
+
+  return parseGroup();
 }
 
 function molarMass(formula: string) {
@@ -250,38 +296,64 @@ function subscriptFormula(formula: string) {
   return formula.replace(/(\d+)/g, (_, n) => String(n).split("").map((d) => "₀₁₂₃₄₅₆₇₈₉"[Number(d)]).join(""));
 }
 
+function gcdInt(a: number, b: number): number {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) [a, b] = [b, a % b];
+  return a || 1;
+}
+function lcmInt(a: number, b: number) {
+  return Math.abs(a * b) / gcdInt(a, b);
+}
 function balanceEquation(input: string) {
   const [leftRaw, rightRaw] = input.split(/→|->|=/).map((x) => x.trim());
   if (!leftRaw || !rightRaw) return { text: input, coefficients: [], ok: false, message: "Use the form reactants → products." };
   const left = leftRaw.split("+").map((x) => x.trim()).filter(Boolean);
   const right = rightRaw.split("+").map((x) => x.trim()).filter(Boolean);
   const formulas = [...left, ...right];
+  const counts = formulas.map(parseFormula);
   const elementsSet = Array.from(new Set(formulas.flatMap((f) => Object.keys(parseFormula(f)))));
-  const counts = formulas.map((f) => parseFormula(f));
+  if (!elementsSet.length || formulas.some((f) => !Object.keys(parseFormula(f)).length)) {
+    return { text: input, coefficients: [], ok: false, message: "Check the molecular formulae and element symbols." };
+  }
+
+  // Search integer coefficients with one coefficient fixed to 1.
+  // Every valid positive solution can be normalized to a primitive integer vector.
   const n = formulas.length;
-  const max = 10;
-  const search = (idx: number, coeffs: number[]): number[] | null => {
-    if (idx === n) {
-      if (coeffs.every((c) => c === 1)) return null;
-      for (const el of elementsSet) {
-        const total = coeffs.reduce((s, c, i) => s + c * (i < left.length ? 1 : -1) * (counts[i][el] || 0), 0);
-        if (total !== 0) return null;
+  const max = 12;
+  const tryFixed = (fixedIndex: number) => {
+    const recurse = (idx: number, coeffs: number[]): number[] | null => {
+      if (idx === n) {
+        for (const el of elementsSet) {
+          const total = coeffs.reduce((sum, c, i) =>
+            sum + c * (i < left.length ? 1 : -1) * (counts[i][el] || 0), 0);
+          if (total !== 0) return null;
+        }
+        return coeffs;
       }
-      return coeffs;
-    }
-    for (let c = 1; c <= max; c++) {
-      const found = search(idx + 1, [...coeffs, c]);
-      if (found) return found;
-    }
-    return null;
+      if (idx === fixedIndex) return recurse(idx + 1, [...coeffs, 1]);
+      for (let c = 1; c <= max; c++) {
+        const found = recurse(idx + 1, [...coeffs, c]);
+        if (found) return found;
+      }
+      return null;
+    };
+    return recurse(0, []);
   };
-  const found = search(0, []);
-  if (!found) return { text: input, coefficients: [], ok: false, message: "No small-integer balance found. Try a simpler molecular equation." };
-  const gcd = (a: number, b: number): number => b ? gcd(b, a % b) : a;
-  const g = found.reduce(gcd);
+
+  let found: number[] | null = null;
+  for (let fixed = 0; fixed < n && !found; fixed++) found = tryFixed(fixed);
+  if (!found) return { text: input, coefficients: [], ok: false, message: "No small-integer balance found. Try checking the formulae." };
+
+  const g = found.reduce(gcdInt);
   const normalized = found.map((x) => x / g);
-  const formatSide = (arr: string[], offset: number) => arr.map((f, i) => `${normalized[offset + i] === 1 ? "" : normalized[offset + i] + " "}${subscriptFormula(f)}`).join(" + ");
-  return { text: `${formatSide(left, 0)} → ${formatSide(right, left.length)}`, coefficients: normalized, ok: true, message: "Atoms are conserved on both sides." };
+  const formatSide = (arr: string[], offset: number) =>
+    arr.map((f, i) => `${normalized[offset + i] === 1 ? "" : normalized[offset + i] + " "}${subscriptFormula(f)}`).join(" + ");
+  return {
+    text: `${formatSide(left, 0)} → ${formatSide(right, left.length)}`,
+    coefficients: normalized,
+    ok: true,
+    message: "Atoms are conserved on both sides."
+  };
 }
 
 function ToolShell({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
@@ -294,7 +366,7 @@ function PeriodicTable() {
   const visible = elements.filter((e) => filter === "all" || e.category === filter || e.block === filter);
   return <ToolShell title="Periodic Table Explorer" eyebrow="XI · UNIT 3">
     <div className="controls"><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All elements</option><option value="s">s-block</option><option value="p">p-block</option><option value="d">d-block</option><option value="f">f-block</option><option value="noble">Noble gases</option><option value="halogen">Halogens</option><option value="transition">Transition metals</option></select><div className="hint">Click an element to inspect it.</div></div>
-    <div className="periodic-grid">{visible.map((e) => <button key={e.z} className={`element ${selected.z === e.z ? "selected" : ""} cat-${e.category}`} onClick={() => setSelected(e)}><small>{e.z}</small><strong>{e.symbol}</strong><span>{e.name}</span></button>)}</div>
+    <div className="periodic-grid">{visible.map((e) => <button key={e.z} style={{gridColumn:e.group,gridRow:e.block==="f"?(e.period===6?8:9):e.period}} className={`element ${selected.z === e.z ? "selected" : ""} cat-${e.category}`} onClick={() => setSelected(e)}><small>{e.z}</small><strong>{e.symbol}</strong><span>{e.name}</span></button>)}</div>
     <div className="element-detail"><div className="big-symbol">{selected.symbol}</div><div><h3>{selected.name}</h3><p>Atomic number {selected.z} · Relative atomic mass {selected.mass}</p><p>Group {selected.group} · Period {selected.period} · {selected.block}-block</p><code>{selected.config}</code></div><div className="property-list"><span>Category <b>{selected.category}</b></span><span>Valence pattern <b>{selected.config.split(" ").slice(-1)[0]}</b></span></div></div>
   </ToolShell>;
 }
@@ -388,6 +460,164 @@ function Stoichiometry() {
   return <ToolShell title="Stoichiometry Solver" eyebrow="XI · UNIT 1"><div className="reaction-banner">2H₂ + O₂ → 2H₂O</div><div className="input-grid"><label>Given mass (g)<input value={given} onChange={e=>setGiven(e.target.value)}/></label><label>Given molar mass<input value={mm} onChange={e=>setMm(e.target.value)}/></label><label>Product ratio<input value={ratio} onChange={e=>setRatio(e.target.value)}/></label><label>Product molar mass<input value={productMm} onChange={e=>setProductMm(e.target.value)}/></label></div><div className="result-box success"><span>Calculated product mass</span><strong>{productMass.toFixed(3)} g</strong><p>{moles.toFixed(4)} mol given → {productMoles.toFixed(4)} mol product using the entered stoichiometric ratio.</p></div></ToolShell>;
 }
 
+
+function SolutionsLab() {
+  const [moles, setMoles] = useState("0.50");
+  const [volume, setVolume] = useState("2.00");
+  const [mass, setMass] = useState("10");
+  const [soluteMass, setSoluteMass] = useState("5");
+  const [solventMass, setSolventMass] = useState("95");
+  const [v1, setV1] = useState("25");
+  const [c1, setC1] = useState("2");
+  const [v2, setV2] = useState("100");
+  const molarity = Number(volume) > 0 ? Number(moles) / Number(volume) : 0;
+  const massPercent = Number(solventMass) + Number(soluteMass) > 0 ? 100 * Number(soluteMass) / (Number(soluteMass) + Number(solventMass)) : 0;
+  const dilution = Number(v2) > 0 ? Number(c1) * Number(v1) / Number(v2) : 0;
+  const molality = Number(solventMass) > 0 ? Number(moles) / (Number(solventMass) / 1000) : 0;
+  return <ToolShell title="Solutions & Concentration" eyebrow="XII · UNIT 1">
+    <div className="input-grid">
+      <Field label="Moles of solute (mol)" value={moles} onChange={setMoles} />
+      <Field label="Solution volume (L)" value={volume} onChange={setVolume} />
+      <Field label="Solute mass (g)" value={soluteMass} onChange={setSoluteMass} />
+      <Field label="Solvent mass (g)" value={solventMass} onChange={setSolventMass} />
+      <Field label="C₁ (mol L⁻¹)" value={c1} onChange={setC1} />
+      <Field label="V₁ (mL)" value={v1} onChange={setV1} />
+      <Field label="V₂ (mL)" value={v2} onChange={setV2} />
+    </div>
+    <div className="metric-grid">
+      <Metric label="Molarity" value={`${molarity.toFixed(3)} mol L⁻¹`} />
+      <Metric label="Molality" value={`${molality.toFixed(3)} mol kg⁻¹`} />
+      <Metric label="Mass %" value={`${massPercent.toFixed(2)} %`} />
+      <Metric label="C₂ after dilution" value={`${dilution.toFixed(3)} mol L⁻¹`} />
+    </div>
+    <FormulaStrip text="M = n/V  ·  m = n/kg solvent  ·  mass % = mass solute / mass solution × 100  ·  C₁V₁ = C₂V₂" />
+  </ToolShell>;
+}
+
+function LimitingReagent() {
+  const [a, setA] = useState("H₂");
+  const [b, setB] = useState("O₂");
+  const [ca, setCA] = useState("2");
+  const [cb, setCB] = useState("1");
+  const [cp, setCP] = useState("2");
+  const [aM, setAM] = useState("2.016");
+  const [bM, setBM] = useState("32.00");
+  const [aMass, setAMass] = useState("4.032");
+  const [bMass, setBMass] = useState("32");
+  const [productM, setProductM] = useState("18.015");
+  const coeffA = Math.max(0, Number(ca));
+  const coeffB = Math.max(0, Number(cb));
+  const coeffP = Math.max(0, Number(cp));
+  const na = Number(aMass) / Number(aM);
+  const nb = Number(bMass) / Number(bM);
+  const extentA = coeffA > 0 ? na / coeffA : 0;
+  const extentB = coeffB > 0 ? nb / coeffB : 0;
+  const limiting = extentA <= extentB ? a : b;
+  const extent = Math.min(extentA, extentB);
+  const productMoles = extent * coeffP;
+  const productMass = productMoles * Number(productM || 0);
+  return <ToolShell title="Limiting Reagent" eyebrow="XI · UNIT 1">
+    <div className="reaction-banner"><span>{ca || "?"}{subscriptFormula(a)} + {cb || "?"}{subscriptFormula(b)} → {cp || "?"} Product</span><small>Compare n/coefficient for each reactant. The smaller reaction extent determines the limiting reagent.</small></div>
+    <div className="input-grid">
+      <Field label="Reactant A formula" value={a} onChange={setA} type="text" />
+      <Field label="Reactant B formula" value={b} onChange={setB} type="text" />
+      <Field label="A coefficient" value={ca} onChange={setCA} />
+      <Field label="B coefficient" value={cb} onChange={setCB} />
+      <Field label="Product coefficient" value={cp} onChange={setCP} />
+      <Field label="A molar mass (g mol⁻¹)" value={aM} onChange={setAM} />
+      <Field label="B molar mass (g mol⁻¹)" value={bM} onChange={setBM} />
+      <Field label="A available mass (g)" value={aMass} onChange={setAMass} />
+      <Field label="B available mass (g)" value={bMass} onChange={setBMass} />
+      <Field label="Product molar mass (g mol⁻¹)" value={productM} onChange={setProductM} />
+    </div>
+    <div className="metric-grid">
+      <Metric label="n(A)/coefficient" value={extentA.toFixed(4)} />
+      <Metric label="n(B)/coefficient" value={extentB.toFixed(4)} />
+      <Metric label="Limiting reagent" value={subscriptFormula(limiting)} />
+      <Metric label="Theoretical product" value={`${productMass.toFixed(3)} g`} />
+    </div>
+  </ToolShell>;
+}
+
+function CoordinationLab() {
+  const examples = [
+    ["[Co(NH3)6]Cl3", "Co", "+3", "6", "Octahedral", "ammine complex"],
+    ["[Cu(NH3)4]SO4", "Cu", "+2", "4", "Square planar", "tetraammine complex"],
+    ["K4[Fe(CN)6]", "Fe", "+2", "6", "Octahedral", "hexacyanidoferrate(II)"],
+    ["[Ag(NH3)2]Cl", "Ag", "+1", "2", "Linear", "diamminesilver(I)"],
+  ];
+  const [selected, setSelected] = useState(0);
+  const x = examples[selected];
+  return <ToolShell title="Coordination Chemistry Explorer" eyebrow="XII · UNIT 5">
+    <div className="example-tabs">{examples.map((e, i) => <button key={e[0]} className={i === selected ? "active" : ""} onClick={() => setSelected(i)}>{e[0]}</button>)}</div>
+    <div className="coord-card">
+      <div className="coord-core"><span>{x[1]}</span><small>metal centre</small></div>
+      <div><span className="eyebrow">COORDINATION ANALYSIS</span><h3>{x[0]}</h3>
+        <div className="metric-grid compact">
+          <Metric label="Oxidation state" value={x[2]} /><Metric label="Coordination number" value={x[3]} />
+          <Metric label="Geometry" value={x[4]} /><Metric label="Class" value={x[5]} />
+        </div>
+      </div>
+    </div>
+    <FormulaStrip text="Oxidation state: total complex charge = metal OS + ligand charges. Coordination number counts donor atoms directly attached to the central metal." />
+  </ToolShell>;
+}
+
+function ChromatographyLab() {
+  const [distance, setDistance] = useState("4.2");
+  const [solvent, setSolvent] = useState("7.0");
+  const rf = Number(solvent) > 0 ? Number(distance) / Number(solvent) : 0;
+  return <ToolShell title="Chromatography" eyebrow="PRACTICAL · SEPARATION">
+    <div className="input-grid">
+      <Field label="Distance travelled by solute (cm)" value={distance} onChange={setDistance} />
+      <Field label="Distance travelled by solvent front (cm)" value={solvent} onChange={setSolvent} />
+    </div>
+    <div className="rf-visual"><div className="chrom-strip"><span className="baseline"/><i style={{bottom:`${Math.min(88,rf*88)}%`}}/><b>solvent front</b></div><div><span className="eyebrow">RETENTION FACTOR</span><strong>Rf = {rf.toFixed(3)}</strong><p>Rf = distance travelled by component ÷ distance travelled by solvent front. In a given setup, it is useful for comparison rather than as a universal identity.</p></div></div>
+  </ToolShell>;
+}
+
+function BiomoleculesLab() {
+  const cards = [
+    ["Carbohydrates", "Glucose, fructose, sucrose, starch and cellulose", "Energy, glycosidic linkages, reducing/non-reducing ideas"],
+    ["Proteins", "Amino acids linked by peptide bonds", "Primary → secondary → tertiary → quaternary structure"],
+    ["Nucleic acids", "DNA and RNA built from nucleotides", "Sugar + phosphate + nitrogenous base"],
+    ["Lipids", "Triglycerides, phospholipids and related molecules", "Hydrophobic character and biological membranes"],
+  ];
+  const [active, setActive] = useState(0);
+  return <ToolShell title="Biomolecules Reference" eyebrow="XII · UNIT 10">
+    <div className="bio-grid">{cards.map((c, i) => <button key={c[0]} className={i === active ? "active" : ""} onClick={() => setActive(i)}><span>{c[0]}</span><small>{c[1]}</small></button>)}</div>
+    <div className="bio-detail"><span className="eyebrow">CONCEPT MAP</span><h3>{cards[active][0]}</h3><p>{cards[active][1]}</p><strong>{cards[active][2]}</strong></div>
+  </ToolShell>;
+}
+
+function OrganicReactionMap() {
+  const reactions = [
+    ["Alkene", "C=C", "→", "Alcohol", "hydration / addition"],
+    ["Alcohol", "R–OH", "→", "Aldehyde / Ketone", "controlled oxidation"],
+    ["Aldehyde", "R–CHO", "→", "Carboxylic acid", "oxidation"],
+    ["Carboxylic acid", "R–COOH", "⇌", "Ester", "esterification"],
+    ["Haloalkane", "R–X", "→", "Alcohol", "nucleophilic substitution"],
+    ["Alcohol", "R–OH", "→", "Alkene", "dehydration"],
+    ["Nitro compound", "R–NO₂", "→", "Amine", "reduction"],
+  ];
+  const [active, setActive] = useState(0);
+  const r = reactions[active];
+  return <ToolShell title="Organic Reaction Map" eyebrow="XI/XII · ORGANIC CHEMISTRY">
+    <div className="reaction-map">{reactions.map((x, i) => <button key={i} className={i === active ? "active" : ""} onClick={() => setActive(i)}><b>{x[0]}</b><span>{x[1]} {x[2]} {x[3]}</span><small>{x[4]}</small></button>)}</div>
+    <div className="reaction-focus"><div><span>{r[0]}</span><strong>{r[1]}</strong></div><em>{r[2]}</em><div><span>{r[3]}</span><strong>{r[4]}</strong></div></div>
+  </ToolShell>;
+}
+
+function Field({ label, value, onChange, type = "number" }: { label: string; value: string; onChange: (value: string) => void; type?: "number" | "text" }) {
+  return <label className="field"><span>{label}</span><input type={type} step={type === "number" ? "any" : undefined} value={value} onChange={(e) => onChange(e.target.value)} /></label>;
+}
+function Metric({ label, value }: { label: string; value: string }) {
+  return <div className="metric"><span>{label}</span><strong>{value}</strong></div>;
+}
+function FormulaStrip({ text }: { text: string }) {
+  return <div className="formula-strip">{text}</div>;
+}
+
 function PracticalLab() {
   const [active,setActive]=useState(0); const item=practicals[active];
   return <ToolShell title="Practical Chemistry Lab" eyebrow="CBSE PRACTICAL · XI–XII"><div className="practical-grid">{practicals.map((p,i)=><button key={p[0]} className={active===i?"active":""} onClick={()=>setActive(i)}><span>{p[0]}</span><small>{p[2]}</small></button>)}</div><div className="practical-detail"><span className="eyebrow">{item[2]}</span><h3>{item[0]}</h3><p>{item[1]}</p><div className="lab-stage"><div className="apparatus">◯</div><div className="apparatus-line"/><div className="apparatus">▱</div><div className="apparatus-line"/><div className="apparatus">△</div></div><p className="safety-note">Virtual learning aid only. Practical work involving chemicals, heat or laboratory apparatus must be carried out under qualified school supervision.</p></div></ToolShell>;
@@ -413,11 +643,18 @@ export default function ChemistryPage() {
   return <main className="chem-page"><style jsx global>{styles}</style>
     <section className="chem-hero"><div className="hero-grid"/><div className="hero-copy"><div className="subject-kicker">CHEMISTRY <span>SUBJECT CODE: 043</span></div><h1>Chemistry <em>Lab</em></h1><p>Explore matter from the macroscopic to the molecular and symbolic level.</p><div className="hero-actions"><button className="primary" onClick={()=>openTool("periodic")}>Open Lab</button><button onClick={()=>setTab("xi")}>Explore syllabus</button></div></div><div className="molecule-orbit"><span className="atom-core">C</span>{[0,1,2,3,4].map(i=><i key={i} style={{transform:`rotate(${i*72}deg) translateX(116px)`}} />)}</div></section>
     <nav className="chem-nav">{([["lab","Lab"],["xi","Class XI"],["xii","Class XII"],["practical","Practical Lab"],["calculators","Calculators"],["reference","Reference"]] as [TabId,string][]).map(([id,label])=><button className={tab===id?"active":""} key={id} onClick={()=>setTab(id)}>{label}</button>)}</nav>
-    {tab==="lab" && <><section className="tool-index"><div className="section-title"><div><span className="eyebrow">INTERACTIVE TOOLS</span><h2>Core Chemistry Lab</h2></div><p>Built around CBSE 043, Classes XI–XII, 2026–27.</p></div><div className="tool-card-grid">{toolCards.map(t=><button key={t.id} className={`tool-card ${tool===t.id?"chosen":""}`} onClick={()=>openTool(t.id)}><span className="tool-icon">{t.icon}</span><span className="tool-tag">{t.tag}</span><h3>{t.title}</h3><p>{t.desc}</p><span className="launch">Explore →</span></button>)}</div></section><section id="tool-workbench" className="workbench"><div className="workbench-head"><div><span className="eyebrow">WORKBENCH</span><h2>{toolCards.find(x=>x.id===tool)?.title}</h2></div><div className="workbench-tabs">{toolCards.slice(0,8).map(t=><button className={tool===t.id?"active":""} key={t.id} onClick={()=>setTool(t.id)}>{t.title}</button>)}</div></div>{tool==="periodic"&&<PeriodicTable/>}{tool==="balance"&&<EquationBalancer/>}{tool==="moles"&&<MoleCalculator/>}{tool==="atomic"&&<AtomicStructure/>}{tool==="bonding"&&<Bonding/>}{tool==="ph"&&<PHLab/>}{tool==="redox"&&<Redox/>}{tool==="thermo"&&<Thermo/>}{tool==="equilibrium"&&<Equilibrium/>}{tool==="kinetics"&&<Kinetics/>}{tool==="electro"&&<Electrochemistry/>}{tool==="organic"&&<OrganicExplorer/>}{tool==="stoich"&&<Stoichiometry/>}{tool==="practical"&&<PracticalLab/>}</section></>}
+    {tab==="lab" && <><section className="tool-index"><div className="section-title"><div><span className="eyebrow">INTERACTIVE TOOLS</span><h2>Core Chemistry Lab</h2></div><p>Built around CBSE 043, Classes XI–XII, 2026–27.</p></div><div className="tool-card-grid">{toolCards.map(t=><button key={t.id} className={`tool-card ${tool===t.id?"chosen":""}`} onClick={()=>openTool(t.id)}><span className="tool-icon">{t.icon}</span><span className="tool-tag">{t.tag}</span><h3>{t.title}</h3><p>{t.desc}</p><span className="launch">Explore →</span></button>)}</div></section><section id="tool-workbench" className="workbench"><div className="workbench-head"><div><span className="eyebrow">WORKBENCH</span><h2>{toolCards.find(x=>x.id===tool)?.title}</h2></div><div className="workbench-tabs">{toolCards.slice(0,8).map(t=><button className={tool===t.id?"active":""} key={t.id} onClick={()=>setTool(t.id)}>{t.title}</button>)}</div></div>{tool==="periodic"&&<PeriodicTable/>}{tool==="balance"&&<EquationBalancer/>}{tool==="moles"&&<MoleCalculator/>}{tool==="atomic"&&<AtomicStructure/>}{tool==="bonding"&&<Bonding/>}{tool==="ph"&&<PHLab/>}{tool==="redox"&&<Redox/>}{tool==="thermo"&&<Thermo/>}{tool==="equilibrium"&&<Equilibrium/>}{tool==="kinetics"&&<Kinetics/>}{tool==="electro"&&<Electrochemistry/>}{tool==="organic"&&<OrganicExplorer/>}{tool==="stoich"&&<Stoichiometry/>}{tool==="solutions"&&<SolutionsLab/>}{tool==="limiting"&&<LimitingReagent/>}{tool==="coordination"&&<CoordinationLab/>}{tool==="chromatography"&&<ChromatographyLab/>}{tool==="biomolecules"&&<BiomoleculesLab/>}{tool==="reactions"&&<OrganicReactionMap/>}{tool==="practical"&&<PracticalLab/>}</section></>}
     {tab==="xi"&&<><UnitSection title="Class XI · Theory" units={xiUnits} tab="xi"/><section className="coverage"><h2>XI tools mapped to the syllabus</h2><div className="coverage-grid">{["Mole & Stoichiometry","Atomic Structure","Periodic Table","Bonding & VSEPR","Thermodynamics","Equilibrium","Redox","Organic Explorer"].map(x=><button key={x} onClick={()=>openTool(({"Mole & Stoichiometry":"moles","Atomic Structure":"atomic","Periodic Table":"periodic","Bonding & VSEPR":"bonding","Thermodynamics":"thermo","Equilibrium":"equilibrium","Redox":"redox","Organic Explorer":"organic"}[x] as ToolId))}>{x} →</button>)}</div></section></>}
-    {tab==="xii"&&<><UnitSection title="Class XII · Theory" units={xiiUnits} tab="xii"/><section className="coverage"><h2>XII tools mapped to the syllabus</h2><div className="coverage-grid">{["Solutions & concentration","Electrochemistry","Chemical Kinetics","Coordination chemistry","Organic functional groups","Biomolecules"].map(x=><div key={x}>{x}<span>Tool integration ready</span></div>)}</div></section></>}
+    {tab==="xii"&&<><UnitSection title="Class XII · Theory" units={xiiUnits} tab="xii"/><section className="coverage"><h2>XII tools mapped to the syllabus</h2><div className="coverage-grid">{[
+["Solutions & concentration","solutions"],["Electrochemistry","electro"],["Chemical Kinetics","kinetics"],
+["Coordination chemistry","coordination"],["Organic functional groups","organic"],["Organic reactions","reactions"],
+["Biomolecules","biomolecules"],["Chromatography","chromatography"]
+].map(([x,id])=><button key={x} onClick={()=>openTool(id as ToolId)}>{x}<span>Open tool →</span></button>)}</div></section></>}
     {tab==="practical"&&<section className="practical-page"><div className="section-title"><div><span className="eyebrow">PRACTICAL SYLLABUS</span><h2>Virtual Practical Lab</h2></div><p>Conceptual simulations aligned with the listed CBSE practical areas.</p></div><PracticalLab/></section>}
-    {tab==="calculators"&&<section className="calculator-page"><div className="section-title"><div><span className="eyebrow">CALCULATORS</span><h2>Quantitative Chemistry</h2></div></div><div className="calculator-grid">{["Moles & molar mass","Stoichiometry","pH","Thermodynamics","Equilibrium","Electrochemistry","Kinetics"].map(x=><button key={x} onClick={()=>openTool(({"Moles & molar mass":"moles","Stoichiometry":"stoich","pH":"ph","Thermodynamics":"thermo","Equilibrium":"equilibrium","Electrochemistry":"electro","Kinetics":"kinetics"}[x] as ToolId))}><b>{x}</b><span>Open calculator →</span></button>)}</div></section>}
+    {tab==="calculators"&&<section className="calculator-page"><div className="section-title"><div><span className="eyebrow">CALCULATORS</span><h2>Quantitative Chemistry</h2></div></div><div className="calculator-grid">{[
+["Moles & molar mass","moles"],["Stoichiometry","stoich"],["Solutions","solutions"],["Limiting reagent","limiting"],
+["pH","ph"],["Thermodynamics","thermo"],["Equilibrium","equilibrium"],["Electrochemistry","electro"],["Kinetics","kinetics"],["Chromatography","chromatography"]
+].map(([x,id])=><button key={x} onClick={()=>openTool(id as ToolId)}><b>{x}</b><span>Open calculator →</span></button>)}</div></section>}
     {tab==="reference"&&<Reference/>}
     <footer className="chem-footer"><span>CHEMISTRY 043</span><span>CLASSES XI–XII · 2026–27</span><span>Learn · Model · Calculate · Predict</span></footer>
   </main>;
@@ -429,4 +666,16 @@ const styles = `
 @media(max-width:1000px){.tool-card-grid{grid-template-columns:repeat(3,1fr)}.periodic-grid{grid-template-columns:repeat(12,1fr);overflow:auto}.unit-grid{grid-template-columns:repeat(2,1fr)}.practical-grid{grid-template-columns:repeat(3,1fr)}.functional-grid{grid-template-columns:repeat(3,1fr)}.molecule-orbit{opacity:.35;right:-70px}.coverage-grid,.calculator-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:700px){.chem-hero{min-height:430px;padding:55px 22px}.chem-hero h1{font-size:62px}.molecule-orbit{display:none}.tool-index,.workbench,.units-section,.coverage,.practical-page,.calculator-page,.reference-section{padding-left:18px;padding-right:18px}.tool-card-grid{grid-template-columns:1fr 1fr}.section-title,.workbench-head{display:block}.workbench-tabs{margin-top:15px}.metric-grid{grid-template-columns:1fr 1fr}.split{display:block}.split>div+div{margin-top:16px}.element-detail{grid-template-columns:70px 1fr}.property-list{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}.input-grid,.sliders{grid-template-columns:1fr 1fr}.unit-grid,.practical-grid{grid-template-columns:1fr 1fr}.organic-card{grid-template-columns:1fr}.reference-grid{grid-template-columns:1fr}.chem-footer{display:block}.chem-footer span{display:block;margin:7px 0}}
 @media(max-width:480px){.tool-card-grid{grid-template-columns:1fr}.input-grid,.sliders,.metric-grid,.coverage-grid,.calculator-grid,.unit-grid,.practical-grid,.functional-grid{grid-template-columns:1fr}.cell-diagram{grid-template-columns:1fr;text-align:center}.cell-diagram div:last-child{text-align:center}.chem-nav{padding-left:10px}.chem-hero p{font-size:15px}}
+
+.periodic-grid{display:grid;grid-template-columns:repeat(18,minmax(48px,1fr));grid-template-rows:repeat(9,76px);gap:5px;overflow-x:auto;padding:4px;min-width:930px}
+.element{min-height:76px;padding:7px 4px;position:relative}.element small{position:absolute;top:5px;left:6px;font-size:8px}.element strong{display:block;font-size:20px;margin-top:7px}.element span{display:block;font-size:8px;color:var(--chem-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.element.selected{outline:2px solid var(--chem-accent);transform:translateY(-2px)}
+.example-tabs,.bio-grid,.reaction-map{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.example-tabs button,.bio-grid button,.reaction-map button{padding:13px;text-align:left}.example-tabs button.active,.bio-grid button.active,.reaction-map button.active{border-color:var(--chem-accent);background:rgba(88,231,182,.09)}
+.coord-card{display:grid;grid-template-columns:140px 1fr;gap:20px;align-items:center;padding:22px;border:1px solid var(--chem-line);border-radius:16px;background:rgba(255,255,255,.02)}.coord-core{height:120px;width:120px;border-radius:50%;display:grid;place-items:center;align-content:center;border:1px solid var(--chem-accent);background:radial-gradient(circle,rgba(88,231,182,.18),transparent 65%)}.coord-core span{font-size:32px;font-weight:900}.coord-core small{font-size:9px;color:var(--chem-muted)}
+.metric-grid.compact{margin-top:14px}.formula-strip,.reaction-banner{margin-top:16px;padding:14px;border:1px solid var(--chem-line);border-radius:12px;color:var(--chem-muted);font-size:11px;line-height:1.6}
+.rf-visual{display:grid;grid-template-columns:180px 1fr;gap:25px;align-items:center}.chrom-strip{height:220px;width:90px;margin:auto;border:1px solid var(--chem-line);border-radius:8px;position:relative;background:linear-gradient(to top,rgba(88,231,182,.05),rgba(255,255,255,.02))}.chrom-strip .baseline{position:absolute;left:0;right:0;bottom:0;border-top:2px solid var(--chem-accent)}.chrom-strip i{position:absolute;left:50%;width:15px;height:15px;border-radius:50%;background:var(--chem-accent);transform:translate(-50%,50%)}.chrom-strip b{position:absolute;top:-20px;left:0;font-size:8px;color:var(--chem-muted)}
+.rf-visual strong{display:block;font-size:38px;margin:8px 0}.rf-visual p{color:var(--chem-muted);line-height:1.6;font-size:12px}
+.bio-grid{grid-template-columns:repeat(4,1fr)}.bio-grid button span{display:block;font-weight:900}.bio-grid button small{display:block;color:var(--chem-muted);margin-top:8px;line-height:1.4}.bio-detail{margin-top:15px;padding:22px;border:1px solid var(--chem-line);border-radius:15px}.bio-detail h3{font-size:25px;margin:6px 0}.bio-detail p{color:var(--chem-muted);line-height:1.5}.bio-detail strong{font-size:13px}
+.reaction-map{grid-template-columns:repeat(2,1fr)}.reaction-map b,.reaction-map span,.reaction-map small{display:block}.reaction-map span{margin-top:7px;font-size:16px}.reaction-map small{color:var(--chem-muted);margin-top:7px}.reaction-focus{display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;gap:15px;margin-top:18px;padding:24px;border:1px solid var(--chem-line);border-radius:15px;text-align:center}.reaction-focus div{padding:20px;border-radius:12px;background:rgba(255,255,255,.025)}.reaction-focus span,.reaction-focus strong{display:block}.reaction-focus strong{font-size:22px;margin-top:7px}.reaction-focus em{font-size:30px;color:var(--chem-accent);font-style:normal}
+@media(max-width:700px){.example-tabs,.bio-grid{grid-template-columns:1fr 1fr}.coord-card{grid-template-columns:1fr}.rf-visual{grid-template-columns:1fr}.reaction-map{grid-template-columns:1fr}.reaction-focus{grid-template-columns:1fr}.reaction-focus em{transform:rotate(90deg)}}
+@media(max-width:480px){.example-tabs,.bio-grid{grid-template-columns:1fr}.coord-core{margin:auto}}
 `;
