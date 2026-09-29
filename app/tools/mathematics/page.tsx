@@ -828,11 +828,17 @@ function AlgebraLab() {
         </p>
 
         <div className="mt-6 space-y-4">
-          {[
-            ["a", a, setA],
-            ["b", b, setB],
-            ["c", c, setC],
-          ].map(([label, value, setter]) => (
+          {(
+            [
+              ["a", a, setA],
+              ["b", b, setB],
+              ["c", c, setC],
+            ] as [
+              string,
+              number,
+              React.Dispatch<React.SetStateAction<number>>
+            ][]
+          ).map(([label, value, setter]) => (
             <label
               key={String(label)}
               className="block"
@@ -981,12 +987,18 @@ function GeometryLab() {
         </p>
 
         <div className="mt-5 grid grid-cols-2 gap-3">
-          {[
-            ["x₁", x1, setX1],
-            ["y₁", y1, setY1],
-            ["x₂", x2, setX2],
-            ["y₂", y2, setY2],
-          ].map(([label, value, setter]) => (
+          {(
+            [
+              ["x₁", x1, setX1],
+              ["y₁", y1, setY1],
+              ["x₂", x2, setX2],
+              ["y₂", y2, setY2],
+            ] as [
+              string,
+              number,
+              React.Dispatch<React.SetStateAction<number>>
+            ][]
+          ).map(([label, value, setter]) => (
             <label
               key={String(label)}
               className="text-xs text-slate-500"
