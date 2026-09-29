@@ -16,6 +16,8 @@ const COLORS = [
   "#0891b2",
 ];
 
+const STORAGE_KEY = "vgb-calculator-workspace-v2";
+
 type Expr = {
   id: number;
   raw: string;
