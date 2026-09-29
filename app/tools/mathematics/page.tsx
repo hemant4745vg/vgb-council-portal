@@ -1,0 +1,2441 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import "katex/dist/katex.min.css";
+import katex from "katex";
+import { all, create, MathJsInstance } from "mathjs";
+
+const math: MathJsInstance = create(all, {});
+
+const COLORS = [
+  "#2563eb",
+  "#dc2626",
+  "#16a34a",
+  "#9333ea",
+  "#ea580c",
+  "#0891b2",
+];
+
+type Expr = {
+  id: number;
+  raw: string;
+  visible: boolean;
+  color: string;
+};
+
+type Viewport = {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+};
+
+type Section =
+  | "overview"
+  | "graph"
+  | "trig"
+  | "algebra"
+  | "geometry"
+  | "probability"
+  | "statistics"
+  | "practice"
+  | "reference";
+
+type ClassLevel = "XI" | "XII";
+
+function Latex({
+  value,
+  className = "",
+}: {
+  value: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+
+    try {
+      katex.render(value || "\\,", ref.current, {
+        throwOnError: false,
+        trust: false,
+      });
+    } catch {
+      ref.current.textContent = value;
+    }
+  }, [value]);
+
+  return <span ref={ref} className={className} />;
+}
+
+function toLatex(raw: string) {
+  if (!raw.trim()) return "";
+
+  try {
+    return math.parse(raw).toTex({
+      parenthesis: "keep",
+    });
+  } catch {
+    return raw.replaceAll("*", "\\cdot ");
+  }
+}
+
+function fmt(n: number) {
+  if (!Number.isFinite(n)) return "undefined";
+
+  if (Math.abs(n) < 1e-12) n = 0;
+
+  const rounded = Math.round(n);
+
+  if (Math.abs(n - rounded) < 1e-12) {
+    return String(rounded);
+  }
+
+  return Number(n.toPrecision(10)).toString();
+}
+
+function valueAt(raw: string, x: number) {
+  const source = raw
+    .trim()
+    .replace(/^y\s*=\s*/i, "");
+
+  if (!source) return NaN;
+
+  try {
+    const value = math.evaluate(source, {
+      x,
+    });
+
+    return typeof value === "number" &&
+      Number.isFinite(value)
+      ? value
+      : NaN;
+  } catch {
+    return NaN;
+  }
+}
+
+/* =========================================================
+   GRAPH ENGINE
+========================================================= */
+
+function Graph({
+  expressions,
+  viewport,
+  setViewport,
+}: {
+  expressions: Expr[];
+  viewport: Viewport;
+  setViewport: React.Dispatch<
+    React.SetStateAction<Viewport>
+  >;
+}) {
+  const [drag, setDrag] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const [hover, setHover] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const W = 900;
+  const H = 560;
+  const P = 48;
+
+  const mapX = (x: number) =>
+    P +
+    ((x - viewport.xMin) /
+      (viewport.xMax - viewport.xMin)) *
+      (W - 2 * P);
+
+  const mapY = (y: number) =>
+    H -
+    P -
+    ((y - viewport.yMin) /
+      (viewport.yMax - viewport.yMin)) *
+      (H - 2 * P);
+
+  const ticks = (min: number, max: number) => {
+    const rough = (max - min) / 10;
+
+    const power = Math.pow(
+      10,
+      Math.floor(
+        Math.log10(Math.max(rough, 1e-12))
+      )
+    );
+
+    const multiplier =
+      [1, 2, 5, 10].find(
+        (v) => rough <= v * power
+      ) ?? 10;
+
+    const step = multiplier * power;
+    const result: number[] = [];
+
+    for (
+      let v = Math.ceil(min / step) * step;
+      v <= max + step * 0.1;
+      v += step
+    ) {
+      result.push(Number(v.toFixed(10)));
+    }
+
+    return result;
+  };
+
+  const xTicks = ticks(
+    viewport.xMin,
+    viewport.xMax
+  );
+
+  const yTicks = ticks(
+    viewport.yMin,
+    viewport.yMax
+  );
+
+  function pathFor(expr: Expr) {
+    const pieces: string[] = [];
+    let drawing = false;
+
+    for (let i = 0; i <= 1200; i++) {
+      const x =
+        viewport.xMin +
+        (i / 1200) *
+          (viewport.xMax - viewport.xMin);
+
+      const y = valueAt(expr.raw, x);
+
+      if (!Number.isFinite(y)) {
+        drawing = false;
+        continue;
+      }
+
+      const sx = mapX(x);
+      const sy = mapY(y);
+
+      if (
+        sy < -1800 ||
+        sy > H + 1800
+      ) {
+        drawing = false;
+        continue;
+      }
+
+      if (!drawing) {
+        pieces.push(
+          `M ${sx.toFixed(2)} ${sy.toFixed(2)}`
+        );
+        drawing = true;
+      } else {
+        pieces.push(
+          `L ${sx.toFixed(2)} ${sy.toFixed(2)}`
+        );
+      }
+    }
+
+    return pieces.join(" ");
+  }
+
+  const zoom = (factor: number) => {
+    const cx =
+      (viewport.xMin + viewport.xMax) / 2;
+
+    const cy =
+      (viewport.yMin + viewport.yMax) / 2;
+
+    const hx =
+      ((viewport.xMax - viewport.xMin) *
+        factor) /
+      2;
+
+    const hy =
+      ((viewport.yMax - viewport.yMin) *
+        factor) /
+      2;
+
+    setViewport({
+      xMin: cx - hx,
+      xMax: cx + hx,
+      yMin: cy - hy,
+      yMax: cy + hy,
+    });
+  };
+
+  const hoverValue = useMemo(() => {
+    if (!hover) return null;
+
+    const graphX =
+      viewport.xMin +
+      ((hover.x - P) /
+        (W - 2 * P)) *
+        (viewport.xMax - viewport.xMin);
+
+    const graphY =
+      viewport.yMax -
+      ((hover.y - P) /
+        (H - 2 * P)) *
+        (viewport.yMax - viewport.yMin);
+
+    return {
+      x: graphX,
+      y: graphY,
+    };
+  }, [hover, viewport]);
+
+  return (
+    <div className="relative min-h-[470px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-full w-full touch-none select-none"
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(
+            e.pointerId
+          );
+
+          setDrag({
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }}
+        onPointerMove={(e) => {
+          const rect =
+            e.currentTarget.getBoundingClientRect();
+
+          const sx =
+            W / rect.width;
+
+          const sy =
+            H / rect.height;
+
+          setHover({
+            x:
+              (e.clientX - rect.left) * sx,
+            y:
+              (e.clientY - rect.top) * sy,
+          });
+
+          if (!drag) return;
+
+          const dx =
+            e.clientX - drag.x;
+
+          const dy =
+            e.clientY - drag.y;
+
+          const xScale =
+            (viewport.xMax -
+              viewport.xMin) /
+            (W - 2 * P);
+
+          const yScale =
+            (viewport.yMax -
+              viewport.yMin) /
+            (H - 2 * P);
+
+          setViewport((v) => ({
+            xMin: v.xMin - dx * xScale,
+            xMax: v.xMax - dx * xScale,
+            yMin: v.yMin + dy * yScale,
+            yMax: v.yMax + dy * yScale,
+          }));
+
+          setDrag({
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }}
+        onPointerLeave={() => {
+          setDrag(null);
+          setHover(null);
+        }}
+        onPointerUp={() => setDrag(null)}
+        onPointerCancel={() => setDrag(null)}
+        onWheel={(e) => {
+          e.preventDefault();
+          zoom(
+            e.deltaY > 0
+              ? 1.12
+              : 0.89
+          );
+        }}
+      >
+        <rect
+          width={W}
+          height={H}
+          fill="white"
+        />
+
+        {xTicks.map((x) => (
+          <g key={`x-${x}`}>
+            <line
+              x1={mapX(x)}
+              x2={mapX(x)}
+              y1={P}
+              y2={H - P}
+              stroke="#e2e8f0"
+            />
+
+            {Math.abs(x) > 1e-12 && (
+              <text
+                x={mapX(x)}
+                y={H - 18}
+                textAnchor="middle"
+                fontSize="11"
+                fill="#64748b"
+              >
+                {fmt(x)}
+              </text>
+            )}
+          </g>
+        ))}
+
+        {yTicks.map((y) => (
+          <g key={`y-${y}`}>
+            <line
+              x1={P}
+              x2={W - P}
+              y1={mapY(y)}
+              y2={mapY(y)}
+              stroke="#e2e8f0"
+            />
+
+            {Math.abs(y) > 1e-12 && (
+              <text
+                x={26}
+                y={mapY(y) + 4}
+                textAnchor="middle"
+                fontSize="11"
+                fill="#64748b"
+              >
+                {fmt(y)}
+              </text>
+            )}
+          </g>
+        ))}
+
+        {viewport.xMin <= 0 &&
+          viewport.xMax >= 0 && (
+            <line
+              x1={mapX(0)}
+              x2={mapX(0)}
+              y1={P}
+              y2={H - P}
+              stroke="#334155"
+              strokeWidth="1.7"
+            />
+          )}
+
+        {viewport.yMin <= 0 &&
+          viewport.yMax >= 0 && (
+            <line
+              x1={P}
+              x2={W - P}
+              y1={mapY(0)}
+              y2={mapY(0)}
+              stroke="#334155"
+              strokeWidth="1.7"
+            />
+          )}
+
+        <text
+          x={W - 22}
+          y={
+            viewport.yMin <= 0 &&
+            viewport.yMax >= 0
+              ? mapY(0) - 9
+              : H - P + 4
+          }
+          fontSize="12"
+          fontWeight="700"
+          fill="#334155"
+        >
+          x
+        </text>
+
+        <text
+          x={
+            viewport.xMin <= 0 &&
+            viewport.xMax >= 0
+              ? mapX(0) + 8
+              : P - 10
+          }
+          y={P + 10}
+          fontSize="12"
+          fontWeight="700"
+          fill="#334155"
+        >
+          y
+        </text>
+
+        {expressions
+          .filter(
+            (e) =>
+              e.visible &&
+              e.raw.trim()
+          )
+          .map((e) => (
+            <path
+              key={e.id}
+              d={pathFor(e)}
+              fill="none"
+              stroke={e.color}
+              strokeWidth="2.8"
+              strokeLinecap="round"
+            />
+          ))}
+
+        {hoverValue && (
+          <g>
+            <line
+              x1={hoverValue.x}
+              x2={hoverValue.x}
+              y1={P}
+              y2={H - P}
+              stroke="#94a3b8"
+              strokeDasharray="4 4"
+            />
+
+            <line
+              x1={P}
+              x2={W - P}
+              y1={hoverValue.y}
+              y2={hoverValue.y}
+              stroke="#94a3b8"
+              strokeDasharray="4 4"
+            />
+
+            <circle
+              cx={hoverValue.x}
+              cy={hoverValue.y}
+              r="4"
+              fill="#0f172a"
+            />
+          </g>
+        )}
+      </svg>
+
+      <div className="absolute right-3 top-3 flex gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => zoom(0.8)}
+          className="h-9 w-9 rounded-lg text-lg hover:bg-slate-100"
+        >
+          +
+        </button>
+
+        <button
+          type="button"
+          onClick={() => zoom(1.25)}
+          className="h-9 w-9 rounded-lg text-lg hover:bg-slate-100"
+        >
+          −
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setViewport({
+              xMin: -10,
+              xMax: 10,
+              yMin: -10,
+              yMax: 10,
+            })
+          }
+          className="rounded-lg px-2 text-xs font-semibold hover:bg-slate-100"
+        >
+          Reset
+        </button>
+      </div>
+
+      {hoverValue && (
+        <div className="pointer-events-none absolute bottom-3 right-3 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-sm">
+          <div className="font-semibold">
+            Coordinates
+          </div>
+
+          <div className="mt-1 font-mono text-slate-600">
+            ({fmt(hoverValue.x)},{" "}
+            {fmt(hoverValue.y)})
+          </div>
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] text-slate-500 shadow-sm">
+        Drag to pan · scroll to zoom · hover for coordinates
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   UNIT CIRCLE
+========================================================= */
+
+function TrigonometryLab() {
+  const [angle, setAngle] =
+    useState(45);
+
+  const radians =
+    (angle * Math.PI) / 180;
+
+  const x = Math.cos(radians);
+  const y = Math.sin(radians);
+
+  const size = 400;
+  const center = size / 2;
+  const radius = 135;
+
+  const px =
+    center + radius * x;
+
+  const py =
+    center - radius * y;
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="mb-4">
+          <h2 className="text-xl font-semibold">
+            Unit Circle Explorer
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Drag the angle slider and watch
+            the trigonometric values change.
+          </p>
+        </div>
+
+        <div className="flex justify-center overflow-auto">
+          <svg
+            viewBox={`0 0 ${size} ${size}`}
+            className="w-full max-w-[440px]"
+          >
+            <circle
+              cx={center}
+              cy={center}
+              r={radius}
+              fill="none"
+              stroke="#cbd5e1"
+              strokeWidth="2"
+            />
+
+            <line
+              x1={45}
+              x2={355}
+              y1={center}
+              y2={center}
+              stroke="#64748b"
+            />
+
+            <line
+              x1={center}
+              x2={center}
+              y1={45}
+              y2={355}
+              stroke="#64748b"
+            />
+
+            <line
+              x1={center}
+              x2={px}
+              y1={center}
+              y2={py}
+              stroke="#2563eb"
+              strokeWidth="3"
+            />
+
+            <line
+              x1={px}
+              x2={px}
+              y1={center}
+              y2={py}
+              stroke="#16a34a"
+              strokeDasharray="5 5"
+            />
+
+            <circle
+              cx={px}
+              cy={py}
+              r={7}
+              fill="#2563eb"
+            />
+
+            <text
+              x={center + 145}
+              y={center - 8}
+              fontSize="13"
+              fill="#334155"
+            >
+              x
+            </text>
+
+            <text
+              x={center + 8}
+              y={55}
+              fontSize="13"
+              fill="#334155"
+            >
+              y
+            </text>
+
+            <text
+              x={center + 10}
+              y={center - 12}
+              fontSize="12"
+              fill="#64748b"
+            >
+              θ
+            </text>
+
+            <text
+              x={px + 10}
+              y={py - 10}
+              fontSize="12"
+              fontWeight="700"
+              fill="#2563eb"
+            >
+              ({fmt(x)}, {fmt(y)})
+            </text>
+          </svg>
+        </div>
+
+        <div className="mt-5">
+          <input
+            type="range"
+            min="-360"
+            max="360"
+            step="1"
+            value={angle}
+            onChange={(e) =>
+              setAngle(
+                Number(e.target.value)
+              )
+            }
+            className="w-full"
+          />
+
+          <div className="mt-2 flex justify-between text-xs text-slate-400">
+            <span>-360°</span>
+            <span>0°</span>
+            <span>360°</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="text-xs font-bold uppercase tracking-[.16em] text-slate-500">
+          Current angle
+        </div>
+
+        <div className="mt-2 text-3xl font-semibold">
+          {angle}°
+        </div>
+
+        <div className="mt-1 text-sm text-slate-500">
+          {fmt(radians)} radians
+        </div>
+
+        <div className="mt-6 grid gap-2">
+          {[
+            ["sin θ", y],
+            ["cos θ", x],
+            ["tan θ", Math.tan(radians)],
+          ].map(([name, value]) => (
+            <div
+              key={String(name)}
+              className="rounded-xl bg-slate-50 p-4"
+            >
+              <div className="text-sm text-slate-500">
+                {name}
+              </div>
+
+              <div className="mt-1 font-mono text-xl font-semibold">
+                {fmt(Number(value))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 rounded-xl border border-slate-200 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Identity
+          </div>
+
+          <div className="mt-3">
+            <Latex
+              value={`\\sin^2\\theta+\\cos^2\\theta=1`}
+            />
+          </div>
+
+          <div className="mt-2 text-sm text-slate-500">
+            Current value:{" "}
+            {fmt(
+              x * x + y * y
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* =========================================================
+   ALGEBRA LAB
+========================================================= */
+
+function AlgebraLab() {
+  const [a, setA] = useState(1);
+  const [b, setB] = useState(-5);
+  const [c, setC] = useState(6);
+
+  const discriminant =
+    b * b - 4 * a * c;
+
+  const roots =
+    discriminant >= 0 && a !== 0
+      ? [
+          (-b +
+            Math.sqrt(discriminant)) /
+            (2 * a),
+          (-b -
+            Math.sqrt(discriminant)) /
+            (2 * a),
+        ]
+      : [];
+
+  const complexReal =
+    -b / (2 * a);
+
+  const complexImag =
+    Math.sqrt(
+      Math.abs(discriminant)
+    ) /
+    Math.abs(2 * a);
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-semibold">
+          Quadratic Explorer
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Explore how coefficients change
+          the roots and discriminant.
+        </p>
+
+        <div className="mt-6 space-y-4">
+          {[
+            ["a", a, setA],
+            ["b", b, setB],
+            ["c", c, setC],
+          ].map(([label, value, setter]) => (
+            <label
+              key={String(label)}
+              className="block"
+            >
+              <div className="mb-1 text-sm font-medium">
+                {label}
+              </div>
+
+              <input
+                type="number"
+                value={Number(value)}
+                onChange={(e) =>
+                  (setter as React.Dispatch<
+                    React.SetStateAction<number>
+                  >)(
+                    Number(e.target.value)
+                  )
+                }
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-500"
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-6 rounded-xl bg-slate-50 p-4">
+          <Latex
+            value={`${a}x^2${b >= 0 ? "+" : ""}${b}x${c >= 0 ? "+" : ""}${c}=0`}
+          />
+        </div>
+      </section>
+
+      <section className="grid gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-xs font-bold uppercase tracking-[.15em] text-slate-500">
+            Discriminant
+          </div>
+
+          <div className="mt-2 text-3xl font-semibold">
+            {fmt(discriminant)}
+          </div>
+
+          <div className="mt-2">
+            {discriminant > 0 && (
+              <span className="text-sm text-green-700">
+                Two distinct real roots
+              </span>
+            )}
+
+            {discriminant === 0 && (
+              <span className="text-sm text-blue-700">
+                One repeated real root
+              </span>
+            )}
+
+            {discriminant < 0 && (
+              <span className="text-sm text-purple-700">
+                Complex conjugate roots
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="font-semibold">
+            Roots
+          </h3>
+
+          {discriminant >= 0 ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {roots.map((root, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl bg-slate-50 p-4"
+                >
+                  <div className="text-xs text-slate-500">
+                    Root {i + 1}
+                  </div>
+
+                  <div className="mt-1 font-mono text-xl font-semibold">
+                    {fmt(root)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl bg-slate-50 p-4">
+              <Latex
+                value={`x=${fmt(
+                  complexReal
+                )}\\pm ${fmt(
+                  complexImag
+                )}i`}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="font-semibold">
+            Formula
+          </h3>
+
+          <div className="mt-4">
+            <Latex
+              value={
+                "x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}"
+              }
+            />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* =========================================================
+   COORDINATE GEOMETRY
+========================================================= */
+
+function GeometryLab() {
+  const [x1, setX1] = useState(1);
+  const [y1, setY1] = useState(2);
+  const [x2, setX2] = useState(5);
+  const [y2, setY2] = useState(6);
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  const distance = Math.sqrt(
+    dx * dx + dy * dy
+  );
+
+  const slope =
+    dx === 0 ? undefined : dy / dx;
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-semibold">
+          Straight Line Explorer
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Define two points and inspect the
+          geometry automatically.
+        </p>
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          {[
+            ["x₁", x1, setX1],
+            ["y₁", y1, setY1],
+            ["x₂", x2, setX2],
+            ["y₂", y2, setY2],
+          ].map(([label, value, setter]) => (
+            <label
+              key={String(label)}
+              className="text-xs text-slate-500"
+            >
+              {label}
+
+              <input
+                type="number"
+                value={Number(value)}
+                onChange={(e) =>
+                  (setter as React.Dispatch<
+                    React.SetStateAction<number>
+                  >)(
+                    Number(e.target.value)
+                  )
+                }
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="font-semibold">
+          Results
+        </h3>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">
+              Slope
+            </div>
+
+            <div className="mt-1 font-mono text-xl font-semibold">
+              {slope === undefined
+                ? "undefined"
+                : fmt(slope)}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">
+              Distance
+            </div>
+
+            <div className="mt-1 font-mono text-xl font-semibold">
+              {fmt(distance)}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-xl border border-slate-200 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Distance formula
+          </div>
+
+          <div className="mt-3">
+            <Latex
+              value={`d=\\sqrt{(${x2}-${x1})^2+(${y2}-${y1})^2}`}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-200 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Point-slope form
+          </div>
+
+          <div className="mt-3">
+            {slope === undefined ? (
+              <Latex
+                value={`x=${x1}`}
+              />
+            ) : (
+              <Latex
+                value={`y-${y1}=${fmt(
+                  slope
+                )}(x-${x1})`}
+              />
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* =========================================================
+   PROBABILITY
+========================================================= */
+
+function ProbabilityLab() {
+  const [heads, setHeads] =
+    useState(0);
+
+  const [tails, setTails] =
+    useState(0);
+
+  const total =
+    heads + tails;
+
+  const probability =
+    total === 0
+      ? 0
+      : heads / total;
+
+  const toss = () => {
+    if (Math.random() < 0.5) {
+      setHeads((v) => v + 1);
+    } else {
+      setTails((v) => v + 1);
+    }
+  };
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-semibold">
+          Probability Experiment
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Compare experimental probability
+          with the theoretical value.
+        </p>
+
+        <button
+          type="button"
+          onClick={toss}
+          className="mt-6 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+        >
+          Toss Coin
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setHeads(0);
+            setTails(0);
+          }}
+          className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold"
+        >
+          Reset
+        </button>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">
+              Heads
+            </div>
+
+            <div className="mt-1 text-2xl font-semibold">
+              {heads}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">
+              Tails
+            </div>
+
+            <div className="mt-1 text-2xl font-semibold">
+              {tails}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">
+              Trials
+            </div>
+
+            <div className="mt-1 text-2xl font-semibold">
+              {total}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-xl border border-slate-200 p-5">
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            Experimental probability of heads
+          </div>
+
+          <div className="mt-2 text-3xl font-semibold">
+            {(probability * 100).toFixed(2)}%
+          </div>
+
+          <div className="mt-4 h-5 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-slate-900 transition-all"
+              style={{
+                width: `${Math.min(
+                  probability * 100,
+                  100
+                )}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <Latex
+            value={
+              "P(H)=\\frac{\\text{number of heads}}{\\text{total trials}}"
+            }
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* =========================================================
+   STATISTICS
+========================================================= */
+
+function StatisticsLab() {
+  const [input, setInput] =
+    useState(
+      "12, 15, 15, 18, 21, 24"
+    );
+
+  const values = useMemo(() => {
+    return input
+      .split(/[,\\s]+/)
+      .map(Number)
+      .filter(Number.isFinite);
+  }, [input]);
+
+  const mean =
+    values.length === 0
+      ? 0
+      : values.reduce(
+          (a, b) => a + b,
+          0
+        ) / values.length;
+
+  const sorted = [...values].sort(
+    (a, b) => a - b
+  );
+
+  const median =
+    sorted.length === 0
+      ? 0
+      : sorted.length % 2
+      ? sorted[
+          Math.floor(sorted.length / 2)
+        ]
+      : (sorted[
+          sorted.length / 2 - 1
+        ] +
+          sorted[
+            sorted.length / 2
+          ]) /
+        2;
+
+  const variance =
+    values.length === 0
+      ? 0
+      : values.reduce(
+          (sum, value) =>
+            sum +
+            Math.pow(
+              value - mean,
+              2
+            ),
+          0
+        ) / values.length;
+
+  const standardDeviation =
+    Math.sqrt(variance);
+
+  const range =
+    values.length === 0
+      ? 0
+      : Math.max(...values) -
+        Math.min(...values);
+
+  return (
+    <div className="grid gap-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-semibold">
+          Statistics Lab
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Enter an ungrouped dataset and
+          inspect its measures of dispersion.
+        </p>
+
+        <textarea
+          value={input}
+          onChange={(e) =>
+            setInput(e.target.value)
+          }
+          className="mt-5 min-h-28 w-full rounded-xl border border-slate-200 p-3 font-mono text-sm outline-none focus:border-slate-500"
+          placeholder="12, 15, 18, 21..."
+        />
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {[
+          ["Count", values.length],
+          ["Mean", mean],
+          ["Median", median],
+          ["Range", range],
+          ["SD", standardDeviation],
+        ].map(([label, value]) => (
+          <div
+            key={String(label)}
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <div className="text-xs uppercase tracking-wide text-slate-500">
+              {label}
+            </div>
+
+            <div className="mt-2 text-2xl font-semibold">
+              {fmt(Number(value))}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="font-semibold">
+          Variance
+        </h3>
+
+        <div className="mt-4">
+          <Latex
+            value={`\\sigma^2=${fmt(
+              variance
+            )}`}
+          />
+        </div>
+
+        <div className="mt-4">
+          <Latex
+            value={`\\sigma=\\sqrt{${fmt(
+              variance
+            )}}=${fmt(
+              standardDeviation
+            )}`}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* =========================================================
+   PRACTICE
+========================================================= */
+
+const practiceQuestions = [
+  {
+    topic: "Sets",
+    question:
+      "If A = {1, 2, 3} and B = {3, 4, 5}, find A ∩ B.",
+    answer: "{3}",
+  },
+  {
+    topic: "Functions",
+    question:
+      "For f(x) = 2x + 3, find f(4).",
+    answer: "11",
+  },
+  {
+    topic: "Trigonometry",
+    question:
+      "Find sin²x + cos²x.",
+    answer: "1",
+  },
+  {
+    topic: "Quadratic Equations",
+    question:
+      "Find the discriminant of x² - 5x + 6 = 0.",
+    answer: "1",
+  },
+  {
+    topic: "P&C",
+    question:
+      "Find 5C2.",
+    answer: "10",
+  },
+  {
+    topic: "Sequence & Series",
+    question:
+      "Find the 5th term of the AP 2, 5, 8, ...",
+    answer: "14",
+  },
+];
+
+function PracticeLab() {
+  const [index, setIndex] =
+    useState(0);
+
+  const [answer, setAnswer] =
+    useState("");
+
+  const [checked, setChecked] =
+    useState(false);
+
+  const question =
+    practiceQuestions[index];
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-[.15em] text-slate-500">
+            Class XI · Practice
+          </div>
+
+          <h2 className="mt-1 text-xl font-semibold">
+            Mathematical Practice
+          </h2>
+        </div>
+
+        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
+          {question.topic}
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-2xl bg-slate-50 p-6">
+        <div className="text-xs uppercase tracking-wide text-slate-500">
+          Question
+        </div>
+
+        <p className="mt-3 text-lg font-medium leading-8">
+          {question.question}
+        </p>
+      </div>
+
+      <input
+        value={answer}
+        onChange={(e) =>
+          setAnswer(e.target.value)
+        }
+        placeholder="Enter your answer"
+        className="mt-5 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-500"
+      />
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            setChecked(true)
+          }
+          className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
+        >
+          Check answer
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setIndex(
+              (index + 1) %
+                practiceQuestions.length
+            );
+            setAnswer("");
+            setChecked(false);
+          }}
+          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold"
+        >
+          Next
+        </button>
+      </div>
+
+      {checked && (
+        <div
+          className={`mt-5 rounded-xl p-4 text-sm ${
+            answer.trim() ===
+            question.answer
+              ? "bg-green-50 text-green-800"
+              : "bg-red-50 text-red-800"
+          }`}
+        >
+          {answer.trim() ===
+          question.answer
+            ? "Correct."
+            : `Not quite. The expected answer is ${question.answer}.`}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* =========================================================
+   REFERENCE
+========================================================= */
+
+const referenceGroups = [
+  {
+    title: "Sets",
+    formulas: [
+      "\\(A\\cup B\\)",
+      "\\(A\\cap B\\)",
+      "\\(A-B\\)",
+      "\\(A'=U-A\\)",
+    ],
+  },
+  {
+    title: "Trigonometry",
+    formulas: [
+      "\\(\\sin^2x+\\cos^2x=1\\)",
+      "\\(\\sin(x+y)=\\sin x\\cos y+\\cos x\\sin y\\)",
+      "\\(\\cos(x+y)=\\cos x\\cos y-\\sin x\\sin y\\)",
+    ],
+  },
+  {
+    title: "Quadratic Equations",
+    formulas: [
+      "\\(x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}\\)",
+      "\\(D=b^2-4ac\\)",
+    ],
+  },
+  {
+    title: "Permutations & Combinations",
+    formulas: [
+      "\\({}^nP_r=\\frac{n!}{(n-r)!}\\)",
+      "\\({}^nC_r=\\frac{n!}{r!(n-r)!}\\)",
+    ],
+  },
+  {
+    title: "AP & GP",
+    formulas: [
+      "\\(a_n=a+(n-1)d\\)",
+      "\\(S_n=\\frac n2[2a+(n-1)d]\\)",
+      "\\(a_n=ar^{n-1}\\)",
+      "\\(S_\\infty=\\frac a{1-r}\\)",
+    ],
+  },
+  {
+    title: "Coordinate Geometry",
+    formulas: [
+      "\\(m=\\frac{y_2-y_1}{x_2-x_1}\\)",
+      "\\(d=\\sqrt{(x_2-x_1)^2+(y_2-y_1)^2}\\)",
+    ],
+  },
+  {
+    title: "Statistics",
+    formulas: [
+      "\\(\\sigma^2=\\frac{\\sum(x_i-\\bar{x})^2}{n}\\)",
+      "\\(\\sigma=\\sqrt{\\sigma^2}\\)",
+    ],
+  },
+  {
+    title: "Probability",
+    formulas: [
+      "\\(P(A')=1-P(A)\\)",
+      "\\(P(A\\cup B)=P(A)+P(B)-P(A\\cap B)\\)",
+    ],
+  },
+];
+
+function ReferenceLab() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {referenceGroups.map(
+        (group) => (
+          <section
+            key={group.title}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <h3 className="font-semibold">
+              {group.title}
+            </h3>
+
+            <div className="mt-4 space-y-3">
+              {group.formulas.map(
+                (formula) => (
+                  <div
+                    key={formula}
+                    className="rounded-xl bg-slate-50 p-3"
+                  >
+                    <Latex
+                      value={formula
+                        .replace(
+                          /^\\\(/,
+                          ""
+                        )
+                        .replace(
+                          /\\\)$/,
+                          ""
+                        )}
+                    />
+                  </div>
+                )
+              )}
+            </div>
+          </section>
+        )
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   OVERVIEW
+========================================================= */
+
+const tools: {
+  id: Section;
+  icon: string;
+  title: string;
+  description: string;
+  classes: string;
+}[] = [
+  {
+    id: "graph",
+    icon: "📈",
+    title: "Graphing Lab",
+    description:
+      "Plot functions, compare curves, inspect coordinates and explore transformations.",
+    classes: "XI · XII",
+  },
+  {
+    id: "trig",
+    icon: "📐",
+    title: "Trigonometry",
+    description:
+      "Explore the unit circle, angles, radians and trigonometric identities.",
+    classes: "XI",
+  },
+  {
+    id: "algebra",
+    icon: "🔢",
+    title: "Algebra Lab",
+    description:
+      "Explore quadratic equations, discriminants and complex roots.",
+    classes: "XI",
+  },
+  {
+    id: "geometry",
+    icon: "📍",
+    title: "Coordinate Geometry",
+    description:
+      "Work with slopes, distances, equations of lines and coordinates.",
+    classes: "XI · XII",
+  },
+  {
+    id: "probability",
+    icon: "🎲",
+    title: "Probability Lab",
+    description:
+      "Run experiments and compare theoretical and experimental probability.",
+    classes: "XI · XII",
+  },
+  {
+    id: "statistics",
+    icon: "📊",
+    title: "Statistics Lab",
+    description:
+      "Analyse datasets using mean, median, variance and standard deviation.",
+    classes: "XI",
+  },
+  {
+    id: "practice",
+    icon: "🧠",
+    title: "Practice",
+    description:
+      "Solve syllabus-aligned questions and check your reasoning.",
+    classes: "XI · XII",
+  },
+  {
+    id: "reference",
+    icon: "📚",
+    title: "Formula Book",
+    description:
+      "A compact mathematical reference organized by syllabus topic.",
+    classes: "XI · XII",
+  },
+];
+
+const syllabusXI = [
+  "Sets & Functions",
+  "Trigonometric Functions",
+  "Complex Numbers & Quadratic Equations",
+  "Linear Inequalities",
+  "Permutations & Combinations",
+  "Binomial Theorem",
+  "Sequence & Series",
+  "Straight Lines",
+  "Conic Sections",
+  "3D Geometry",
+  "Limits & Derivatives",
+  "Statistics",
+  "Probability",
+];
+
+const syllabusXII = [
+  "Relations & Functions",
+  "Inverse Trigonometric Functions",
+  "Matrices",
+  "Determinants",
+  "Continuity & Differentiability",
+  "Applications of Derivatives",
+  "Integrals",
+  "Applications of Integrals",
+  "Differential Equations",
+  "Vectors",
+  "3D Geometry",
+  "Linear Programming",
+  "Probability",
+];
+
+function Overview({
+  classLevel,
+  setClassLevel,
+  open,
+}: {
+  classLevel: ClassLevel;
+  setClassLevel: (
+    value: ClassLevel
+  ) => void;
+  open: (section: Section) => void;
+}) {
+  const syllabus =
+    classLevel === "XI"
+      ? syllabusXI
+      : syllabusXII;
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-3xl bg-slate-950 p-6 text-white shadow-sm sm:p-8">
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[.2em] text-slate-400">
+              VGB Tools · Mathematics
+            </div>
+
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">
+              Mathematics 041
+            </h1>
+
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
+              A mathematical workspace built around
+              the CBSE Class XI–XII syllabus:
+              calculation, visualization, reasoning
+              and practice in one place.
+            </p>
+          </div>
+
+          <div className="flex rounded-xl bg-white/10 p-1">
+            {(["XI", "XII"] as ClassLevel[]).map(
+              (level) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() =>
+                    setClassLevel(level)
+                  }
+                  className={`rounded-lg px-5 py-2 text-sm font-semibold ${
+                    classLevel === level
+                      ? "bg-white text-slate-950"
+                      : "text-white"
+                  }`}
+                >
+                  Class {level}
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-end justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Mathematical Laboratory
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Tools first. Formula memorisation can
+              wait its turn.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {tools.map((tool) => (
+            <button
+              key={tool.id}
+              type="button"
+              onClick={() =>
+                open(tool.id)
+              }
+              className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between">
+                <span className="text-2xl">
+                  {tool.icon}
+                </span>
+
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  {tool.classes}
+                </span>
+              </div>
+
+              <h3 className="mt-5 font-semibold">
+                {tool.title}
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                {tool.description}
+              </p>
+
+              <div className="mt-4 text-xs font-semibold text-slate-700">
+                Open tool →
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">
+              Class {classLevel} syllabus
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              CBSE Mathematics 041 · 2026–27
+            </p>
+          </div>
+
+          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            {syllabus.length} major topics
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {syllabus.map(
+            (topic, index) => (
+              <div
+                key={topic}
+                className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-3"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-xs font-bold text-slate-500">
+                  {index + 1}
+                </span>
+
+                <span className="text-sm">
+                  {topic}
+                </span>
+              </div>
+            )
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-3">
+        {[
+          [
+            "55%",
+            "Remember + Understand",
+            "Build conceptual fluency.",
+          ],
+          [
+            "25%",
+            "Apply",
+            "Use mathematical ideas in new situations.",
+          ],
+          [
+            "20%",
+            "Analyse + Evaluate + Create",
+            "Reason, connect and construct.",
+          ],
+        ].map(
+          ([percentage, title, description]) => (
+            <div
+              key={title}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div className="text-2xl font-semibold">
+                {percentage}
+              </div>
+
+              <div className="mt-2 font-semibold">
+                {title}
+              </div>
+
+              <div className="mt-1 text-sm leading-6 text-slate-500">
+                {description}
+              </div>
+            </div>
+          )
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* =========================================================
+   MAIN PAGE
+========================================================= */
+
+export default function MathematicsPage() {
+  const [section, setSection] =
+    useState<Section>("overview");
+
+  const [classLevel, setClassLevel] =
+    useState<ClassLevel>("XI");
+
+  const [expressions, setExpressions] =
+    useState<Expr[]>([
+      {
+        id: 1,
+        raw: "x^2",
+        visible: true,
+        color: COLORS[0],
+      },
+      {
+        id: 2,
+        raw: "2*x+1",
+        visible: true,
+        color: COLORS[1],
+      },
+    ]);
+
+  const [activeId, setActiveId] =
+    useState(1);
+
+  const [viewport, setViewport] =
+    useState<Viewport>({
+      xMin: -10,
+      xMax: 10,
+      yMin: -10,
+      yMax: 10,
+    });
+
+  const active =
+    expressions.find(
+      (e) => e.id === activeId
+    ) ?? expressions[0];
+
+  const updateExpression = (
+    raw: string
+  ) => {
+    setExpressions((items) =>
+      items.map((item) =>
+        item.id === activeId
+          ? {
+              ...item,
+              raw,
+            }
+          : item
+      )
+    );
+  };
+
+  const addExpression = () => {
+    const id =
+      Date.now();
+
+    setExpressions((items) => [
+      ...items,
+      {
+        id,
+        raw: "",
+        visible: true,
+        color:
+          COLORS[
+            items.length %
+              COLORS.length
+          ],
+      },
+    ]);
+
+    setActiveId(id);
+  };
+
+  const renderSection = () => {
+    switch (section) {
+      case "graph":
+        return (
+          <GraphWorkspace
+            expressions={expressions}
+            activeId={activeId}
+            setActiveId={setActiveId}
+            updateExpression={
+              updateExpression
+            }
+            addExpression={
+              addExpression
+            }
+            setExpressions={
+              setExpressions
+            }
+            viewport={viewport}
+            setViewport={
+              setViewport
+            }
+          />
+        );
+
+      case "trig":
+        return <TrigonometryLab />;
+
+      case "algebra":
+        return <AlgebraLab />;
+
+      case "geometry":
+        return <GeometryLab />;
+
+      case "probability":
+        return <ProbabilityLab />;
+
+      case "statistics":
+        return <StatisticsLab />;
+
+      case "practice":
+        return <PracticeLab />;
+
+      case "reference":
+        return <ReferenceLab />;
+
+      default:
+        return (
+          <Overview
+            classLevel={classLevel}
+            setClassLevel={
+              setClassLevel
+            }
+            open={setSection}
+          />
+        );
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-[#f5f6f8] text-slate-950">
+      <div className="mx-auto max-w-[1550px] px-3 py-4 sm:px-5 lg:px-7">
+        <header className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={() =>
+              setSection("overview")
+            }
+            className="text-left"
+          >
+            <div className="text-[11px] font-bold uppercase tracking-[.18em] text-slate-500">
+              VGB Tools · Mathematics
+            </div>
+
+            <div className="mt-1 text-xl font-semibold tracking-tight">
+              Mathematics 041
+            </div>
+          </button>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setSection("overview")
+              }
+              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                section ===
+                "overview"
+                  ? "bg-slate-950 text-white"
+                  : "border border-slate-200 bg-white"
+              }`}
+            >
+              Home
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSection("graph")
+              }
+              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                section ===
+                "graph"
+                  ? "bg-slate-950 text-white"
+                  : "border border-slate-200 bg-white"
+              }`}
+            >
+              Graphing
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSection("trig")
+              }
+              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                section ===
+                "trig"
+                  ? "bg-slate-950 text-white"
+                  : "border border-slate-200 bg-white"
+              }`}
+            >
+              Trigonometry
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSection("practice")
+              }
+              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                section ===
+                "practice"
+                  ? "bg-slate-950 text-white"
+                  : "border border-slate-200 bg-white"
+              }`}
+            >
+              Practice
+            </button>
+          </div>
+        </header>
+
+        {section !== "overview" && (
+          <div className="mb-4 flex items-center gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() =>
+                setSection("overview")
+              }
+              className="text-slate-500 hover:text-slate-950"
+            >
+              Mathematics
+            </button>
+
+            <span className="text-slate-300">
+              /
+            </span>
+
+            <span className="font-medium">
+              {
+                tools.find(
+                  (tool) =>
+                    tool.id ===
+                    section
+                )?.title
+              }
+            </span>
+          </div>
+        )}
+
+        {renderSection()}
+      </div>
+    </main>
+  );
+}
+
+/* =========================================================
+   GRAPH WORKSPACE
+========================================================= */
+
+function GraphWorkspace({
+  expressions,
+  activeId,
+  setActiveId,
+  updateExpression,
+  addExpression,
+  setExpressions,
+  viewport,
+  setViewport,
+}: {
+  expressions: Expr[];
+  activeId: number;
+  setActiveId: (
+    id: number
+  ) => void;
+  updateExpression: (
+    value: string
+  ) => void;
+  addExpression: () => void;
+  setExpressions: React.Dispatch<
+    React.SetStateAction<Expr[]>
+  >;
+  viewport: Viewport;
+  setViewport: React.Dispatch<
+    React.SetStateAction<Viewport>
+  >;
+}) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-[330px_minmax(0,1fr)]">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
+          <div>
+            <h2 className="font-semibold">
+              Functions
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Plot multiple functions together.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={addExpression}
+            className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-200"
+          >
+            + Add
+          </button>
+        </div>
+
+        <div className="max-h-[600px] space-y-2 overflow-auto p-3">
+          {expressions.map(
+            (expression, index) => (
+              <div
+                key={expression.id}
+                className={`rounded-xl border p-3 ${
+                  activeId ===
+                  expression.id
+                    ? "border-slate-400 bg-slate-50"
+                    : "border-slate-200"
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpressions(
+                        (items) =>
+                          items.map(
+                            (item) =>
+                              item.id ===
+                              expression.id
+                                ? {
+                                    ...item,
+                                    visible:
+                                      !item.visible,
+                                  }
+                                : item
+                          )
+                      )
+                    }
+                    className="h-3.5 w-3.5 rounded-full border-2"
+                    style={{
+                      borderColor:
+                        expression.color,
+                      background:
+                        expression.visible
+                          ? expression.color
+                          : "transparent",
+                    }}
+                  />
+
+                  <span className="text-[11px] font-bold text-slate-400">
+                    f{index + 1}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpressions(
+                        (items) =>
+                          items.length === 1
+                            ? [
+                                {
+                                  ...expression,
+                                  raw: "",
+                                },
+                              ]
+                            : items.filter(
+                                (item) =>
+                                  item.id !==
+                                  expression.id
+                              )
+                      )
+                    }
+                    className="ml-auto text-xs text-slate-400 hover:text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+
+                <input
+                  value={
+                    expression.raw
+                  }
+                  onFocus={() =>
+                    setActiveId(
+                      expression.id
+                    )
+                  }
+                  onChange={(e) =>
+                    updateExpression(
+                      e.target.value
+                    )
+                  }
+                  placeholder="x^2 - 4x + 3"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-slate-500"
+                />
+
+                <div className="mt-2 min-h-7 overflow-x-auto px-1">
+                  {expression.raw ? (
+                    <Latex
+                      value={toLatex(
+                        expression.raw
+                      )}
+                    />
+                  ) : (
+                    <span className="text-xs text-slate-400">
+                      Mathematical preview
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          )}
+        </div>
+
+        <div className="border-t border-slate-200 p-4">
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            CBSE XI functions
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {[
+              "x^2",
+              "abs(x)",
+              "sin(x)",
+              "cos(x)",
+              "tan(x)",
+              "exp(x)",
+              "log(x)",
+              "floor(x)",
+            ].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() =>
+                  updateExpression(
+                    preset
+                  )
+                }
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono text-xs hover:bg-slate-50"
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="min-w-0">
+        <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Graphing Lab
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Functions, intersections and
+                coordinates on one interactive plane.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                [-10, 10, -10, 10],
+                [-5, 5, -5, 5],
+                [-20, 20, -10, 10],
+              ].map(
+                (
+                  [
+                    xMin,
+                    xMax,
+                    yMin,
+                    yMax,
+                  ],
+                  index
+                ) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() =>
+                      setViewport({
+                        xMin,
+                        xMax,
+                        yMin,
+                        yMax,
+                      })
+                    }
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50"
+                  >
+                    {index === 0
+                      ? "Standard"
+                      : index === 1
+                      ? "Close"
+                      : "Wide"}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+
+        <Graph
+          expressions={
+            expressions
+          }
+          viewport={viewport}
+          setViewport={
+            setViewport
+          }
+        />
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">
+              X range
+            </div>
+
+            <div className="mt-1 font-mono text-sm">
+              [{fmt(viewport.xMin)},{" "}
+              {fmt(viewport.xMax)}]
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">
+              Y range
+            </div>
+
+            <div className="mt-1 font-mono text-sm">
+              [{fmt(viewport.yMin)},{" "}
+              {fmt(viewport.yMax)}]
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">
+              Active function
+            </div>
+
+            <div className="mt-1 truncate font-mono text-sm">
+              {expressions.find(
+                (e) =>
+                  e.id === activeId
+              )?.raw ||
+                "None"}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
