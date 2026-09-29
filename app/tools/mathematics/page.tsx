@@ -2567,11 +2567,16 @@ function ConicSectionsLab() {
         )}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
-          {[
-            ["h", h, setH],
-            ["k", k, setK],
-          ].map(
-            ([label, value, setter]) => (
+          {(
+            [
+              ["h", h, setH],
+              ["k", k, setK],
+            ] as [
+              string,
+              number,
+              React.Dispatch<React.SetStateAction<number>>
+            ][]
+          ).map(([label, value, setter]) => (
               <label
                 key={String(label)}
                 className="text-xs text-slate-500"
