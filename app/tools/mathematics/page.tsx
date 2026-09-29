@@ -30,6 +30,14 @@ type Viewport = {
   yMax: number;
 };
 
+type HistoryState = {
+  expressions: Expr[];
+  activeId: number;
+  viewport: Viewport;
+  calc: string;
+  answer: string;
+};
+
 const DEFAULT_VIEWPORT: Viewport = {
   xMin: -10,
   xMax: 10,
