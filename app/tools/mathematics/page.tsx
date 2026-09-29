@@ -72,6 +72,20 @@ function cloneExpressions(expressions: Expr[]) {
   return expressions.map((expression) => ({ ...expression }));
 }
 
+const basic = [
+  ["7", "8", "9", "÷"],
+  ["4", "5", "6", "×"],
+  ["1", "2", "3", "−"],
+  ["0", ".", "(", ")"],
+];
+
+const scientific = [
+  ["sin", "cos", "tan", "π"],
+  ["asin", "acos", "atan", "e"],
+  ["log", "ln", "√", "x²"],
+  ["xʸ", "n!", "abs", "1/x"],
+];
+
 type Section =
   | "overview"
   | "graph"
