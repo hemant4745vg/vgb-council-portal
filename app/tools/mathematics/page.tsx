@@ -39,6 +39,7 @@ type Section =
   | "probability"
   | "statistics"
   | "calculus"
+  | "conics"
   | "practice"
   | "reference";
 
@@ -1969,6 +1970,1034 @@ const referenceGroups = [
   },
 ];
 
+function ConicSectionsLab() {
+  type ConicType =
+    | "circle"
+    | "parabola"
+    | "ellipse"
+    | "hyperbola";
+
+  type Orientation = "vertical" | "horizontal";
+
+  type Point = {
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    detail: string;
+  };
+
+  const [type, setType] =
+    useState<ConicType>("circle");
+  const [orientation, setOrientation] =
+    useState<Orientation>("vertical");
+  const [h, setH] = useState(0);
+  const [k, setK] = useState(0);
+  const [radius, setRadius] = useState(3);
+  const [a, setA] = useState(5);
+  const [b, setB] = useState(3);
+  const [parameter, setParameter] = useState(1);
+  const [hovered, setHovered] =
+    useState<string | null>(null);
+
+  const W = 760;
+  const H = 540;
+  const P = 52;
+  const xMin = -10;
+  const xMax = 10;
+  const yMin = -7;
+  const yMax = 7;
+
+  const mapX = (x: number) =>
+    P +
+    ((x - xMin) / (xMax - xMin)) *
+      (W - 2 * P);
+
+  const mapY = (y: number) =>
+    H -
+    P -
+    ((y - yMin) / (yMax - yMin)) *
+      (H - 2 * P);
+
+  const safeRadius = Math.max(0.5, radius);
+  const safeA = Math.max(0.5, a);
+  const safeB = Math.max(0.5, b);
+  const safeP = Math.max(0.2, parameter);
+
+  const geometry = useMemo(() => {
+    const points: Point[] = [];
+    let equation = "";
+    let eccentricity = "";
+    let focusText = "";
+    let directrixText = "";
+    let curvePath = "";
+    let asymptotePaths: string[] = [];
+    let vertexText = "";
+
+    if (type === "circle") {
+      equation = `(x-${fmt(h)})^2+(y-${fmt(k)})^2=${fmt(
+        safeRadius * safeRadius
+      )}`;
+      points.push(
+        {
+          id: "centre",
+          label: "Centre",
+          x: h,
+          y: k,
+          detail: `(${fmt(h)}, ${fmt(k)})`,
+        },
+        {
+          id: "right",
+          label: "Right endpoint",
+          x: h + safeRadius,
+          y: k,
+          detail: `(${fmt(h + safeRadius)}, ${fmt(k)})`,
+        },
+        {
+          id: "top",
+          label: "Top endpoint",
+          x: h,
+          y: k + safeRadius,
+          detail: `(${fmt(h)}, ${fmt(k + safeRadius)})`,
+        }
+      );
+
+      const r = safeRadius;
+      const parts: string[] = [];
+      for (let i = 0; i <= 180; i++) {
+        const t = (i / 180) * Math.PI * 2;
+        const x = h + r * Math.cos(t);
+        const y = k + r * Math.sin(t);
+        parts.push(
+          `${i === 0 ? "M" : "L"} ${mapX(x).toFixed(
+            2
+          )} ${mapY(y).toFixed(2)}`
+        );
+      }
+      curvePath = parts.join(" ");
+      eccentricity = "e = 0";
+      focusText = "The focus coincides with the centre.";
+      directrixText = "No directrix.";
+      vertexText = `Radius = ${fmt(r)}`;
+    }
+
+    if (type === "parabola") {
+      const p = safeP;
+      if (orientation === "vertical") {
+        const sign = p >= 0 ? 1 : -1;
+        equation = `(x-${fmt(h)})^2=${fmt(
+          4 * p
+        )}(y-${fmt(k)})`;
+        const focusX = h;
+        const focusY = k + p;
+        const directrix = k - p;
+        points.push(
+          {
+            id: "vertex",
+            label: "Vertex",
+            x: h,
+            y: k,
+            detail: `(${fmt(h)}, ${fmt(k)})`,
+          },
+          {
+            id: "focus",
+            label: "Focus",
+            x: focusX,
+            y: focusY,
+            detail: `(${fmt(focusX)}, ${fmt(focusY)})`,
+          }
+        );
+        focusText = `Focus = (${fmt(
+          focusX
+        )}, ${fmt(focusY)})`;
+        directrixText = `Directrix: y = ${fmt(
+          directrix
+        )}`;
+        vertexText = `Vertex = (${fmt(h)}, ${fmt(
+          k
+        )}) · opens ${sign > 0 ? "up" : "down"}`;
+
+        const span = 7;
+        const parts: string[] = [];
+        for (let i = 0; i <= 220; i++) {
+          const x =
+            h - span +
+            (i / 220) * 2 * span;
+          const y =
+            k +
+            ((x - h) * (x - h)) /
+              (4 * p);
+          if (y >= yMin - 2 && y <= yMax + 2) {
+            parts.push(
+              `${parts.length === 0 ? "M" : "L"} ${mapX(
+                x
+              ).toFixed(2)} ${mapY(y).toFixed(2)}`
+            );
+          }
+        }
+        curvePath = parts.join(" ");
+      } else {
+        equation = `(y-${fmt(k)})^2=${fmt(
+          4 * p
+        )}(x-${fmt(h)})`;
+        const focusX = h + p;
+        const focusY = k;
+        const directrix = h - p;
+        points.push(
+          {
+            id: "vertex",
+            label: "Vertex",
+            x: h,
+            y: k,
+            detail: `(${fmt(h)}, ${fmt(k)})`,
+          },
+          {
+            id: "focus",
+            label: "Focus",
+            x: focusX,
+            y: focusY,
+            detail: `(${fmt(focusX)}, ${fmt(focusY)})`,
+          }
+        );
+        focusText = `Focus = (${fmt(
+          focusX
+        )}, ${fmt(focusY)})`;
+        directrixText = `Directrix: x = ${fmt(
+          directrix
+        )}`;
+        vertexText = `Vertex = (${fmt(h)}, ${fmt(
+          k
+        )}) · opens ${p > 0 ? "right" : "left"}`;
+
+        const span = 7;
+        const parts: string[] = [];
+        for (let i = 0; i <= 220; i++) {
+          const y =
+            k - span +
+            (i / 220) * 2 * span;
+          const x =
+            h +
+            ((y - k) * (y - k)) /
+              (4 * p);
+          if (x >= xMin - 2 && x <= xMax + 2) {
+            parts.push(
+              `${parts.length === 0 ? "M" : "L"} ${mapX(
+                x
+              ).toFixed(2)} ${mapY(x === x ? y : y).toFixed(
+                2
+              )}`
+            );
+          }
+        }
+        curvePath = parts.join(" ");
+      }
+      eccentricity = "e = 1";
+    }
+
+    if (type === "ellipse") {
+      const aa = safeA;
+      const bb = safeB;
+      const c = Math.sqrt(
+        Math.max(0, aa * aa - bb * bb)
+      );
+      equation = `(x-${fmt(h)})^2/${fmt(
+        aa * aa
+      )}+(y-${fmt(k)})^2/${fmt(
+        bb * bb
+      )}=1`;
+
+      points.push(
+        {
+          id: "centre",
+          label: "Centre",
+          x: h,
+          y: k,
+          detail: `(${fmt(h)}, ${fmt(k)})`,
+        },
+        {
+          id: "vertex-major",
+          label: "Major vertex",
+          x: h + aa,
+          y: k,
+          detail: `(${fmt(h + aa)}, ${fmt(k)})`,
+        },
+        {
+          id: "focus",
+          label: c < 1e-10 ? "Focus / centre" : "Focus",
+          x: h + c,
+          y: k,
+          detail: `(${fmt(h + c)}, ${fmt(k)})`,
+        }
+      );
+      focusText =
+        c < 1e-10
+          ? "The two foci coincide with the centre."
+          : `Foci: (${fmt(
+              h - c
+            )}, ${fmt(k)}) and (${fmt(
+              h + c
+            )}, ${fmt(k)})`;
+      eccentricity = `e = ${fmt(c / aa)}`;
+      directrixText =
+        c < 1e-10
+          ? "No finite directrices: this is a circle."
+          : `Directrices: x = ${fmt(
+              h - (aa * aa) / c
+            )} and x = ${fmt(
+              h + (aa * aa) / c
+            )}`;
+
+      const parts: string[] = [];
+      for (let i = 0; i <= 220; i++) {
+        const t = (i / 220) * Math.PI * 2;
+        const x = h + aa * Math.cos(t);
+        const y = k + bb * Math.sin(t);
+        parts.push(
+          `${i === 0 ? "M" : "L"} ${mapX(x).toFixed(
+            2
+          )} ${mapY(y).toFixed(2)}`
+        );
+      }
+      curvePath = parts.join(" ");
+      vertexText = `Semi-major axis a = ${fmt(
+        aa
+      )} · semi-minor axis b = ${fmt(bb)}`;
+    }
+
+    if (type === "hyperbola") {
+      const aa = safeA;
+      const bb = safeB;
+      const c = Math.sqrt(
+        aa * aa + bb * bb
+      );
+
+      if (orientation === "horizontal") {
+        equation = `(x-${fmt(h)})^2/${fmt(
+          aa * aa
+        )}-(y-${fmt(k)})^2/${fmt(
+          bb * bb
+        )}=1`;
+        points.push(
+          {
+            id: "centre",
+            label: "Centre",
+            x: h,
+            y: k,
+            detail: `(${fmt(h)}, ${fmt(k)})`,
+          },
+          {
+            id: "vertex",
+            label: "Vertex",
+            x: h + aa,
+            y: k,
+            detail: `(${fmt(h + aa)}, ${fmt(k)})`,
+          },
+          {
+            id: "focus",
+            label: "Focus",
+            x: h + c,
+            y: k,
+            detail: `(${fmt(h + c)}, ${fmt(k)})`,
+          }
+        );
+        focusText = `Foci: (${fmt(
+          h - c
+        )}, ${fmt(k)}) and (${fmt(
+          h + c
+        )}, ${fmt(k)})`;
+        directrixText = `Directrices: x = ${fmt(
+          h - (aa * aa) / c
+        )} and x = ${fmt(
+          h + (aa * aa) / c
+        )}`;
+        eccentricity = `e = ${fmt(c / aa)}`;
+        vertexText = `Vertices: (${fmt(
+          h - aa
+        )}, ${fmt(k)}) and (${fmt(
+          h + aa
+        )}, ${fmt(k)})`;
+
+        const parts: string[] = [];
+        for (const branch of [-1, 1]) {
+          for (let i = 0; i <= 140; i++) {
+            const y =
+              k -
+              6 +
+              (i / 140) * 12;
+            const inside =
+              1 +
+              ((y - k) * (y - k)) /
+                (bb * bb);
+            const x =
+              h +
+              branch *
+                aa *
+                Math.sqrt(inside);
+            if (
+              Number.isFinite(x) &&
+              x >= xMin - 1 &&
+              x <= xMax + 1
+            ) {
+              parts.push(
+                `${i === 0 ? "M" : "L"} ${mapX(
+                  x
+                ).toFixed(2)} ${mapY(y).toFixed(
+                  2
+                )}`
+              );
+            }
+          }
+        }
+        curvePath = parts.join(" ");
+        asymptotePaths = [
+          `M ${mapX(xMin)} ${mapY(
+            k + (bb / aa) * (xMin - h)
+          )} L ${mapX(xMax)} ${mapY(
+            k + (bb / aa) * (xMax - h)
+          )}`,
+          `M ${mapX(xMin)} ${mapY(
+            k - (bb / aa) * (xMin - h)
+          )} L ${mapX(xMax)} ${mapY(
+            k - (bb / aa) * (xMax - h)
+          )}`,
+        ];
+      } else {
+        equation = `(y-${fmt(k)})^2/${fmt(
+          aa * aa
+        )}-(x-${fmt(h)})^2/${fmt(
+          bb * bb
+        )}=1`;
+        points.push(
+          {
+            id: "centre",
+            label: "Centre",
+            x: h,
+            y: k,
+            detail: `(${fmt(h)}, ${fmt(k)})`,
+          },
+          {
+            id: "vertex",
+            label: "Vertex",
+            x: h,
+            y: k + aa,
+            detail: `(${fmt(h)}, ${fmt(k + aa)})`,
+          },
+          {
+            id: "focus",
+            label: "Focus",
+            x: h,
+            y: k + c,
+            detail: `(${fmt(h)}, ${fmt(k + c)})`,
+          }
+        );
+        focusText = `Foci: (${fmt(
+          h
+        )}, ${fmt(k - c)}) and (${fmt(
+          h
+        )}, ${fmt(k + c)})`;
+        directrixText = `Directrices: y = ${fmt(
+          k - (aa * aa) / c
+        )} and y = ${fmt(
+          k + (aa * aa) / c
+        )}`;
+        eccentricity = `e = ${fmt(c / aa)}`;
+        vertexText = `Vertices: (${fmt(
+          h
+        )}, ${fmt(k - aa)}) and (${fmt(
+          h
+        )}, ${fmt(k + aa)})`;
+
+        const parts: string[] = [];
+        for (const branch of [-1, 1]) {
+          for (let i = 0; i <= 140; i++) {
+            const x =
+              h -
+              6 +
+              (i / 140) * 12;
+            const inside =
+              1 +
+              ((x - h) * (x - h)) /
+                (bb * bb);
+            const y =
+              k +
+              branch *
+                aa *
+                Math.sqrt(inside);
+            if (
+              Number.isFinite(y) &&
+              y >= yMin - 1 &&
+              y <= yMax + 1
+            ) {
+              parts.push(
+                `${i === 0 ? "M" : "L"} ${mapX(
+                  x
+                ).toFixed(2)} ${mapY(y).toFixed(
+                  2
+                )}`
+              );
+            }
+          }
+        }
+        curvePath = parts.join(" ");
+        asymptotePaths = [
+          `M ${mapX(
+            h - 6
+          )} ${mapY(
+            k + (aa / bb) * (h - 6 - h)
+          )} L ${mapX(
+            h + 6
+          )} ${mapY(
+            k + (aa / bb) * (h + 6 - h)
+          )}`,
+          `M ${mapX(
+            h - 6
+          )} ${mapY(
+            k - (aa / bb) * (h - 6 - h)
+          )} L ${mapX(
+            h + 6
+          )} ${mapY(
+            k - (aa / bb) * (h + 6 - h)
+          )}`,
+        ];
+      }
+    }
+
+    return {
+      equation,
+      eccentricity,
+      focusText,
+      directrixText,
+      curvePath,
+      asymptotePaths,
+      points,
+      vertexText,
+    };
+  }, [
+    type,
+    orientation,
+    h,
+    k,
+    safeRadius,
+    safeA,
+    safeB,
+    safeP,
+  ]);
+
+  const xTicks = Array.from(
+    { length: 11 },
+    (_, i) => -10 + i * 2
+  );
+  const yTicks = Array.from(
+    { length: 8 },
+    (_, i) => -6 + i * 2
+  );
+
+  const currentPoint =
+    geometry.points.find(
+      (point) => point.id === hovered
+    ) ?? null;
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div>
+          <h2 className="text-xl font-semibold">
+            Conic Sections Explorer
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Change the geometric parameters and inspect the
+            curve, foci, directrices and key points.
+          </p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          {(
+            [
+              ["circle", "Circle"],
+              ["parabola", "Parabola"],
+              ["ellipse", "Ellipse"],
+              ["hyperbola", "Hyperbola"],
+            ] as [ConicType, string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setType(value)}
+              className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                type === value
+                  ? "border-slate-950 bg-slate-950 text-white"
+                  : "border-slate-200 bg-white"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {(type === "parabola" ||
+          type === "hyperbola") && (
+          <div className="mt-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Orientation
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["vertical", "Vertical"],
+                  ["horizontal", "Horizontal"],
+                ] as [Orientation, string][]
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() =>
+                    setOrientation(value)
+                  }
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                    orientation === value
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          {[
+            ["h", h, setH],
+            ["k", k, setK],
+          ].map(
+            ([label, value, setter]) => (
+              <label
+                key={String(label)}
+                className="text-xs text-slate-500"
+              >
+                Centre {label}
+                <input
+                  type="number"
+                  value={Number(value)}
+                  onChange={(e) =>
+                    (
+                      setter as React.Dispatch<
+                        React.SetStateAction<number>
+                      >
+                    )(
+                      Number(e.target.value)
+                    )
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                />
+              </label>
+            )
+          )}
+        </div>
+
+        {type === "circle" && (
+          <NumberSlider
+            label="Radius"
+            value={safeRadius}
+            min={0.5}
+            max={8}
+            step={0.5}
+            onChange={setRadius}
+          />
+        )}
+
+        {type === "ellipse" && (
+          <div className="mt-4 space-y-3">
+            <NumberSlider
+              label="Semi-major axis a"
+              value={safeA}
+              min={1}
+              max={8}
+              step={0.5}
+              onChange={setA}
+            />
+            <NumberSlider
+              label="Semi-minor axis b"
+              value={Math.min(safeB, safeA)}
+              min={0.5}
+              max={8}
+              step={0.5}
+              onChange={(value) =>
+                setB(Math.min(value, safeA))
+              }
+            />
+          </div>
+        )}
+
+        {type === "hyperbola" && (
+          <div className="mt-4 space-y-3">
+            <NumberSlider
+              label="Semi-transverse axis a"
+              value={safeA}
+              min={1}
+              max={6}
+              step={0.5}
+              onChange={setA}
+            />
+            <NumberSlider
+              label="Semi-conjugate axis b"
+              value={safeB}
+              min={0.5}
+              max={6}
+              step={0.5}
+              onChange={setB}
+            />
+          </div>
+        )}
+
+        {type === "parabola" && (
+          <NumberSlider
+            label="Parameter p"
+            value={safeP}
+            min={-5}
+            max={5}
+            step={0.5}
+            onChange={setParameter}
+          />
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            setH(0);
+            setK(0);
+            setRadius(3);
+            setA(5);
+            setB(3);
+            setParameter(1);
+            setOrientation("vertical");
+            setType("circle");
+            setHovered(null);
+          }}
+          className="mt-5 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50"
+        >
+          Reset explorer
+        </button>
+      </section>
+
+      <section className="grid gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[.15em] text-slate-500">
+                Equation
+              </div>
+              <div className="mt-2 text-lg">
+                <Latex
+                  value={toLatex(
+                    geometry.equation
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              {geometry.eccentricity}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="h-auto w-full touch-none"
+              onMouseLeave={() =>
+                setHovered(null)
+              }
+            >
+              <rect
+                width={W}
+                height={H}
+                fill="white"
+              />
+
+              {xTicks.map((x) => (
+                <g key={`x-${x}`}>
+                  <line
+                    x1={mapX(x)}
+                    x2={mapX(x)}
+                    y1={P}
+                    y2={H - P}
+                    stroke="#e2e8f0"
+                  />
+                  {x !== 0 && (
+                    <text
+                      x={mapX(x)}
+                      y={
+                        mapY(0) < H - P
+                          ? mapY(0) + 18
+                          : H - P + 18
+                      }
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#64748b"
+                    >
+                      {x}
+                    </text>
+                  )}
+                </g>
+              ))}
+
+              {yTicks.map((y) => (
+                <g key={`y-${y}`}>
+                  <line
+                    x1={P}
+                    x2={W - P}
+                    y1={mapY(y)}
+                    y2={mapY(y)}
+                    stroke="#e2e8f0"
+                  />
+                  {y !== 0 && (
+                    <text
+                      x={
+                        mapX(0) > P
+                          ? mapX(0) - 9
+                          : P - 9
+                      }
+                      y={mapY(y) + 4}
+                      textAnchor="end"
+                      fontSize="10"
+                      fill="#64748b"
+                    >
+                      {y}
+                    </text>
+                  )}
+                </g>
+              ))}
+
+              {xMin <= 0 &&
+                xMax >= 0 && (
+                  <line
+                    x1={mapX(0)}
+                    x2={mapX(0)}
+                    y1={P}
+                    y2={H - P}
+                    stroke="#334155"
+                    strokeWidth="1.7"
+                  />
+                )}
+
+              {yMin <= 0 &&
+                yMax >= 0 && (
+                  <line
+                    x1={P}
+                    x2={W - P}
+                    y1={mapY(0)}
+                    y2={mapY(0)}
+                    stroke="#334155"
+                    strokeWidth="1.7"
+                  />
+                )}
+
+              {geometry.asymptotePaths.map(
+                (path, index) => (
+                  <path
+                    key={`asymptote-${index}`}
+                    d={path}
+                    fill="none"
+                    stroke="#94a3b8"
+                    strokeDasharray="7 6"
+                    strokeWidth="1.5"
+                  />
+                )
+              )}
+
+              {type === "parabola" &&
+                orientation === "vertical" && (
+                  <line
+                    x1={mapX(h)}
+                    x2={mapX(h)}
+                    y1={P}
+                    y2={H - P}
+                    stroke="#cbd5e1"
+                    strokeDasharray="5 5"
+                  />
+                )}
+
+              {type === "parabola" &&
+                orientation === "horizontal" && (
+                  <line
+                    x1={P}
+                    x2={W - P}
+                    y1={mapY(k)}
+                    y2={mapY(k)}
+                    stroke="#cbd5e1"
+                    strokeDasharray="5 5"
+                  />
+                )}
+
+              <path
+                d={geometry.curvePath}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+
+              {geometry.points.map(
+                (point) => (
+                  <g
+                    key={point.id}
+                    onMouseEnter={() =>
+                      setHovered(point.id)
+                    }
+                    className="cursor-pointer"
+                  >
+                    <circle
+                      cx={mapX(point.x)}
+                      cy={mapY(point.y)}
+                      r={
+                        hovered === point.id
+                          ? 8
+                          : 5
+                      }
+                      fill={
+                        hovered === point.id
+                          ? "#0f172a"
+                          : "#dc2626"
+                      }
+                    />
+                    <text
+                      x={mapX(point.x) + 9}
+                      y={mapY(point.y) - 9}
+                      fontSize="11"
+                      fontWeight="700"
+                      fill="#334155"
+                    >
+                      {point.label}
+                    </text>
+                  </g>
+                )
+              )}
+
+              {currentPoint && (
+                <g pointerEvents="none">
+                  <rect
+                    x={Math.min(
+                      mapX(currentPoint.x) + 12,
+                      W - 190
+                    )}
+                    y={Math.max(
+                      mapY(currentPoint.y) - 55,
+                      10
+                    )}
+                    width="178"
+                    height="46"
+                    rx="10"
+                    fill="white"
+                    stroke="#cbd5e1"
+                  />
+                  <text
+                    x={Math.min(
+                      mapX(currentPoint.x) + 22,
+                      W - 180
+                    )}
+                    y={Math.max(
+                      mapY(currentPoint.y) - 36,
+                      29
+                    )}
+                    fontSize="11"
+                    fontWeight="700"
+                    fill="#0f172a"
+                  >
+                    {currentPoint.label}
+                  </text>
+                  <text
+                    x={Math.min(
+                      mapX(currentPoint.x) + 22,
+                      W - 180
+                    )}
+                    y={Math.max(
+                      mapY(currentPoint.y) - 19,
+                      46
+                    )}
+                    fontSize="10"
+                    fill="#64748b"
+                  >
+                    {currentPoint.detail}
+                  </text>
+                </g>
+              )}
+            </svg>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-xs font-bold uppercase tracking-[.15em] text-slate-500">
+              Key geometry
+            </div>
+            <div className="mt-3 text-sm leading-6 text-slate-600">
+              {geometry.vertexText}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-xs font-bold uppercase tracking-[.15em] text-slate-500">
+              Focus
+            </div>
+            <div className="mt-3 text-sm leading-6 text-slate-600">
+              {geometry.focusText}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-xs font-bold uppercase tracking-[.15em] text-slate-500">
+              Directrix / asymptotes
+            </div>
+            <div className="mt-3 text-sm leading-6 text-slate-600">
+              {geometry.directrixText}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function NumberSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center justify-between text-sm">
+        <span className="font-medium">{label}</span>
+        <span className="font-mono text-slate-500">
+          {fmt(value)}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) =>
+          onChange(Number(e.target.value))
+        }
+        className="w-full"
+      />
+    </div>
+  );
+}
+
 function ReferenceLab() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -2077,6 +3106,14 @@ const tools: {
     description:
       "Explore limits, derivatives, tangent slopes and applications of derivatives visually.",
     classes: "XI · XII",
+  },
+  {
+    id: "conics",
+    icon: "◯",
+    title: "Conic Explorer",
+    description:
+      "Explore circles, parabolas, ellipses and hyperbolas with their key geometric elements.",
+    classes: "XI",
   },
   {
     id: "practice",
@@ -2438,6 +3475,9 @@ export default function MathematicsPage() {
       case "calculus":
         return <CalculusLab />;
 
+      case "conics":
+        return <ConicSectionsLab />;
+
       case "practice":
         return <PracticeLab />;
 
@@ -2536,6 +3576,21 @@ export default function MathematicsPage() {
               }`}
             >
               Calculus
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSection("conics")
+              }
+              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                section ===
+                "conics"
+                  ? "bg-slate-950 text-white"
+                  : "border border-slate-200 bg-white"
+              }`}
+            >
+              Conics
             </button>
 
             <button
