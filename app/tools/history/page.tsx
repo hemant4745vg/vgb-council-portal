@@ -85,7 +85,7 @@ const EVENTS: Event[] = [
   { year: 1978, label: "Deng-era reform period", place: "China", category: "Economic", note: "A major phase in China's modernisation." },
 ];
 
-const XII_MAPS = [
+const XII_MAPS: Array<[string, string[]]> = [
   ["Harappan sites", ["Harappa", "Banawali", "Kalibangan", "Balakot", "Rakhigarhi", "Dholavira", "Nageshwar", "Lothal", "Mohenjodaro", "Chanhudaro", "Kot Diji"]],
   ["Mahajanapadas and cities", ["Vajji", "Magadha", "Kosala", "Kuru", "Panchala", "Gandhara", "Avanti", "Rajgir", "Ujjain", "Taxila", "Varanasi"]],
   ["Ashokan inscriptions", ["Sanchi", "Topra", "Meerut", "Kaushambi"]],
@@ -569,7 +569,18 @@ function MapPractice() {
 
   return (
     <Panel title="CBSE Map Practice" eyebrow="5-mark map work" description="The location lists are derived from the supplied CBSE History syllabus. Learn first, then test recall without labels.">
-      <div className="flex flex-wrap gap-2">{XII_MAPS.map(([name], i) => <button key={name} onClick={() => { setSet(i); setRevealed(false); }} className={`rounded-xl px-3 py-2 text-xs font-semibold ${set === i ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600"}`}>{name}</button>)}</div>
+      <div className="flex flex-wrap gap-2">{XII_MAPS.map(([name], i) => (
+        <button
+          key={name}
+          onClick={() => {
+            setSet(i);
+            setRevealed(false);
+          }}
+          className={`rounded-xl px-3 py-2 text-xs font-semibold ${set === i ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600"}`}
+        >
+          {name}
+        </button>
+      ))}</div>
       <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="rounded-3xl bg-slate-950 p-6 text-white">
           <div className="text-[10px] font-bold uppercase tracking-[.15em] text-slate-400">Practice canvas</div>
