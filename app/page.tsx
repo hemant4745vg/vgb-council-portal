@@ -4,9 +4,9 @@ import Link from "next/link";
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
+  type TransitionEvent,
 } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -294,66 +294,37 @@ function RollingDigit({
 }) {
   const numericValue = Number(value);
 
-  const previousValueRef = useRef(numericValue);
+  const [fromDigit, setFromDigit] =
+    useState(numericValue);
 
-  const [position, setPosition] = useState(
-    10 + numericValue
-  );
+  const [toDigit, setToDigit] =
+    useState(numericValue);
+
+  const [rolling, setRolling] =
+    useState(false);
 
   useEffect(() => {
-    const previousValue =
-      previousValueRef.current;
+    if (numericValue === toDigit) return;
 
-    if (previousValue === numericValue) {
-      return;
+    setFromDigit(toDigit);
+    setToDigit(numericValue);
+
+    if (animate) {
+      setRolling(true);
+    } else {
+      setFromDigit(numericValue);
+      setRolling(false);
     }
+  }, [numericValue, animate, toDigit]);
 
-    /*
-      Always roll forward.
+  const handleTransitionEnd = (
+    event: TransitionEvent<HTMLSpanElement>
+  ) => {
+    if (event.propertyName !== "transform") return;
 
-      Examples:
-        4 -> 5  = +1
-        8 -> 9  = +1
-        9 -> 0  = +1
-        5 -> 0  = +5
-    */
-    const forwardDistance =
-      (numericValue - previousValue + 10) % 10;
-
-    const distance =
-      forwardDistance === 0
-        ? 10
-        : forwardDistance;
-
-    setPosition(
-      (current) => current + distance
-    );
-
-    previousValueRef.current = numericValue;
-
-    /*
-      Once the animation has completed, silently move
-      the digit back to the middle cycle. Because the
-      reset happens after the transition, it is invisible.
-    */
-    const timeout = window.setTimeout(() => {
-      setPosition((current) => {
-        const normalized =
-          ((current % 10) + 10) % 10;
-
-        return 10 + normalized;
-      });
-    }, 1400 + delay);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [numericValue, delay]);
-
-  const digits = Array.from(
-    { length: 30 },
-    (_, index) => index % 10
-  );
+    setFromDigit(toDigit);
+    setRolling(false);
+  };
 
   return (
     <span
@@ -361,22 +332,24 @@ function RollingDigit({
       aria-hidden="true"
     >
       <span
-        className="absolute left-0 top-0 flex flex-col"
+        className="absolute left-0 top-0 flex w-full flex-col"
+        onTransitionEnd={handleTransitionEnd}
         style={{
-          transform: `translateY(-${position}em)`,
-          transition: animate
-            ? `transform 1.25s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`
+          transform: rolling
+            ? "translateY(-1em)"
+            : "translateY(0em)",
+          transition: rolling
+            ? `transform 700ms cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`
             : "none",
         }}
       >
-        {digits.map((digit, index) => (
-          <span
-            key={`${digit}-${index}`}
-            className="flex h-[1em] items-center justify-center"
-          >
-            {digit}
-          </span>
-        ))}
+        <span className="flex h-[1em] w-full items-center justify-center">
+          {fromDigit}
+        </span>
+
+        <span className="flex h-[1em] w-full items-center justify-center">
+          {toDigit}
+        </span>
       </span>
     </span>
   );
@@ -409,29 +382,20 @@ function AnimatedClock({
 
     const target = `${match[1]}:${match[2]}:${match[3]}`;
 
-    const timeout = window.setTimeout(() => {
-      setDisplayTime(target);
-      setMeridiem(match[4].toUpperCase());
-      setHasAnimated(true);
-    }, 50);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
+    setDisplayTime(target);
+    setMeridiem(match[4].toUpperCase());
+    setHasAnimated(true);
   }, [time]);
 
-  const digits = displayTime.replace(
-    /:/g,
-    ""
-  );
+  const digits = displayTime.replace(/:/g, "");
 
   const digitDelays = [
     0,
-    90,
-    180,
-    270,
-    360,
-    450,
+    0,
+    0,
+    0,
+    0,
+    0,
   ];
 
   return (
@@ -453,7 +417,10 @@ function AnimatedClock({
           animate={hasAnimated}
         />
 
-        <span className="mx-[0.04em] opacity-70">
+        <span
+          className="mx-[0.04em] opacity-70"
+          aria-hidden="true"
+        >
           :
         </span>
 
@@ -469,7 +436,10 @@ function AnimatedClock({
           animate={hasAnimated}
         />
 
-        <span className="mx-[0.04em] opacity-70">
+        <span
+          className="mx-[0.04em] opacity-70"
+          aria-hidden="true"
+        >
           :
         </span>
 
