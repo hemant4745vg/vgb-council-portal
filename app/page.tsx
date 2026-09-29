@@ -2,16 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-/* =========================================================
-   SUPABASE
-========================================================= */
-
-const supabase = createClient(
-  "https://lllmgmfofwczpqbmigey.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
-);
+import { supabase } from "@/lib/supabase";
 
 /* =========================================================
    TYPES
@@ -57,6 +48,29 @@ interface MealWindow {
   endHour: number;
   label: string;
   description: string;
+}
+
+interface WeatherDay {
+  date: string;
+  weatherCode: number;
+  temperatureMax: number;
+  temperatureMin: number;
+  precipitationProbability: number;
+}
+
+interface WeatherData {
+  current: {
+    temperature: number;
+    apparentTemperature: number;
+    humidity: number;
+    precipitation: number;
+    windSpeed: number;
+    weatherCode: number;
+    isDay: boolean;
+  };
+  daily: WeatherDay[];
+  sunrise: string;
+  sunset: string;
 }
 
 /* =========================================================
@@ -242,6 +256,45 @@ function getNextMeal(hour: number): MealWindow {
       description: "Tomorrow morning",
     }
   );
+}
+
+function getWeatherInfo(code: number) {
+  if (code === 0) return { icon: "☀️", label: "Clear sky" };
+  if (code === 1) return { icon: "🌤️", label: "Mainly clear" };
+  if (code === 2) return { icon: "⛅", label: "Partly cloudy" };
+  if (code === 3) return { icon: "☁️", label: "Overcast" };
+  if ([45, 48].includes(code)) return { icon: "🌫️", label: "Foggy" };
+  if ([51, 53, 55].includes(code)) return { icon: "🌦️", label: "Drizzle" };
+  if ([56, 57].includes(code)) return { icon: "🌧️", label: "Freezing drizzle" };
+  if ([61, 63, 65].includes(code)) return { icon: "🌧️", label: "Rain" };
+  if ([66, 67].includes(code)) return { icon: "🌧️", label: "Freezing rain" };
+  if ([71, 73, 75, 77].includes(code)) return { icon: "❄️", label: "Snow" };
+  if ([80, 81, 82].includes(code)) return { icon: "🌦️", label: "Rain showers" };
+  if ([85, 86].includes(code)) return { icon: "🌨️", label: "Snow showers" };
+  if ([95, 96, 99].includes(code)) return { icon: "⛈️", label: "Thunderstorm" };
+
+  return { icon: "🌡️", label: "Variable conditions" };
+}
+
+function formatForecastDay(dateString: string, index: number) {
+  if (index === 0) return "Today";
+  if (index === 1) return "Tomorrow";
+
+  return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-US", {
+    weekday: "short",
+  });
+}
+
+function formatWeatherTime(value: string) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  return date.toLocaleTimeString("en-US", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 /* =========================================================
@@ -458,6 +511,208 @@ function AnimatedClock({
   );
 }
 
+function WeatherCard({
+  weather,
+  loading,
+  error,
+}: {
+  weather: WeatherData | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <section className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
+        <div className="animate-pulse p-6 sm:p-7">
+          <div className="h-3 w-36 rounded bg-slate-200" />
+          <div className="mt-5 h-12 w-32 rounded bg-slate-100" />
+          <div className="mt-3 h-4 w-48 rounded bg-slate-100" />
+          <div className="mt-7 grid grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-24 rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error || !weather) {
+    return (
+      <section className="rounded-[1.5rem] border border-slate-200/80 bg-white p-6 shadow-sm sm:p-7">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-xl">
+            🌦️
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+              Campus Weather
+            </p>
+            <h3 className="mt-2 text-xl font-bold text-blue-950">
+              Weather unavailable
+            </h3>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+              The live forecast could not be loaded right now. The rest of the portal is still available normally.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const currentInfo = getWeatherInfo(weather.current.weatherCode);
+
+  return (
+    <section className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
+      <div className="grid lg:grid-cols-[0.9fr_1.7fr]">
+        <div className="relative overflow-hidden bg-blue-950 p-6 text-white sm:p-7">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full border border-white/10" />
+          <div className="pointer-events-none absolute -bottom-24 -left-16 h-48 w-48 rounded-full border border-emerald-300/10" />
+
+          <div className="relative">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                  Campus Weather
+                </p>
+                <p className="mt-1 text-xs text-blue-300">
+                  VidyaGyan · Dulhera, Bulandshahr
+                </p>
+              </div>
+
+              <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[9px] font-semibold text-blue-200">
+                Live
+              </span>
+            </div>
+
+            <div className="mt-8 flex items-center gap-4">
+              <span className="text-5xl leading-none" aria-hidden="true">
+                {currentInfo.icon}
+              </span>
+
+              <div>
+                <div className="text-5xl font-bold tracking-[-0.05em] tabular-nums">
+                  {Math.round(weather.current.temperature)}°
+                </div>
+                <p className="mt-1 text-sm font-medium text-blue-200">
+                  {currentInfo.label}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-blue-300">
+                  Feels like
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {Math.round(weather.current.apparentTemperature)}°C
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-blue-300">
+                  Humidity
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {Math.round(weather.current.humidity)}%
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-blue-300">
+                  Wind
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {Math.round(weather.current.windSpeed)} km/h
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-blue-300">
+                  Precipitation
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {weather.current.precipitation.toFixed(1)} mm
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[10px] text-blue-300">
+              <span>☀ Sunrise {formatWeatherTime(weather.sunrise)}</span>
+              <span>☾ Sunset {formatWeatherTime(weather.sunset)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-7">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                7-day forecast
+              </p>
+              <h3 className="mt-2 text-xl font-bold text-blue-950">
+                The week ahead.
+              </h3>
+            </div>
+
+            <span className="hidden text-[10px] text-slate-400 sm:block">
+              °C · precipitation chance
+            </span>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+            {weather.daily.map((day, index) => {
+              const info = getWeatherInfo(day.weatherCode);
+
+              return (
+                <div
+                  key={day.date}
+                  className={`rounded-xl border p-3 ${
+                    index === 0
+                      ? "border-blue-200 bg-blue-50/70"
+                      : "border-slate-100 bg-slate-50/60"
+                  }`}
+                >
+                  <p className="text-[10px] font-bold text-slate-700">
+                    {formatForecastDay(day.date, index)}
+                  </p>
+
+                  <div className="mt-3 text-2xl" aria-hidden="true">
+                    {info.icon}
+                  </div>
+
+                  <p className="mt-2 text-xs font-semibold text-slate-600">
+                    {info.label}
+                  </p>
+
+                  <div className="mt-3 flex items-baseline gap-1">
+                    <span className="text-sm font-bold text-blue-950">
+                      {Math.round(day.temperatureMax)}°
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      / {Math.round(day.temperatureMin)}°
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-[10px] font-medium text-sky-700">
+                    💧 {Math.round(day.precipitationProbability)}%
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 text-[10px] text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+            <span>Forecast for the school campus coordinates.</span>
+            <span>Weather data · Open-Meteo</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* =========================================================
    HOME
 ========================================================= */
@@ -480,6 +735,15 @@ export default function Home() {
 
   const [indiaHour, setIndiaHour] =
     useState<number | null>(null);
+
+  const [weather, setWeather] =
+    useState<WeatherData | null>(null);
+
+  const [weatherLoading, setWeatherLoading] =
+    useState(true);
+
+  const [weatherError, setWeatherError] =
+    useState<string | null>(null);
 
   /* =======================================================
      CLOCK
@@ -664,6 +928,123 @@ export default function Home() {
 
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  /* =======================================================
+     CAMPUS WEATHER
+  ======================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchWeather() {
+      try {
+        setWeatherLoading(true);
+        setWeatherError(null);
+
+        const params = new URLSearchParams({
+          latitude: "28.3835",
+          longitude: "77.7049",
+          current:
+            "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day",
+          daily:
+            "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset",
+          temperature_unit: "celsius",
+          wind_speed_unit: "kmh",
+          precipitation_unit: "mm",
+          timezone: "Asia/Kolkata",
+          forecast_days: "7",
+        });
+
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/forecast?${params.toString()}`,
+          { cache: "no-store" }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Weather request failed with status ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+
+        if (!mounted) return;
+
+        if (
+          !data.current ||
+          !data.daily ||
+          !Array.isArray(data.daily.time)
+        ) {
+          throw new Error("Weather response was incomplete.");
+        }
+
+        setWeather({
+          current: {
+            temperature: Number(data.current.temperature_2m),
+            apparentTemperature: Number(
+              data.current.apparent_temperature
+            ),
+            humidity: Number(
+              data.current.relative_humidity_2m
+            ),
+            precipitation: Number(
+              data.current.precipitation
+            ),
+            windSpeed: Number(
+              data.current.wind_speed_10m
+            ),
+            weatherCode: Number(
+              data.current.weather_code
+            ),
+            isDay: Number(data.current.is_day) === 1,
+          },
+          daily: data.daily.time.map(
+            (date: string, index: number) => ({
+              date,
+              weatherCode: Number(
+                data.daily.weather_code[index]
+              ),
+              temperatureMax: Number(
+                data.daily.temperature_2m_max[index]
+              ),
+              temperatureMin: Number(
+                data.daily.temperature_2m_min[index]
+              ),
+              precipitationProbability: Number(
+                data.daily.precipitation_probability_max?.[index] ?? 0
+              ),
+            })
+          ),
+          sunrise: data.daily.sunrise?.[0] || "",
+          sunset: data.daily.sunset?.[0] || "",
+        });
+      } catch (error) {
+        console.error("Unable to fetch campus weather:", error);
+
+        if (mounted) {
+          setWeatherError(
+            "Live weather is temporarily unavailable."
+          );
+        }
+      } finally {
+        if (mounted) {
+          setWeatherLoading(false);
+        }
+      }
+    }
+
+    fetchWeather();
+
+    const refreshInterval = window.setInterval(
+      fetchWeather,
+      15 * 60 * 1000
+    );
+
+    return () => {
+      mounted = false;
+      window.clearInterval(refreshInterval);
     };
   }, []);
 
@@ -1057,7 +1438,7 @@ export default function Home() {
             description="A quick campus snapshot. The detailed pages contain the full information."
           />
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 
             {/* =================================================
                 TODAY ON CAMPUS
@@ -1271,6 +1652,26 @@ export default function Home() {
             </div>
 
           </div>
+        </section>
+
+        {/* =================================================
+            CAMPUS WEATHER
+        ================================================= */}
+
+        <section className="mt-14">
+
+          <SectionHeading
+            eyebrow="Campus Weather"
+            title="Conditions at VidyaGyan."
+            description="Live conditions and the next seven days for the Bulandshahr campus. No device location access is required."
+          />
+
+          <WeatherCard
+            weather={weather}
+            loading={weatherLoading}
+            error={weatherError}
+          />
+
         </section>
 
         {/* =================================================
