@@ -38,6 +38,7 @@ type Section =
   | "geometry"
   | "probability"
   | "statistics"
+  | "calculus"
   | "practice"
   | "reference";
 
@@ -1491,6 +1492,416 @@ function PracticeLab() {
 }
 
 /* =========================================================
+   CALCULUS LAB
+========================================================= */
+
+function CalculusLab() {
+  type Mode = "limits" | "derivative" | "applications";
+
+  const [mode, setMode] = useState<Mode>("limits");
+  const [expression, setExpression] = useState("x^2");
+  const [point, setPoint] = useState(2);
+  const [delta, setDelta] = useState(0.5);
+  const [window, setWindow] = useState(4);
+
+  const derivative = useMemo(() => {
+    try {
+      return math.derivative(expression, "x").toString();
+    } catch {
+      return "";
+    }
+  }, [expression]);
+
+  const valueAtSafe = (x: number) =>
+    valueAt(expression, x);
+
+  const derivativeAt = (x: number) => {
+    if (!derivative) return NaN;
+
+    try {
+      const value = math.evaluate(derivative, { x });
+      return typeof value === "number" && Number.isFinite(value)
+        ? value
+        : NaN;
+    } catch {
+      return NaN;
+    }
+  };
+
+  const leftLimit = valueAtSafe(point - delta);
+  const rightLimit = valueAtSafe(point + delta);
+  const closerLeft = valueAtSafe(point - delta / 10);
+  const closerRight = valueAtSafe(point + delta / 10);
+  const functionValue = valueAtSafe(point);
+  const slope = derivativeAt(point);
+
+  const samples = useMemo(() => {
+    const result: {
+      x: number;
+      y: number;
+      dy: number;
+    }[] = [];
+
+    const span = Math.max(1, window);
+    for (let i = 0; i <= 220; i++) {
+      const x = point - span + (i / 220) * 2 * span;
+      const y = valueAtSafe(x);
+      const dy = derivativeAt(x);
+      if (Number.isFinite(y) && Number.isFinite(dy)) {
+        result.push({ x, y, dy });
+      }
+    }
+    return result;
+  }, [expression, point, window, derivative]);
+
+  const stationaryPoints = useMemo(() => {
+    const found: number[] = [];
+    for (let i = 1; i < samples.length - 1; i++) {
+      const a = samples[i - 1].dy;
+      const b = samples[i].dy;
+      if (Math.abs(b) < 0.08 || a * b < 0) {
+        const x = samples[i].x;
+        if (!found.some((v) => Math.abs(v - x) < 0.18)) {
+          found.push(x);
+        }
+      }
+    }
+    return found.slice(0, 8);
+  }, [samples]);
+
+  const presets = [
+    ["x²", "x^2"],
+    ["x³ − 3x", "x^3-3*x"],
+    ["sin x", "sin(x)"],
+    ["eˣ", "exp(x)"],
+  ];
+
+  const graphW = 760;
+  const graphH = 390;
+  const pad = 44;
+  const xMin = point - window;
+  const xMax = point + window;
+
+  const yValues = samples.map((s) => s.y);
+  const rawMin = yValues.length ? Math.min(...yValues) : -5;
+  const rawMax = yValues.length ? Math.max(...yValues) : 5;
+  const yPad = Math.max((rawMax - rawMin) * 0.16, 1);
+  const yMin = Math.min(-1, rawMin - yPad);
+  const yMax = Math.max(1, rawMax + yPad);
+
+  const sx = (x: number) =>
+    pad + ((x - xMin) / (xMax - xMin)) * (graphW - 2 * pad);
+
+  const sy = (y: number) =>
+    graphH - pad - ((y - yMin) / (yMax - yMin)) * (graphH - 2 * pad);
+
+  const path = samples
+    .map((s, i) => `${i === 0 ? "M" : "L"} ${sx(s.x).toFixed(2)} ${sy(s.y).toFixed(2)}`)
+    .join(" ");
+
+  const tangentPath = (() => {
+    if (!Number.isFinite(functionValue) || !Number.isFinite(slope)) return "";
+    const xa = point - window * 0.65;
+    const xb = point + window * 0.65;
+    const ya = functionValue + slope * (xa - point);
+    const yb = functionValue + slope * (xb - point);
+    return `M ${sx(xa).toFixed(2)} ${sy(ya).toFixed(2)} L ${sx(xb).toFixed(2)} ${sy(yb).toFixed(2)}`;
+  })();
+
+  const reset = () => {
+    setExpression("x^2");
+    setPoint(2);
+    setDelta(0.5);
+    setWindow(4);
+  };
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[.16em] text-slate-500">
+              Calculus Laboratory
+            </div>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+              From limits to derivatives
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+              Change the function and point, then watch the numerical and geometric meaning of calculus update together.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
+            {([
+              ["limits", "Limits"],
+              ["derivative", "Derivative"],
+              ["applications", "Applications"],
+            ] as [Mode, string][]).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setMode(id)}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                  mode === id ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-[310px_minmax(0,1fr)]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="font-semibold">Function controls</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Use standard mathjs notation such as x^2, sin(x), exp(x) and sqrt(x).
+          </p>
+
+          <label className="mt-5 block">
+            <div className="mb-1 text-sm font-medium">f(x)</div>
+            <input
+              value={expression}
+              onChange={(e) => setExpression(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm outline-none focus:border-slate-500"
+            />
+          </label>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {presets.map(([label, value]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setExpression(value)}
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <label className="mt-5 block">
+            <div className="mb-1 flex justify-between text-sm font-medium">
+              <span>Point a</span>
+              <span className="font-mono text-slate-500">{fmt(point)}</span>
+            </div>
+            <input
+              type="range"
+              min="-8"
+              max="8"
+              step="0.1"
+              value={point}
+              onChange={(e) => setPoint(Number(e.target.value))}
+              className="w-full"
+            />
+          </label>
+
+          {mode === "limits" && (
+            <label className="mt-5 block">
+              <div className="mb-1 flex justify-between text-sm font-medium">
+                <span>Approach distance</span>
+                <span className="font-mono text-slate-500">{fmt(delta)}</span>
+              </div>
+              <input
+                type="range"
+                min="0.05"
+                max="1"
+                step="0.05"
+                value={delta}
+                onChange={(e) => setDelta(Number(e.target.value))}
+                className="w-full"
+              />
+            </label>
+          )}
+
+          {(mode === "derivative" || mode === "applications") && (
+            <label className="mt-5 block">
+              <div className="mb-1 flex justify-between text-sm font-medium">
+                <span>Graph window</span>
+                <span className="font-mono text-slate-500">±{fmt(window)}</span>
+              </div>
+              <input
+                type="range"
+                min="2"
+                max="8"
+                step="0.5"
+                value={window}
+                onChange={(e) => setWindow(Number(e.target.value))}
+                className="w-full"
+              />
+            </label>
+          )}
+
+          <button
+            type="button"
+            onClick={reset}
+            className="mt-6 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+          >
+            Reset example
+          </button>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[.14em] text-slate-500">
+                {mode === "limits" ? "Approaching a point" : mode === "derivative" ? "Function and tangent" : "Behaviour from the derivative"}
+              </div>
+              <div className="mt-1 font-mono text-sm text-slate-700">
+                f(x) = {expression || "…"}
+              </div>
+            </div>
+            {derivative && (
+              <div className="hidden rounded-xl bg-slate-50 px-3 py-2 text-right sm:block">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">f′(x)</div>
+                <div className="mt-1 font-mono text-sm font-semibold">{derivative}</div>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <svg viewBox={`0 0 ${graphW} ${graphH}`} className="h-auto w-full">
+              <rect width={graphW} height={graphH} fill="white" />
+
+              {[-2, -1, 0, 1, 2].map((v) => {
+                const y = sy(v);
+                if (y < pad || y > graphH - pad) return null;
+                return <line key={`gy-${v}`} x1={pad} x2={graphW - pad} y1={y} y2={y} stroke="#e2e8f0" />;
+              })}
+
+              {[-1, 0, 1].map((v) => {
+                const x = sx(point + v * Math.max(1, window / 3));
+                if (x < pad || x > graphW - pad) return null;
+                return <line key={`gx-${v}`} x1={x} x2={x} y1={pad} y2={graphH - pad} stroke="#e2e8f0" />;
+              })}
+
+              {yMin <= 0 && yMax >= 0 && (
+                <line x1={pad} x2={graphW - pad} y1={sy(0)} y2={sy(0)} stroke="#475569" strokeWidth="1.5" />
+              )}
+              {xMin <= 0 && xMax >= 0 && (
+                <line x1={sx(0)} x2={sx(0)} y1={pad} y2={graphH - pad} stroke="#475569" strokeWidth="1.5" />
+              )}
+
+              <path d={path} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" />
+
+              {mode === "derivative" && tangentPath && (
+                <path d={tangentPath} fill="none" stroke="#dc2626" strokeWidth="2.2" strokeDasharray="7 5" />
+              )}
+
+              {mode === "applications" && stationaryPoints.map((x) => {
+                const y = valueAtSafe(x);
+                return Number.isFinite(y) ? (
+                  <g key={x.toFixed(3)}>
+                    <circle cx={sx(x)} cy={sy(y)} r="5" fill="#dc2626" />
+                    <text x={sx(x) + 8} y={sy(y) - 8} fontSize="11" fill="#334155">{fmt(x)}</text>
+                  </g>
+                ) : null;
+              })}
+
+              {mode === "limits" && Number.isFinite(functionValue) && (
+                <>
+                  <line x1={sx(point)} x2={sx(point)} y1={pad} y2={graphH - pad} stroke="#94a3b8" strokeDasharray="5 5" />
+                  <circle cx={sx(point)} cy={sy(functionValue)} r="6" fill="white" stroke="#2563eb" strokeWidth="3" />
+                  <circle cx={sx(point - delta)} cy={sy(leftLimit)} r="4" fill="#16a34a" />
+                  <circle cx={sx(point + delta)} cy={sy(rightLimit)} r="4" fill="#16a34a" />
+                </>
+              )}
+
+              {mode === "derivative" && Number.isFinite(functionValue) && (
+                <>
+                  <line x1={sx(point)} x2={sx(point)} y1={pad} y2={graphH - pad} stroke="#94a3b8" strokeDasharray="5 5" />
+                  <circle cx={sx(point)} cy={sy(functionValue)} r="6" fill="#dc2626" />
+                </>
+              )}
+
+              <text x={graphW - 20} y={sy(0) - 8} fontSize="12" fontWeight="700" fill="#475569">x</text>
+              <text x={sx(0) + 8} y={pad + 8} fontSize="12" fontWeight="700" fill="#475569">y</text>
+            </svg>
+          </div>
+
+          {mode === "limits" && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <Metric label={`f(${fmt(point - delta)})`} value={fmt(leftLimit)} />
+              <Metric label={`f(${fmt(point + delta)})`} value={fmt(rightLimit)} />
+              <Metric label={`f(${fmt(point)})`} value={fmt(functionValue)} />
+            </div>
+          )}
+
+          {mode === "derivative" && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <Metric label="Function value" value={fmt(functionValue)} />
+              <Metric label="Derivative at a" value={fmt(slope)} />
+              <Metric label="Tangent" value={Number.isFinite(slope) && Number.isFinite(functionValue) ? `y = ${fmt(slope)}(x − ${fmt(point)}) + ${fmt(functionValue)}` : "undefined"} />
+            </div>
+          )}
+
+          {mode === "applications" && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Metric label="Derivative" value={derivative || "undefined"} />
+              <Metric label="Stationary points detected" value={String(stationaryPoints.length)} />
+            </div>
+          )}
+        </section>
+      </div>
+
+      {mode === "limits" && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="font-semibold">Limit intuition</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            Move the approach distance toward zero. The left-hand and right-hand values should move toward the same number when the limit exists. The value of f(a) can be different, or even undefined, without changing the limiting behaviour.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <Metric label={`Left: x → ${fmt(point)}⁻`} value={fmt(closerLeft)} />
+            <Metric label={`Right: x → ${fmt(point)}⁺`} value={fmt(closerRight)} />
+            <Metric label="Difference" value={fmt(Math.abs(closerLeft - closerRight))} />
+          </div>
+        </section>
+      )}
+
+      {mode === "derivative" && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="font-semibold">Derivative intuition</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            The derivative is the limiting slope of secant lines. Here the red tangent is drawn at x = a, while the blue curve is the original function.
+          </p>
+          <div className="mt-4 rounded-xl bg-slate-50 p-4">
+            <Latex value={`f'(x)=${toLatex(derivative || "undefined")}`} />
+          </div>
+        </section>
+      )}
+
+      {mode === "applications" && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="font-semibold">Applications of derivatives</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            Stationary points occur where f′(x) = 0 or where the derivative changes sign. The explorer marks likely stationary points on the curve so the connection between derivative behaviour and the original function is visible.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {stationaryPoints.length ? stationaryPoints.map((x) => (
+              <span key={x.toFixed(3)} className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-sm">
+                x ≈ {fmt(x)}
+              </span>
+            )) : (
+              <span className="text-sm text-slate-500">No stationary point detected in the current window.</span>
+            )}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-4">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className="mt-1 break-words font-mono text-sm font-semibold text-slate-800">{value}</div>
+    </div>
+  );
+}
+
+/* =========================================================
    REFERENCE
 ========================================================= */
 
@@ -1658,6 +2069,14 @@ const tools: {
     description:
       "Analyse datasets using mean, median, variance and standard deviation.",
     classes: "XI",
+  },
+  {
+    id: "calculus",
+    icon: "∂",
+    title: "Calculus Lab",
+    description:
+      "Explore limits, derivatives, tangent slopes and applications of derivatives visually.",
+    classes: "XI · XII",
   },
   {
     id: "practice",
@@ -2016,6 +2435,9 @@ export default function MathematicsPage() {
       case "statistics":
         return <StatisticsLab />;
 
+      case "calculus":
+        return <CalculusLab />;
+
       case "practice":
         return <PracticeLab />;
 
@@ -2099,6 +2521,21 @@ export default function MathematicsPage() {
               }`}
             >
               Trigonometry
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSection("calculus")
+              }
+              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                section ===
+                "calculus"
+                  ? "bg-slate-950 text-white"
+                  : "border border-slate-200 bg-white"
+              }`}
+            >
+              Calculus
             </button>
 
             <button
