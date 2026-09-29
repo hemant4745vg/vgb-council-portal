@@ -32,6 +32,18 @@ type Viewport = {
   yMax: number;
 };
 
+type Workspace = {
+  expressions: Expr[];
+  activeId: number;
+  viewport: Viewport;
+  scientificOn: boolean;
+  mode: "Graph" | "Calculate" | "Table";
+  calc: string;
+  answer: string;
+  start: number;
+  step: number;
+};
+
 type HistoryState = {
   expressions: Expr[];
   activeId: number;
