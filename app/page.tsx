@@ -41,6 +41,27 @@ interface PortalProfile {
   admin_status: string | null;
 }
 
+interface WeatherData {
+  current: {
+    temperature: number;
+    apparentTemperature: number;
+    humidity: number;
+    precipitation: number;
+    windSpeed: number;
+    weatherCode: number;
+    isDay: boolean;
+  };
+  daily: {
+    date: string[];
+    weatherCode: number[];
+    temperatureMax: number[];
+    temperatureMin: number[];
+    precipitationProbability: number[];
+    sunrise: string[];
+    sunset: string[];
+  };
+}
+
 type MealType =
   | "Breakfast"
   | "Morning Snacks"
@@ -239,6 +260,46 @@ function getNextMeal(hour: number): MealWindow {
       description: "Tomorrow morning",
     }
   );
+}
+
+function getWeatherInfo(code: number) {
+  if (code === 0) return { label: "Clear sky", icon: "☀️" };
+  if (code === 1) return { label: "Mainly clear", icon: "🌤️" };
+  if (code === 2) return { label: "Partly cloudy", icon: "⛅" };
+  if (code === 3) return { label: "Overcast", icon: "☁️" };
+  if ([45, 48].includes(code)) return { label: "Foggy", icon: "🌫️" };
+  if ([51, 53, 55, 56, 57].includes(code)) return { label: "Drizzle", icon: "🌦️" };
+  if ([61, 63, 65, 66, 67].includes(code)) return { label: "Rain", icon: "🌧️" };
+  if ([71, 73, 75, 77].includes(code)) return { label: "Snow", icon: "🌨️" };
+  if ([80, 81, 82].includes(code)) return { label: "Rain showers", icon: "🌦️" };
+  if ([85, 86].includes(code)) return { label: "Snow showers", icon: "🌨️" };
+  if ([95, 96, 99].includes(code)) return { label: "Thunderstorm", icon: "⛈️" };
+
+  return { label: "Changing conditions", icon: "🌥️" };
+}
+
+function formatWeatherTime(value?: string) {
+  if (!value) return "—";
+
+  return new Date(value).toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function formatForecastDay(dateString: string, index: number) {
+  const date = new Date(`${dateString}T00:00:00`);
+
+  if (index === 0) return "Today";
+  if (index === 1) return "Tomorrow";
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 }
 
 /* =========================================================
@@ -498,6 +559,15 @@ export default function Home() {
   const [indiaHour, setIndiaHour] =
     useState<number | null>(null);
 
+  const [weather, setWeather] =
+    useState<WeatherData | null>(null);
+
+  const [weatherLoading, setWeatherLoading] =
+    useState(true);
+
+  const [weatherError, setWeatherError] =
+    useState(false);
+
   /* =======================================================
      CLOCK
   ======================================================= */
@@ -537,6 +607,84 @@ export default function Home() {
     );
 
     return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  /* =======================================================
+     CAMPUS WEATHER
+  ======================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadWeather() {
+      try {
+        const params = new URLSearchParams({
+          latitude: "28.3835",
+          longitude: "77.7049",
+          current:
+            "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day",
+          daily:
+            "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset",
+          timezone: "Asia/Kolkata",
+          forecast_days: "7",
+        });
+
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/forecast?${params.toString()}`,
+          { cache: "no-store" }
+        );
+
+        if (!response.ok) {
+          throw new Error("Weather request failed");
+        }
+
+        const data = await response.json();
+
+        if (!mounted) return;
+
+        setWeather({
+          current: {
+            temperature: data.current.temperature_2m,
+            apparentTemperature:
+              data.current.apparent_temperature,
+            humidity: data.current.relative_humidity_2m,
+            precipitation: data.current.precipitation,
+            windSpeed: data.current.wind_speed_10m,
+            weatherCode: data.current.weather_code,
+            isDay: Boolean(data.current.is_day),
+          },
+          daily: {
+            date: data.daily.time,
+            weatherCode: data.daily.weather_code,
+            temperatureMax: data.daily.temperature_2m_max,
+            temperatureMin: data.daily.temperature_2m_min,
+            precipitationProbability:
+              data.daily.precipitation_probability_max,
+            sunrise: data.daily.sunrise,
+            sunset: data.daily.sunset,
+          },
+        });
+
+        setWeatherError(false);
+      } catch {
+        if (!mounted) return;
+        setWeatherError(true);
+      } finally {
+        if (mounted) setWeatherLoading(false);
+      }
+    }
+
+    loadWeather();
+
+    const interval = window.setInterval(
+      loadWeather,
+      15 * 60 * 1000
+    );
+
+    return () => {
+      mounted = false;
       window.clearInterval(interval);
     };
   }, []);
@@ -1288,6 +1436,193 @@ export default function Home() {
             </div>
 
           </div>
+        </section>
+
+        {/* =================================================
+            CAMPUS WEATHER
+        ================================================= */}
+
+        <section className="mt-14">
+
+          <SectionHeading
+            eyebrow="Campus Weather"
+            title="Conditions at VidyaGyan."
+            description="Live conditions and the next seven days for the Bulandshahr campus."
+          />
+
+          {weatherLoading && !weather ? (
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+              <div className="animate-pulse">
+                <div className="h-4 w-28 rounded bg-slate-100" />
+                <div className="mt-4 h-10 w-40 rounded bg-slate-100" />
+                <div className="mt-3 h-4 w-56 rounded bg-slate-100" />
+              </div>
+            </div>
+          ) : weather ? (
+            <>
+              <div className="grid gap-4 lg:grid-cols-[1.05fr_1.95fr]">
+
+                <div className="relative overflow-hidden rounded-2xl bg-blue-950 p-6 text-white shadow-sm">
+                  <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full border border-white/10" />
+                  <div className="pointer-events-none absolute -bottom-20 -left-16 h-44 w-44 rounded-full border border-emerald-300/10" />
+
+                  <div className="relative">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                        Now at Campus
+                      </span>
+                      <span className="text-3xl" aria-hidden="true">
+                        {getWeatherInfo(weather.current.weatherCode).icon}
+                      </span>
+                    </div>
+
+                    <div className="mt-5 flex items-end gap-2">
+                      <span className="text-5xl font-bold tracking-tight">
+                        {Math.round(weather.current.temperature)}°
+                      </span>
+                      <span className="mb-1 text-sm text-blue-200">
+                        C
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-lg font-semibold">
+                      {getWeatherInfo(weather.current.weatherCode).label}
+                    </p>
+
+                    <p className="mt-1 text-xs text-blue-300">
+                      Feels like {Math.round(weather.current.apparentTemperature)}°C
+                    </p>
+
+                    <div className="mt-6 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">
+                          Humidity
+                        </p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {Math.round(weather.current.humidity)}%
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">
+                          Wind
+                        </p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {Math.round(weather.current.windSpeed)} km/h
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">
+                          Rain now
+                        </p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {weather.current.precipitation.toFixed(1)} mm
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">
+                          Daylight
+                        </p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {weather.current.isDay ? "Daytime" : "Night"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+                        7-Day Forecast
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        High / low temperatures and rain probability.
+                      </p>
+                    </div>
+
+                    {weather.daily.date[0] && (
+                      <span className="text-xs text-slate-400">
+                        {getShortDate(weather.daily.date[0])}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                    {weather.daily.date.map((date, index) => {
+                      const info = getWeatherInfo(
+                        weather.daily.weatherCode[index] ?? 0
+                      );
+
+                      return (
+                        <div
+                          key={date}
+                          className={`rounded-xl border p-3 text-center ${
+                            index === 0
+                              ? "border-emerald-200 bg-emerald-50/70"
+                              : "border-slate-100 bg-slate-50/70"
+                          }`}
+                        >
+                          <p className="text-[10px] font-bold text-slate-700">
+                            {formatForecastDay(date, index)}
+                          </p>
+
+                          <div
+                            className="mt-3 text-2xl"
+                            aria-label={info.label}
+                          >
+                            {info.icon}
+                          </div>
+
+                          <p className="mt-2 text-sm font-bold text-blue-950">
+                            {Math.round(weather.daily.temperatureMax[index] ?? 0)}°
+                            <span className="font-normal text-slate-400">
+                              / {Math.round(weather.daily.temperatureMin[index] ?? 0)}°
+                            </span>
+                          </p>
+
+                          <p className="mt-1 text-[10px] font-semibold text-cyan-700">
+                            {Math.round(weather.daily.precipitationProbability[index] ?? 0)}% rain
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      Sunrise {formatWeatherTime(weather.daily.sunrise[0])}
+                    </span>
+                    <span>
+                      Sunset {formatWeatherTime(weather.daily.sunset[0])}
+                    </span>
+                    <span>
+                      Auto-refreshes every 15 min
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+            </>
+          ) : (
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+              <p className="text-sm font-semibold text-blue-950">
+                Campus weather is temporarily unavailable.
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                The rest of the portal is still available normally.
+              </p>
+              {weatherError && (
+                <p className="mt-3 text-xs text-slate-400">
+                  Weather data could not be refreshed right now.
+                </p>
+              )}
+            </div>
+          )}
+
         </section>
 
         {/* =================================================
