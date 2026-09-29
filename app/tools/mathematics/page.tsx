@@ -37,6 +37,19 @@ const DEFAULT_VIEWPORT: Viewport = {
   yMax: 10,
 };
 
+const DEFAULT_EXPRESSIONS: Expr[] = [
+  {
+    id: 1,
+    raw: "x^2",
+    visible: true,
+    color: COLORS[0],
+  },
+];
+
+function cloneExpressions(expressions: Expr[]) {
+  return expressions.map((expression) => ({ ...expression }));
+}
+
 type Section =
   | "overview"
   | "graph"
