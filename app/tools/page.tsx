@@ -79,7 +79,6 @@ const subjectTools = [
     tag: "Class XI–XII",
     description:
       "Graphs, equations, functions, probability and interactive mathematical tools.",
-    available: true,
   },
   {
     href: "/tools/physics",
@@ -88,7 +87,6 @@ const subjectTools = [
     tag: "Class XI–XII",
     description:
       "Interactive simulations, graphs, formulas and virtual physics labs.",
-    available: true,
   },
   {
     href: "/tools/chemistry",
@@ -97,7 +95,14 @@ const subjectTools = [
     tag: "Class XI–XII",
     description:
       "Molecules, reactions, calculations and chemistry learning tools.",
-    available: true,
+  },
+  {
+    href: "/tools/biology",
+    icon: "🧬",
+    title: "Biology",
+    tag: "Class XI–XII",
+    description:
+      "Interactive labs, molecular models, membranes, plant systems and core biology concepts.",
   },
   {
     href: "/tools/economics",
@@ -106,7 +111,6 @@ const subjectTools = [
     tag: "Class XI–XII",
     description:
       "Demand, supply, markets, national income and economic models.",
-    available: true,
   },
   {
     href: "/tools/geography",
@@ -115,7 +119,14 @@ const subjectTools = [
     tag: "Class XI–XII",
     description:
       "Interactive maps, CBSE map practice and geographical exploration.",
-    available: true,
+  },
+  {
+    href: "/tools/history",
+    icon: "🏺",
+    title: "History",
+    tag: "Class XI–XII",
+    description:
+      "Timelines, source analysis, historical interpretation and revision tools.",
   },
   {
     href: "/tools/political-science",
@@ -124,17 +135,94 @@ const subjectTools = [
     tag: "Class XI–XII",
     description:
       "Constitution, institutions, political concepts and civic learning.",
-    available: false,
   },
-  {
-    href: "/tools/english",
-    icon: "Aa",
-    title: "English",
-    tag: "Class XI–XII",
-    description:
-      "Language, writing, literature and communication tools.",
-    available: false,
-  },
+] as const;
+
+const newsSubjects = [
+  [
+    "/news",
+    "🇮🇳",
+    "India",
+    "National politics, policy, institutions, courts, society and major developments.",
+  ],
+  [
+    "/news",
+    "🌐",
+    "World & Geopolitics",
+    "International relations, conflicts, diplomacy, strategic shifts and global institutions.",
+  ],
+  [
+    "/news",
+    "💹",
+    "Economy & Markets",
+    "Growth, inflation, trade, markets, fiscal policy and major economic developments.",
+  ],
+  [
+    "/news",
+    "🌍",
+    "Geoeconomics",
+    "Trade routes, sanctions, supply chains, strategic resources and economic statecraft.",
+  ],
+  [
+    "/news",
+    "🤖",
+    "Technology & AI",
+    "Artificial intelligence, computing, digital policy, platforms and emerging technologies.",
+  ],
+  [
+    "/news",
+    "🏛️",
+    "Government & Public Policy",
+    "Governance, legislation, public programmes, regulation and policy implementation.",
+  ],
+  [
+    "/news",
+    "👥",
+    "Society",
+    "Demography, education, inequality, social change and major societal developments.",
+  ],
+  [
+    "/news",
+    "🌱",
+    "Environment & Disasters",
+    "Climate, extreme events, natural hazards, resilience and environmental policy.",
+  ],
+  [
+    "/news",
+    "📍",
+    "Uttar Pradesh",
+    "UP governance, politics, economy, infrastructure, society and regional developments.",
+  ],
+  [
+    "/news",
+    "🌏",
+    "BRICS & Global South",
+    "BRICS, emerging economies, multilateral cooperation and Global South diplomacy.",
+  ],
+  [
+    "/news",
+    "₹",
+    "Rupee & Indian Economy",
+    "Rupee movements, external sector, reserves, trade, monetary policy and macroeconomic signals.",
+  ],
+  [
+    "/news",
+    "📊",
+    "Forecasting & Data",
+    "Polls, forecasts, indicators, projections and responsible interpretation of uncertainty.",
+  ],
+  [
+    "/news",
+    "⚖️",
+    "Political & Legal Cases",
+    "Major political controversies, constitutional questions, court cases and institutional disputes.",
+  ],
+  [
+    "/news",
+    "🔎",
+    "Controversies & Media Literacy",
+    "Source checking, competing claims, misinformation, evidence quality and contested narratives.",
+  ],
 ] as const;
 
 const typingTexts = [
@@ -962,7 +1050,10 @@ function Converter() {
     return (n * x[f]) / x[t];
   }, [k, v, f, t]);
 
-  const options = k === "length" ? ["m", "km", "cm", "mi", "ft"] : ["C", "F", "K"];
+  const options =
+    k === "length"
+      ? ["m", "km", "cm", "mi", "ft"]
+      : ["C", "F", "K"];
 
   return (
     <>
@@ -1053,10 +1144,22 @@ export default function ToolsPage() {
     }
   }, [seconds]);
 
-  const filtered = games.filter((g) =>
+  const query = q.trim().toLowerCase();
+
+  const filteredSubjects = subjectTools.filter((subject) =>
+    `${subject.title} ${subject.tag} ${subject.description}`
+      .toLowerCase()
+      .includes(query)
+  );
+
+  const filteredNews = newsSubjects.filter((subject) =>
+    `${subject[2]} ${subject[3]}`.toLowerCase().includes(query)
+  );
+
+  const filteredGames = games.filter((g) =>
     `${g[2]} ${g[3]} ${g[4]}`
       .toLowerCase()
-      .includes(q.toLowerCase())
+      .includes(query)
   );
 
   const avg = Math.round(
@@ -1098,9 +1201,15 @@ export default function ToolsPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search games..."
+          placeholder="Search subjects, news, tools and games..."
           className="mt-8 w-full rounded-2xl border bg-white px-5 py-4 outline-none focus:border-slate-950"
         />
+
+        {query && (
+          <p className="mt-3 text-xs font-bold text-slate-500">
+            Searching academic subjects, current affairs, utilities and games.
+          </p>
+        )}
 
         {/* SUBJECT TOOLS */}
         <section className="mt-12">
@@ -1120,61 +1229,102 @@ export default function ToolsPage() {
             </div>
 
             <span className="hidden rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500 sm:block">
-              {subjectTools.filter((x) => x.available).length} available
+              {subjectTools.length} subjects
             </span>
           </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {subjectTools.map((subject) => (
-              <a
-                key={subject.title}
-                href={subject.available ? subject.href : undefined}
-                aria-disabled={!subject.available}
-                onClick={(e) => {
-                  if (!subject.available) {
-                    e.preventDefault();
-                  }
-                }}
-                className={`group rounded-3xl border bg-white p-6 text-left transition ${
-                  subject.available
-                    ? "hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
-                    : "cursor-not-allowed opacity-60"
-                }`}
-              >
-                <div className="flex items-start justify-between">
+          {filteredSubjects.length > 0 ? (
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {filteredSubjects.map((subject) => (
+                <a
+                  key={subject.title}
+                  href={subject.href}
+                  className="group rounded-3xl border bg-white p-6 text-left transition hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
+                >
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-white">
                     {subject.icon}
                   </div>
 
-                  <span
-                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
-                      subject.available
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {subject.available ? "Available" : "Coming soon"}
-                  </span>
-                </div>
+                  <div className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">
+                    {subject.tag}
+                  </div>
 
-                <div className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">
-                  {subject.tag}
-                </div>
+                  <h3 className="mt-2 text-xl font-black">
+                    {subject.title}
+                  </h3>
 
-                <h3 className="mt-2 text-xl font-black">
-                  {subject.title}
-                </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    {subject.description}
+                  </p>
 
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {subject.description}
-                </p>
+                  <div className="mt-5 text-sm font-bold">
+                    Open tool →
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-3xl border bg-white p-8 text-center text-sm text-slate-500">
+              No academic subject matches “{q}”.
+            </div>
+          )}
+        </section>
 
-                <div className="mt-5 text-sm font-bold">
-                  {subject.available ? "Open tool →" : "In development"}
-                </div>
-              </a>
-            ))}
+        {/* NEWS & CURRENT AFFAIRS */}
+        <section className="mt-14">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.2em] text-slate-500">
+                News & current affairs
+              </p>
+
+              <h2 className="mt-2 text-2xl font-black">
+                News Subjects
+              </h2>
+
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+                Follow current affairs by analytical subject rather than one
+                giant pile of headlines. Because apparently even news needs
+                information architecture.
+              </p>
+            </div>
+
+            <span className="hidden rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500 sm:block">
+              {newsSubjects.length} subjects
+            </span>
           </div>
+
+          {filteredNews.length > 0 ? (
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {filteredNews.map(([href, icon, title, description]) => (
+                <a
+                  key={title}
+                  href={href}
+                  className="group rounded-3xl border bg-white p-6 text-left transition hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-xl text-white">
+                    {icon}
+                  </div>
+
+                  <h3 className="mt-5 text-xl font-black">
+                    {title}
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    {description}
+                  </p>
+
+                  <div className="mt-5 text-sm font-bold">
+                    Open news desk →
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-3xl border bg-white p-8 text-center text-sm text-slate-500">
+              No news subject matches “{q}”.
+            </div>
+          )}
         </section>
 
         {/* ESSENTIAL TOOLS */}
@@ -1224,7 +1374,9 @@ export default function ToolsPage() {
               >
                 <div className="text-2xl">{icon}</div>
 
-                <div className="mt-4 font-bold">{title}</div>
+                <div className="mt-4 font-bold">
+                  {title}
+                </div>
 
                 <div className="mt-1 text-sm text-slate-500">
                   {desc}
@@ -1238,7 +1390,9 @@ export default function ToolsPage() {
         <section className="mt-14">
           <div className="flex items-end justify-between">
             <div>
-              <h2 className="text-2xl font-black">Games</h2>
+              <h2 className="text-2xl font-black">
+                Games
+              </h2>
 
               <p className="mt-1 text-sm text-slate-500">
                 Short browser-native games. No downloads required.
@@ -1246,38 +1400,46 @@ export default function ToolsPage() {
             </div>
 
             <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
-              {filtered.length} available
+              {filteredGames.length} available
             </span>
           </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {filtered.map((g) => (
-              <button
-                key={g[0]}
-                type="button"
-                onClick={() => setGame(g[0])}
-                className="rounded-3xl border bg-white p-5 text-left transition hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
-              >
-                <div className="text-3xl">{g[1]}</div>
+          {filteredGames.length > 0 ? (
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {filteredGames.map((g) => (
+                <button
+                  key={g[0]}
+                  type="button"
+                  onClick={() => setGame(g[0])}
+                  className="rounded-3xl border bg-white p-5 text-left transition hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
+                >
+                  <div className="text-3xl">
+                    {g[1]}
+                  </div>
 
-                <div className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">
-                  {g[3]}
-                </div>
+                  <div className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">
+                    {g[3]}
+                  </div>
 
-                <h3 className="mt-2 text-xl font-black">
-                  {g[2]}
-                </h3>
+                  <h3 className="mt-2 text-xl font-black">
+                    {g[2]}
+                  </h3>
 
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {g[4]}
-                </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    {g[4]}
+                  </p>
 
-                <div className="mt-5 text-sm font-bold">
-                  Play →
-                </div>
-              </button>
-            ))}
-          </div>
+                  <div className="mt-5 text-sm font-bold">
+                    Play →
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-3xl border bg-white p-8 text-center text-sm text-slate-500">
+              No game matches “{q}”.
+            </div>
+          )}
         </section>
 
         <section className="mt-14 rounded-3xl bg-slate-950 p-7 text-white md:p-10">
@@ -1307,7 +1469,10 @@ export default function ToolsPage() {
       )}
 
       {tool === "Calculator" && (
-        <Modal title="Calculator" close={() => setTool(null)}>
+        <Modal
+          title="Calculator"
+          close={() => setTool(null)}
+        >
           <input
             autoFocus
             value={calc}
@@ -1328,7 +1493,10 @@ export default function ToolsPage() {
       )}
 
       {tool === "Marks Calculator" && (
-        <Modal title="Marks Calculator" close={() => setTool(null)}>
+        <Modal
+          title="Marks Calculator"
+          close={() => setTool(null)}
+        >
           <p className="text-sm text-slate-500">
             Enter marks out of 100.
           </p>
@@ -1347,7 +1515,10 @@ export default function ToolsPage() {
                       j === i
                         ? Math.max(
                             0,
-                            Math.min(100, Number(e.target.value))
+                            Math.min(
+                              100,
+                              Number(e.target.value)
+                            )
                           )
                         : x
                     )
@@ -1359,14 +1530,23 @@ export default function ToolsPage() {
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <Stat label="Average" value={`${avg}%`} />
-            <Stat label="Subjects" value="5" />
+            <Stat
+              label="Average"
+              value={`${avg}%`}
+            />
+            <Stat
+              label="Subjects"
+              value="5"
+            />
           </div>
         </Modal>
       )}
 
       {tool === "Unit Converter" && (
-        <Modal title="Unit Converter" close={() => setTool(null)}>
+        <Modal
+          title="Unit Converter"
+          close={() => setTool(null)}
+        >
           <Converter />
         </Modal>
       )}
@@ -1381,7 +1561,10 @@ export default function ToolsPage() {
         >
           <div className="text-center">
             <div className="text-6xl font-black tabular-nums">
-              {String(Math.floor(seconds / 60)).padStart(2, "0")}:
+              {String(
+                Math.floor(seconds / 60)
+              ).padStart(2, "0")}
+              :
               {String(seconds % 60).padStart(2, "0")}
             </div>
 
@@ -1432,7 +1615,10 @@ export default function ToolsPage() {
       )}
 
       {tool === "Text Counter" && (
-        <Modal title="Text Counter" close={() => setTool(null)}>
+        <Modal
+          title="Text Counter"
+          close={() => setTool(null)}
+        >
           <textarea
             autoFocus
             value={text}
@@ -1446,18 +1632,28 @@ export default function ToolsPage() {
               label="Words"
               value={
                 text.trim()
-                  ? String(text.trim().split(/\s+/).length)
+                  ? String(
+                      text
+                        .trim()
+                        .split(/\s+/).length
+                    )
                   : "0"
               }
             />
 
-            <Stat label="Characters" value={String(text.length)} />
+            <Stat
+              label="Characters"
+              value={String(text.length)}
+            />
           </div>
         </Modal>
       )}
 
       {tool === "Randomizer" && (
-        <Modal title="Randomizer" close={() => setTool(null)}>
+        <Modal
+          title="Randomizer"
+          close={() => setTool(null)}
+        >
           <div className="text-center">
             <div className="text-7xl font-black">
               {random ?? "?"}
@@ -1470,7 +1666,9 @@ export default function ToolsPage() {
             <button
               type="button"
               onClick={() =>
-                setRandom(Math.floor(Math.random() * 100) + 1)
+                setRandom(
+                  Math.floor(Math.random() * 100) + 1
+                )
               }
               className="mt-5 rounded-xl bg-slate-950 px-6 py-3 font-bold text-white"
             >
