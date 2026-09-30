@@ -475,12 +475,14 @@ function PhotosynthesisLab() {
 
   const tempFactor = temp <= 35 ? clamp(1 - Math.abs(temp - 28) / 40, 0.2, 1) : clamp(1 - (temp - 35) / 30, 0.15, 1);
   const rate = clamp(light * 0.42 + co2 * 0.32 + water * 0.16 + tempFactor * 10, 0, 100);
-  const limiting = [
+  const limiting = (
+  [
     ["Light", light],
     ["CO₂", co2],
     ["Water", water],
     ["Temperature", tempFactor * 100],
-  ].sort((a, b) => a[1] - b[1])[0][0];
+  ] as [string, number][]
+).sort((a, b) => a[1] - b[1])[0][0];
 
   return (
     <div>
