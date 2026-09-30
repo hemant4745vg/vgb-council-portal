@@ -138,7 +138,7 @@ const topics: NewsTopic[] = [
   },
 ];
 
-const navItems: { id: ToolId; label: string; icon: string }[] = [
+const navItems: [ToolId, string, string][] = [
   ["overview", "Command Centre", "⌂"],
   ["analyzer", "News Analyzer", "🧠"],
   ["sources", "Source Lab", "🔬"],
