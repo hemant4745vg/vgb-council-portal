@@ -798,7 +798,7 @@ export default function YouTubeMusicPlayerPage() {
     });
   };
 
-  useEffect(() => {
+    useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing =
@@ -807,6 +807,8 @@ export default function YouTubeMusicPlayerPage() {
         target?.isContentEditable;
 
       if (typing) return;
+
+      const key = event.key.toLowerCase();
 
       if (event.code === "Space") {
         event.preventDefault();
@@ -817,16 +819,44 @@ export default function YouTubeMusicPlayerPage() {
       } else if (event.code === "ArrowLeft") {
         event.preventDefault();
         goPrevious();
-      } else if (event.key.toLowerCase() === "m") {
+      } else if (key === "j") {
+        event.preventDefault();
+
+        const player = playerRef.current;
+        if (player) {
+          const currentTime = player.getCurrentTime();
+
+          player.seekTo(Math.max(0, currentTime - 10), true);
+          setProgress(Math.max(0, currentTime - 10));
+        }
+      } else if (key === "l") {
+        event.preventDefault();
+
+        const player = playerRef.current;
+        if (player) {
+          const currentTime = player.getCurrentTime();
+          const totalDuration = player.getDuration();
+
+          const nextTime = Math.min(
+            totalDuration || currentTime + 10,
+            currentTime + 10
+          );
+
+          player.seekTo(nextTime, true);
+          setProgress(nextTime);
+        }
+      } else if (key === "m") {
         event.preventDefault();
         toggleMute();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  });
 
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  });
   return (
     <main className="min-h-screen bg-[#f5f6f8] text-slate-950">
       <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
