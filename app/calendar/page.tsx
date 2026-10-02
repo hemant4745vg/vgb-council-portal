@@ -1,6 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  formatRoutineTime,
+  getCurrentRoutineItem,
+  getNextRoutineItem,
+  getRoutineForDate,
+  timeToMinutes,
+  type RoutineItem,
+} from "@/lib/schedule/routine";
 type Category =
   | "Academic"
   | "Examinations"
@@ -334,6 +342,346 @@ return {
 
 });
 }
+
+type ViewMode = "month" | "week" | "day";
+
+type TimedCalendarEvent = {
+  event: CalendarEvent;
+  start: string;
+  end: string;
+};
+
+function parseEventTime(value?: string): { start: string; end: string } | null {
+  if (!value) return null;
+
+  const normalized = value
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const range = normalized.match(
+    /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i
+  );
+
+  if (!range) return null;
+
+  const [, startHourRaw, startMinuteRaw, startMeridiemRaw, endHourRaw, endMinuteRaw, endMeridiemRaw] = range;
+  const startMeridiem = (startMeridiemRaw || endMeridiemRaw || "").toUpperCase();
+  const endMeridiem = (endMeridiemRaw || startMeridiemRaw || "").toUpperCase();
+
+  const to24Hour = (hourRaw: string, minuteRaw: string | undefined, meridiem: string) => {
+    let hour = Number(hourRaw);
+    const minute = Number(minuteRaw || "00");
+    if (meridiem === "PM" && hour !== 12) hour += 12;
+    if (meridiem === "AM" && hour === 12) hour = 0;
+    if (hour > 23 || minute > 59) return null;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  };
+
+  const start = to24Hour(startHourRaw, startMinuteRaw, startMeridiem);
+  const end = to24Hour(endHourRaw, endMinuteRaw, endMeridiem);
+  if (!start || !end || timeToMinutes(end) <= timeToMinutes(start)) return null;
+  return { start, end };
+}
+
+function getTimedEventsForDate(events: CalendarEvent[], dateKey: string): TimedCalendarEvent[] {
+  return events
+    .filter((event) => eventOccursOn(event, dateKey))
+    .map((event) => {
+      const parsed = parseEventTime(event.time);
+      return parsed ? { event, ...parsed } : null;
+    })
+    .filter((item): item is TimedCalendarEvent => Boolean(item))
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+}
+
+function subtractTimedEventFromRoutine(items: RoutineItem[], timedEvents: TimedCalendarEvent[]): RoutineItem[] {
+  let result = items.map((item) => ({ ...item }));
+
+  for (const timed of timedEvents) {
+    const eventStart = timeToMinutes(timed.start);
+    const eventEnd = timeToMinutes(timed.end);
+    const next: RoutineItem[] = [];
+
+    for (const item of result) {
+      const start = timeToMinutes(item.start);
+      const end = timeToMinutes(item.end);
+      if (start === end || end <= eventStart || start >= eventEnd) {
+        next.push(item);
+        continue;
+      }
+
+      if (start < eventStart) {
+        next.push({ ...item, id: `${item.id}-before-${timed.event.id}`, end: timed.start });
+      }
+
+      if (end > eventEnd) {
+        next.push({ ...item, id: `${item.id}-after-${timed.event.id}`, start: timed.end });
+      }
+    }
+
+    result = next;
+  }
+
+  return result.filter((item) => timeToMinutes(item.end) > timeToMinutes(item.start));
+}
+
+function getEffectiveSchedule(date: Date, events: CalendarEvent[]) {
+  const dateKey = toDateKey(date);
+  const routine = getRoutineForDate(date);
+  const timedEvents = getTimedEventsForDate(events, dateKey);
+  const remainingRoutine = subtractTimedEventFromRoutine(routine, timedEvents);
+
+  const routineBlocks = remainingRoutine.map((item) => ({
+    type: "routine" as const,
+    id: item.id,
+    title: item.title,
+    start: item.start,
+    end: item.end,
+    note: item.note,
+    kind: item.kind,
+    routine: item,
+  }));
+
+  const eventBlocks = timedEvents.map((item) => ({
+    type: "event" as const,
+    id: `event-${item.event.id}`,
+    title: item.event.title,
+    start: item.start,
+    end: item.end,
+    note: [item.event.category, item.event.venue, item.event.target].filter(Boolean).join(" · "),
+    event: item.event,
+  }));
+
+  return [...routineBlocks, ...eventBlocks].sort(
+    (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start) || (a.type === "event" ? -1 : 1)
+  );
+}
+
+function formatTimeRange(start: string, end: string) {
+  return `${formatRoutineTime(start)} – ${formatRoutineTime(end)}`;
+}
+
+function RoutineBadge({ kind }: { kind?: RoutineItem["kind"] }) {
+  const label =
+    kind === "academic"
+      ? "Academic"
+      : kind === "break"
+        ? "Break"
+        : kind === "activity"
+          ? "Activity"
+          : kind === "hostel"
+            ? "Hostel"
+            : "Routine";
+
+  return (
+    <span className="rounded-full bg-slate-100 px-2 py-1 text-[7px] font-black uppercase tracking-[0.12em] text-slate-500">
+      {label}
+    </span>
+  );
+}
+
+function TimelineCard({
+  block,
+  compact = false,
+  onEvent,
+}: {
+  block: ReturnType<typeof getEffectiveSchedule>[number];
+  compact?: boolean;
+  onEvent?: (event: CalendarEvent) => void;
+}) {
+  const isEvent = block.type === "event";
+  const minutes = Math.max(timeToMinutes(block.end) - timeToMinutes(block.start), 1);
+  const short = compact || minutes <= 20;
+
+  return (
+    <div
+      className={`relative rounded-2xl border p-3 transition ${
+        isEvent
+          ? "border-blue-200 bg-blue-50/80 shadow-sm"
+          : "border-slate-100 bg-white hover:border-slate-200"
+      }`}
+      style={{ minHeight: compact ? undefined : Math.max(58, minutes * 1.05) }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-[92px] shrink-0 text-[8px] font-black leading-4 text-slate-400">
+          {formatTimeRange(block.start, block.end)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${isEvent ? "bg-blue-600" : "bg-slate-300"}`} />
+            <div className="text-[11px] font-black leading-4 text-slate-800">{block.title}</div>
+            {isEvent ? (
+              <span className="rounded-full bg-blue-600 px-2 py-1 text-[7px] font-black uppercase tracking-[0.12em] text-white">Calendar event</span>
+            ) : (
+              <RoutineBadge kind={block.kind} />
+            )}
+          </div>
+          {!short && block.note && <p className="mt-1 text-[9px] leading-4 text-slate-400">{block.note}</p>}
+          {short && block.note && <p className="mt-1 truncate text-[8px] text-slate-400">{block.note}</p>}
+          {isEvent && block.event && (
+            <button type="button" onClick={() => onEvent?.(block.event)} className="mt-1 text-[8px] font-extrabold text-blue-600 hover:text-blue-800">
+              Open event details
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScheduleSummary({ date, events }: { date: Date; events: CalendarEvent[] }) {
+  const items = getRoutineForDate(date);
+  const now = new Date();
+  const isToday = toDateKey(date) === toDateKey(now);
+  const current = isToday ? getCurrentRoutineItem(items, now) : null;
+  const next = isToday ? getNextRoutineItem(items, now) : null;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">Routine</div>
+        <div className="mt-1 text-xl font-black text-slate-950">{items.length}</div>
+        <div className="text-[9px] text-slate-400">standard schedule blocks</div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-violet-600">Timed overrides</div>
+        <div className="mt-1 text-xl font-black text-slate-950">{getTimedEventsForDate(events, toDateKey(date)).length}</div>
+        <div className="text-[9px] text-slate-400">calendar events with time ranges</div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-600">{isToday ? "Live" : "Default"}</div>
+        <div className="mt-1 truncate text-sm font-black text-slate-950">{current?.title || next?.title || "No active item"}</div>
+        <div className="text-[9px] text-slate-400">{current ? "Happening now" : next ? `Next: ${formatRoutineTime(next.start)}` : "No live routine item"}</div>
+      </div>
+    </div>
+  );
+}
+
+function DaySchedule({
+  date,
+  events,
+  onPrevious,
+  onNext,
+  onToday,
+  onEvent,
+}: {
+  date: Date;
+  events: CalendarEvent[];
+  onPrevious: () => void;
+  onNext: () => void;
+  onToday: () => void;
+  onEvent: (event: CalendarEvent) => void;
+}) {
+  const dateKey = toDateKey(date);
+  const blocks = getEffectiveSchedule(date, events);
+  const now = new Date();
+  const isToday = dateKey === toDateKey(now);
+  const current = isToday ? getCurrentRoutineItem(getRoutineForDate(date), now) : null;
+  const timedEvents = getTimedEventsForDate(events, dateKey);
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.07)] sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">Day timeline</div>
+          <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">{formatLongDate(dateKey)}</h2>
+          <p className="mt-1 text-[9px] text-slate-400">Default recurring routine + date-specific timed calendar events.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onPrevious} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronLeft /></button>
+          <button type="button" onClick={onToday} className="rounded-xl bg-slate-950 px-3 py-2 text-[9px] font-black text-white hover:bg-blue-700">Today</button>
+          <button type="button" onClick={onNext} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronRight /></button>
+        </div>
+      </div>
+
+      <ScheduleSummary date={date} events={events} />
+
+      {timedEvents.length > 0 && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[9px] leading-4 text-blue-800">
+          <strong>{timedEvents.length} timed calendar event{timedEvents.length === 1 ? "" : "s"}</strong> override overlapping routine blocks for this date. Untimed events remain visible in the calendar but do not alter the routine.
+        </div>
+      )}
+
+      <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-4">
+        {blocks.length === 0 ? (
+          <div className="grid min-h-[280px] place-items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 text-center">
+            <div><div className="text-sm font-black text-slate-700">No standard routine</div><p className="mt-1 text-[9px] text-slate-400">Sunday currently has no recurring campus routine.</p></div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {blocks.map((block) => {
+              const active = isToday && current && block.type === "routine" && block.id === current.id;
+              return <div key={`${block.type}-${block.id}`} className={active ? "rounded-2xl bg-blue-100/70 p-1 ring-2 ring-blue-400/20" : ""}><TimelineCard block={block} onEvent={onEvent} /></div>;
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function WeekSchedule({
+  startDate,
+  events,
+  onPrevious,
+  onNext,
+  onToday,
+  onDay,
+}: {
+  startDate: Date;
+  events: CalendarEvent[];
+  onPrevious: () => void;
+  onNext: () => void;
+  onToday: () => void;
+  onDay: (date: Date) => void;
+}) {
+  const days = Array.from({ length: 7 }, (_, index) => new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + index));
+  const startKey = toDateKey(days[0]);
+  const endKey = toDateKey(days[6]);
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.07)] sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div><div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">Week timeline</div><h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">{formatShortDate(startKey)} – {formatShortDate(endKey)}</h2><p className="mt-1 text-[9px] text-slate-400">Google Calendar-style weekly view using the recurring VidyaGyan routine.</p></div>
+        <div className="flex items-center gap-2"><button type="button" onClick={onPrevious} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronLeft /></button><button type="button" onClick={onToday} className="rounded-xl bg-slate-950 px-3 py-2 text-[9px] font-black text-white hover:bg-blue-700">Today</button><button type="button" onClick={onNext} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronRight /></button></div>
+      </div>
+
+      <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_10px_35px_rgba(15,23,42,0.07)]">
+        <div className="min-w-[1050px]">
+          <div className="grid grid-cols-[76px_repeat(7,minmax(130px,1fr))] border-b border-slate-200 bg-slate-50">
+            <div className="border-r border-slate-100 p-3" />
+            {days.map((day) => {
+              const key = toDateKey(day);
+              const today = key === toDateKey(new Date());
+              return <button key={key} type="button" onClick={() => onDay(day)} className={`border-r border-slate-100 px-2 py-3 text-center ${today ? "bg-blue-50" : ""}`}><div className="text-[7px] font-black uppercase tracking-[0.16em] text-slate-400">{day.toLocaleDateString("en-IN", { weekday: "short" })}</div><div className={`mt-1 text-lg font-black ${today ? "text-blue-600" : "text-slate-800"}`}>{day.getDate()}</div></button>;
+            })}
+          </div>
+          <div className="grid grid-cols-[76px_repeat(7,minmax(130px,1fr))]">
+            <div className="bg-slate-50/70">
+              {Array.from({ length: 18 }, (_, index) => { const hour = 5 + index; return <div key={hour} className="h-20 border-b border-slate-100 px-2 pt-1 text-[7px] font-bold text-slate-400">{formatRoutineTime(`${String(hour).padStart(2, "0")}:00`)}</div>; })}
+            </div>
+            {days.map((day) => {
+              const dateKey = toDateKey(day);
+              const blocks = getEffectiveSchedule(day, events).filter((block) => timeToMinutes(block.end) > 300 && timeToMinutes(block.start) < 1380);
+              return <div key={dateKey} className="relative border-r border-slate-100 bg-white">
+                {Array.from({ length: 18 }, (_, index) => <div key={index} className="h-20 border-b border-slate-100" />)}
+                <div className="absolute inset-x-1 top-0">
+                  {blocks.map((block) => {
+                    const top = Math.max(0, timeToMinutes(block.start) - 300) * (80 / 60);
+                    const height = Math.max(30, timeToMinutes(block.end) - timeToMinutes(block.start)) * (80 / 60);
+                    return <button key={`${block.type}-${block.id}`} type="button" onClick={() => block.type === "event" && block.event && onDay(day)} className={`absolute left-0 right-0 overflow-hidden rounded-xl border p-1.5 text-left ${block.type === "event" ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 bg-slate-50 text-slate-700"}`} style={{ top, minHeight: height }}><div className="truncate text-[8px] font-black">{block.title}</div><div className="mt-0.5 text-[6px] font-bold opacity-60">{formatRoutineTime(block.start)}</div></button>;
+                  })}
+                </div>
+              </div>;
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* ICONS                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -583,6 +931,8 @@ const [selectedDate, setSelectedDate] =
 useState(todayKey);
 const [selectedEventId, setSelectedEventId] =
 useState<string | null>(null);
+const [view, setView] = useState<ViewMode>("month");
+const [scheduleDate, setScheduleDate] = useState(today);
 const [category, setCategory] =
 useState<Category | "All">("All");
 const [search, setSearch] = useState("");
@@ -924,6 +1274,26 @@ setCurrentMonth(
 );
 
 };
+const shiftScheduleDate = (amount: number) => {
+  setScheduleDate((current) =>
+    new Date(
+      current.getFullYear(),
+      current.getMonth(),
+      current.getDate() + amount
+    )
+  );
+};
+const goScheduleToday = () => {
+  setScheduleDate(new Date());
+  setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+  setSelectedDate(todayKey);
+};
+const startOfWeek = (date: Date) => {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() - copy.getDay());
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+};
 const clearFilters = () => {
 setSearch("");
 setCategory("All");
@@ -1172,6 +1542,29 @@ return (
           )}
         </div>
       </div>
+      <div className="border-t border-slate-100 px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex rounded-xl bg-slate-100 p-1">
+            {(
+              [
+                ["month", "Month"],
+                ["week", "Week"],
+                ["day", "Day"],
+              ] as Array<[ViewMode, string]>
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { setView(key); if (key !== "month") setScheduleDate(fromDateKey(selectedDate)); }}
+                className={`rounded-lg px-3 py-2 text-[9px] font-black transition ${view === key ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="text-[8px] font-semibold text-slate-400">Month = campus events · Week/Day = actual routine timeline</div>
+        </div>
+      </div>
     </section>
 
     {/* ================================================================ */}
@@ -1194,6 +1587,7 @@ return (
     {/* MAIN CONTENT                                                      */}
     {/* ================================================================ */}
 
+    {view === "month" ? (
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
 
       {/* ============================================================ */}
@@ -1923,6 +2317,25 @@ return (
         </div>
       </aside>
     </section>
+    ) : view === "week" ? (
+      <WeekSchedule
+        startDate={startOfWeek(scheduleDate)}
+        events={filteredEvents}
+        onPrevious={() => shiftScheduleDate(-7)}
+        onNext={() => shiftScheduleDate(7)}
+        onToday={goScheduleToday}
+        onDay={(date) => { setScheduleDate(date); setView("day"); }}
+      />
+    ) : (
+      <DaySchedule
+        date={scheduleDate}
+        events={filteredEvents}
+        onPrevious={() => shiftScheduleDate(-1)}
+        onNext={() => shiftScheduleDate(1)}
+        onToday={goScheduleToday}
+        onEvent={(event) => { setSelectedEventId(event.id); setSelectedDate(scheduleDate ? toDateKey(scheduleDate) : todayKey); }}
+      />
+    )}
 
     {/* ================================================================ */}
     {/* FILTER STATUS                                                    */}
@@ -1961,7 +2374,7 @@ return (
     {/* ================================================================ */}
 
     <footer className="px-1 pb-2 pt-6 text-center text-[8px] font-medium leading-5 text-slate-400">
-      Calendar information is maintained through the VidyaGyan Bulandshahr portal database.
+      Calendar information is maintained through the VidyaGyan Bulandshahr portal database. Normal weekday and Saturday routines are recurring defaults; timed calendar events override overlapping routine blocks for their date.
     </footer>
   </div>
 </main>
