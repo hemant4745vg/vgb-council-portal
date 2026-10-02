@@ -1,10 +1,8 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   formatRoutineTime,
-  getCurrentRoutineItem,
-  getNextRoutineItem,
   getRoutineForDate,
   timeToMinutes,
   type RoutineItem,
@@ -51,6 +49,11 @@ event_id: number | string;
 start_date: string;
 end_date: string;
 };
+type DateOverrideStatus = "special" | "holiday";
+type DateOverride = { id: string; date: string; status: DateOverrideStatus; title?: string; description?: string };
+type SpecialScheduleItem = { id: string; overrideId: string; title: string; description?: string; start: string; end: string; target?: string; venue?: string; sortOrder: number };
+type RawDateOverride = { id: number | string; date: string; status: string; title?: string | null; description?: string | null };
+type RawSpecialSchedule = { id: number | string; override_id: number | string; title: string; description?: string | null; start_time?: string | null; end_time?: string | null; target?: string | null; venue?: string | null; sort_order?: number | null };
 const CATEGORY_CONFIG: Record<
   Category,
   {
@@ -187,6 +190,17 @@ return date.toLocaleDateString("en-IN", {
 month: "long",
 year: "numeric",
 });
+}
+
+function useNow() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return now;
 }
 function formatPeriod(period: Period) {
 if (period.start === period.end) {
@@ -426,36 +440,32 @@ function subtractTimedEventFromRoutine(items: RoutineItem[], timedEvents: TimedC
   return result.filter((item) => timeToMinutes(item.end) > timeToMinutes(item.start));
 }
 
-function getEffectiveSchedule(date: Date, events: CalendarEvent[]) {
+function getEffectiveSchedule(
+  date: Date,
+  events: CalendarEvent[],
+  overrides: Record<string, DateOverride>,
+  schedules: Record<string, SpecialScheduleItem[]>
+) {
   const dateKey = toDateKey(date);
-  const routine = getRoutineForDate(date);
+  const override = overrides[dateKey];
   const timedEvents = getTimedEventsForDate(events, dateKey);
-  const remainingRoutine = subtractTimedEventFromRoutine(routine, timedEvents);
-
-  const routineBlocks = remainingRoutine.map((item) => ({
-    type: "routine" as const,
-    id: item.id,
-    title: item.title,
-    start: item.start,
-    end: item.end,
-    note: item.note,
-    kind: item.kind,
-    routine: item,
-  }));
-
   const eventBlocks = timedEvents.map((item) => ({
-    type: "event" as const,
-    id: `event-${item.event.id}`,
-    title: item.event.title,
-    start: item.start,
-    end: item.end,
+    type: "event" as const, id: `event-${item.event.id}`, title: item.event.title,
+    start: item.start, end: item.end,
     note: [item.event.category, item.event.venue, item.event.target].filter(Boolean).join(" · "),
     event: item.event,
   }));
-
-  return [...routineBlocks, ...eventBlocks].sort(
-    (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start) || (a.type === "event" ? -1 : 1)
-  );
+  if (override?.status === "holiday") return eventBlocks;
+  if (override?.status === "special") {
+    const specialBlocks = (schedules[dateKey] ?? []).map((item) => ({
+      type: "special" as const, id: `special-${item.id}`, title: item.title, start: item.start, end: item.end,
+      note: [item.description, item.venue, item.target].filter(Boolean).join(" · "), special: item, kind: "activity" as const,
+    }));
+    return [...specialBlocks, ...eventBlocks].sort((a,b) => timeToMinutes(a.start)-timeToMinutes(b.start) || (a.type === "event" ? -1 : 1));
+  }
+  const remainingRoutine = subtractTimedEventFromRoutine(getRoutineForDate(date), timedEvents);
+  const routineBlocks = remainingRoutine.map((item) => ({ type: "routine" as const, id: item.id, title: item.title, start: item.start, end: item.end, note: item.note, kind: item.kind, routine: item }));
+  return [...routineBlocks, ...eventBlocks].sort((a,b) => timeToMinutes(a.start)-timeToMinutes(b.start) || (a.type === "event" ? -1 : 1));
 }
 
 function formatTimeRange(start: string, end: string) {
@@ -530,19 +540,27 @@ function TimelineCard({
   );
 }
 
-function ScheduleSummary({ date, events }: { date: Date; events: CalendarEvent[] }) {
-  const items = getRoutineForDate(date);
-  const now = new Date();
+function ScheduleSummary({ date, events, overrides, schedules }: { date: Date; events: CalendarEvent[]; overrides: Record<string, DateOverride>; schedules: Record<string, SpecialScheduleItem[]> }) {
+  const now = useNow();
+  const dateKey = toDateKey(date);
+  const override = overrides[dateKey];
+  const routineItems = override ? [] : getRoutineForDate(date);
+  const blocks = getEffectiveSchedule(date, events, overrides, schedules);
   const isToday = toDateKey(date) === toDateKey(now);
-  const current = isToday ? getCurrentRoutineItem(items, now) : null;
-  const next = isToday ? getNextRoutineItem(items, now) : null;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const current = isToday
+    ? blocks.find((block) => timeToMinutes(block.start) <= nowMinutes && nowMinutes < timeToMinutes(block.end))
+    : null;
+  const next = isToday
+    ? blocks.find((block) => timeToMinutes(block.start) > nowMinutes)
+    : null;
 
   return (
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">Routine</div>
-        <div className="mt-1 text-xl font-black text-slate-950">{items.length}</div>
-        <div className="text-[9px] text-slate-400">standard schedule blocks</div>
+        <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">Day type</div>
+        <div className="mt-1 text-xl font-black text-slate-950">{override ? (override.status === "holiday" ? "Holiday" : "Special") : "Normal"}</div>
+        <div className="text-[9px] text-slate-400">{override?.title || `${routineItems.length} recurring schedule blocks`}</div>
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="text-[8px] font-black uppercase tracking-[0.18em] text-violet-600">Timed overrides</div>
@@ -561,6 +579,8 @@ function ScheduleSummary({ date, events }: { date: Date; events: CalendarEvent[]
 function DaySchedule({
   date,
   events,
+  overrides,
+  schedules,
   onPrevious,
   onNext,
   onToday,
@@ -568,17 +588,29 @@ function DaySchedule({
 }: {
   date: Date;
   events: CalendarEvent[];
+  overrides: Record<string, DateOverride>;
+  schedules: Record<string, SpecialScheduleItem[]>;
   onPrevious: () => void;
   onNext: () => void;
   onToday: () => void;
   onEvent: (event: CalendarEvent) => void;
 }) {
   const dateKey = toDateKey(date);
-  const blocks = getEffectiveSchedule(date, events);
-  const now = new Date();
+  const blocks = getEffectiveSchedule(date, events, overrides, schedules);
+  const now = useNow();
   const isToday = dateKey === toDateKey(now);
-  const current = isToday ? getCurrentRoutineItem(getRoutineForDate(date), now) : null;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentBlock = isToday
+    ? blocks.find((block) => timeToMinutes(block.start) <= nowMinutes && nowMinutes < timeToMinutes(block.end))
+    : null;
   const timedEvents = getTimedEventsForDate(events, dateKey);
+  const currentBlockRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (isToday && currentBlockRef.current) {
+      currentBlockRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [dateKey, isToday, currentBlock?.id]);
 
   return (
     <section className="space-y-4">
@@ -586,7 +618,7 @@ function DaySchedule({
         <div>
           <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">Day timeline</div>
           <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">{formatLongDate(dateKey)}</h2>
-          <p className="mt-1 text-[9px] text-slate-400">Default recurring routine + date-specific timed calendar events.</p>
+          <p className="mt-1 text-[9px] text-slate-400">{overrides[dateKey]?.status === "holiday" ? "Holiday: recurring routine is disabled for this date." : overrides[dateKey]?.status === "special" ? "Special Day: the custom schedule replaces the recurring routine." : "Default recurring routine + date-specific timed calendar events."}</p>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={onPrevious} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronLeft /></button>
@@ -595,7 +627,7 @@ function DaySchedule({
         </div>
       </div>
 
-      <ScheduleSummary date={date} events={events} />
+      <ScheduleSummary date={date} events={events} overrides={overrides} schedules={schedules} />
 
       {timedEvents.length > 0 && (
         <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[9px] leading-4 text-blue-800">
@@ -606,13 +638,21 @@ function DaySchedule({
       <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-4">
         {blocks.length === 0 ? (
           <div className="grid min-h-[280px] place-items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 text-center">
-            <div><div className="text-sm font-black text-slate-700">No standard routine</div><p className="mt-1 text-[9px] text-slate-400">Sunday currently has no recurring campus routine.</p></div>
+            <div><div className="text-sm font-black text-slate-700">{overrides[dateKey]?.status === "holiday" ? "Holiday" : "No scheduled routine"}</div><p className="mt-1 text-[9px] text-slate-400">{overrides[dateKey]?.status === "holiday" ? (overrides[dateKey]?.description || "The normal routine is not used on this date.") : "This date has no recurring campus routine."}</p></div>
           </div>
         ) : (
           <div className="space-y-2">
             {blocks.map((block) => {
-              const active = isToday && current && block.type === "routine" && block.id === current.id;
-              return <div key={`${block.type}-${block.id}`} className={active ? "rounded-2xl bg-blue-100/70 p-1 ring-2 ring-blue-400/20" : ""}><TimelineCard block={block} onEvent={onEvent} /></div>;
+              const active = isToday && currentBlock?.id === block.id;
+              return (
+                <div
+                  key={`${block.type}-${block.id}`}
+                  ref={active ? currentBlockRef : undefined}
+                  className={active ? "rounded-2xl bg-blue-100/70 p-1 ring-2 ring-blue-400/20" : ""}
+                >
+                  <TimelineCard block={block} onEvent={onEvent} />
+                </div>
+              );
             })}
           </div>
         )}
@@ -624,6 +664,8 @@ function DaySchedule({
 function WeekSchedule({
   startDate,
   events,
+  overrides,
+  schedules,
   onPrevious,
   onNext,
   onToday,
@@ -631,14 +673,18 @@ function WeekSchedule({
 }: {
   startDate: Date;
   events: CalendarEvent[];
+  overrides: Record<string, DateOverride>;
+  schedules: Record<string, SpecialScheduleItem[]>;
   onPrevious: () => void;
   onNext: () => void;
   onToday: () => void;
   onDay: (date: Date) => void;
 }) {
   const days = Array.from({ length: 7 }, (_, index) => new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + index));
+  const now = useNow();
   const startKey = toDateKey(days[0]);
   const endKey = toDateKey(days[6]);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
   return (
     <section className="space-y-4">
@@ -663,7 +709,7 @@ function WeekSchedule({
             </div>
             {days.map((day) => {
               const dateKey = toDateKey(day);
-              const blocks = getEffectiveSchedule(day, events).filter((block) => timeToMinutes(block.end) > 300 && timeToMinutes(block.start) < 1380);
+              const blocks = getEffectiveSchedule(day, events, overrides, schedules).filter((block) => timeToMinutes(block.end) > 300 && timeToMinutes(block.start) < 1380);
               return <div key={dateKey} className="relative border-r border-slate-100 bg-white">
                 {Array.from({ length: 18 }, (_, index) => <div key={index} className="h-20 border-b border-slate-100" />)}
                 <div className="absolute inset-x-1 top-0">
@@ -672,6 +718,15 @@ function WeekSchedule({
                     const height = Math.max(30, timeToMinutes(block.end) - timeToMinutes(block.start)) * (80 / 60);
                     return <button key={`${block.type}-${block.id}`} type="button" onClick={() => block.type === "event" && block.event && onDay(day)} className={`absolute left-0 right-0 overflow-hidden rounded-xl border p-1.5 text-left ${block.type === "event" ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 bg-slate-50 text-slate-700"}`} style={{ top, minHeight: height }}><div className="truncate text-[8px] font-black">{block.title}</div><div className="mt-0.5 text-[6px] font-bold opacity-60">{formatRoutineTime(block.start)}</div></button>;
                   })}
+                  {dateKey === toDateKey(now) && nowMinutes >= 300 && nowMinutes < 1380 && (
+                    <div
+                      className="pointer-events-none absolute left-0 right-0 z-20 flex items-center"
+                      style={{ top: (nowMinutes - 300) * (80 / 60) }}
+                    >
+                      <span className="h-2 w-2 -translate-x-1/2 rounded-full bg-rose-500" />
+                      <span className="h-px flex-1 bg-rose-500" />
+                    </div>
+                  )}
                 </div>
               </div>;
             })}
@@ -938,6 +993,8 @@ useState<Category | "All">("All");
 const [search, setSearch] = useState("");
 const [events, setEvents] =
 useState<CalendarEvent[]>([]);
+const [dateOverrides, setDateOverrides] = useState<Record<string, DateOverride>>({});
+const [specialSchedules, setSpecialSchedules] = useState<Record<string, SpecialScheduleItem[]>>({});
 const [loading, setLoading] = useState(true);
 const [calendarError, setCalendarError] =
 useState<string | null>(null);
@@ -954,6 +1011,8 @@ async function fetchCalendar() {
   const [
     eventsResponse,
     periodsResponse,
+    overridesResponse,
+    schedulesResponse,
   ] = await Promise.all([
     supabase
       .from("calendar_events")
@@ -972,13 +1031,25 @@ async function fetchCalendar() {
       .order("start_date", {
         ascending: true,
       }),
+
+    supabase
+      .from("calendar_date_overrides")
+      .select("id,date,status,title,description")
+      .order("date", { ascending: true }),
+
+    supabase
+      .from("calendar_date_schedule")
+      .select("id,override_id,title,description,start_time,end_time,target,venue,sort_order")
+      .order("sort_order", { ascending: true }),
   ]);
 
   if (!mounted) return;
 
   if (
     eventsResponse.error ||
-    periodsResponse.error
+    periodsResponse.error ||
+    overridesResponse.error ||
+    schedulesResponse.error
   ) {
     console.error(
       "Calendar loading error:",
@@ -1635,33 +1706,6 @@ return (
               </p>
             </div>
           </div>
-        ) : filteredEvents.length ===
-          0 ? (
-          <div className="grid min-h-[650px] place-items-center px-6">
-            <div className="max-w-sm text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
-                <CalendarIcon className="h-6 w-6" />
-              </div>
-
-              <h2 className="mt-4 text-sm font-black text-slate-800">
-                No events found
-              </h2>
-
-              <p className="mt-1 text-xs leading-5 text-slate-400">
-                Nothing matches the current search or category filter.
-              </p>
-
-              <button
-                type="button"
-                onClick={
-                  clearFilters
-                }
-                className="mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-[10px] font-extrabold text-white shadow-sm hover:bg-blue-700"
-              >
-                Clear filters
-              </button>
-            </div>
-          </div>
         ) : (
           <div>
             {weeks.map(
@@ -1887,6 +1931,12 @@ return (
                 </div>
               )
             )}
+          </div>
+        )}
+
+        {filteredEvents.length === 0 && (
+          <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-center text-[9px] font-semibold text-slate-400">
+            No campus events match the current filters. The calendar dates remain available for navigation.
           </div>
         )}
 
@@ -2321,6 +2371,8 @@ return (
       <WeekSchedule
         startDate={startOfWeek(scheduleDate)}
         events={filteredEvents}
+        overrides={dateOverrides}
+        schedules={specialSchedules}
         onPrevious={() => shiftScheduleDate(-7)}
         onNext={() => shiftScheduleDate(7)}
         onToday={goScheduleToday}
@@ -2330,6 +2382,8 @@ return (
       <DaySchedule
         date={scheduleDate}
         events={filteredEvents}
+        overrides={dateOverrides}
+        schedules={specialSchedules}
         onPrevious={() => shiftScheduleDate(-1)}
         onNext={() => shiftScheduleDate(1)}
         onToday={goScheduleToday}
