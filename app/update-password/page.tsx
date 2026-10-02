@@ -4,6 +4,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+type PasswordFlow = "invite" | "recovery";
+
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -15,28 +17,160 @@ export default function UpdatePasswordPage() {
   const [success, setSuccess] = useState(false);
 
   const [message, setMessage] = useState("");
+  const [flow, setFlow] = useState<PasswordFlow | null>(null);
 
   useEffect(() => {
     let mounted = true;
+    let timeout: number | null = null;
 
-    async function initializeRecovery() {
+    /*
+     * Determine whether this page was reached through an
+     * invitation or password-recovery callback.
+     *
+     * Supabase may place the auth information in either:
+     * - the query string
+     * - the URL hash
+     *
+     * Invitation and recovery are deliberately handled as
+     * separate flows, even though both eventually call
+     * supabase.auth.updateUser({ password }).
+     */
+    function detectFlow(): PasswordFlow | null {
+      const url = new URL(window.location.href);
+
+      const query = url.searchParams;
+
+      const hashString = window.location.hash.startsWith("#")
+        ? window.location.hash.slice(1)
+        : window.location.hash;
+
+      const hash = new URLSearchParams(hashString);
+
+      const type =
+        query.get("type") ||
+        hash.get("type") ||
+        "";
+
+      if (type === "invite") {
+        return "invite";
+      }
+
+      if (type === "recovery") {
+        return "recovery";
+      }
+
+      /*
+       * A PKCE recovery callback contains a `code`.
+       * Invitation links do not use PKCE.
+       */
+      if (query.has("code")) {
+        return "recovery";
+      }
+
+      /*
+       * Older/implicit auth callbacks can contain access and
+       * refresh tokens in the hash.
+       */
+      if (
+        hash.has("access_token") &&
+        hash.has("refresh_token")
+      ) {
+        return "recovery";
+      }
+
+      return null;
+    }
+
+    async function initializePasswordFlow() {
+      const detectedFlow = detectFlow();
+
+      if (mounted && detectedFlow) {
+        setFlow(detectedFlow);
+      }
+
+      /*
+       * Listen before doing any session checks so we do not miss
+       * the authentication event while Supabase processes the
+       * callback URL.
+       */
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (!mounted) return;
+
+          /*
+           * PASSWORD_RECOVERY is emitted for password-reset links.
+           */
+          if (
+            event === "PASSWORD_RECOVERY" &&
+            session
+          ) {
+            setFlow("recovery");
+            setReady(true);
+            setLoading(false);
+
+            return;
+          }
+
+          /*
+           * Invitations establish an authenticated session after
+           * the invitation link is accepted. Depending on the
+           * Supabase auth flow/version, this can arrive as SIGNED_IN.
+           */
+          if (
+            event === "SIGNED_IN" &&
+            session
+          ) {
+            setFlow((currentFlow) => currentFlow ?? detectedFlow ?? "invite");
+            setReady(true);
+            setLoading(false);
+
+            return;
+          }
+
+          /*
+           * INITIAL_SESSION can contain the session created by
+           * Supabase while processing the callback URL.
+           *
+           * We only accept it as the password-setting session when
+           * this page was actually reached through an auth callback.
+           */
+          if (
+            event === "INITIAL_SESSION" &&
+            session &&
+            detectedFlow
+          ) {
+            setFlow(detectedFlow);
+            setReady(true);
+            setLoading(false);
+          }
+        }
+      );
+
       try {
         /*
-         * Supabase may redirect here with a PKCE `code`.
-         * Exchange it for a session before attempting to update
-         * the user's password.
+         * Password recovery may use PKCE and therefore arrive with
+         * a `code` that needs to be exchanged for a session.
+         *
+         * Invitations do NOT use PKCE, so we deliberately do not
+         * attempt this exchange for invitation links.
          */
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(
+          window.location.search
+        );
+
         const code = params.get("code");
 
-        if (code) {
-          const { error } =
-            await supabase.auth.exchangeCodeForSession(code);
+        if (code && detectedFlow === "recovery") {
+          const {
+            error: exchangeError,
+          } = await supabase.auth.exchangeCodeForSession(code);
 
-          if (error) {
+          if (exchangeError) {
             console.error(
-              "Recovery code exchange failed:",
-              error
+              "Password recovery code exchange failed:",
+              exchangeError
             );
 
             if (mounted) {
@@ -46,12 +180,13 @@ export default function UpdatePasswordPage() {
               setLoading(false);
             }
 
+            subscription.unsubscribe();
             return;
           }
 
           /*
-           * Remove the one-time code from the browser URL.
-           * This prevents accidental reuse if the page is refreshed.
+           * The PKCE code is one-time use. Remove it from the
+           * address bar after successful exchange.
            */
           window.history.replaceState(
             {},
@@ -61,8 +196,8 @@ export default function UpdatePasswordPage() {
         }
 
         /*
-         * Check whether Supabase now has a valid authenticated
-         * recovery session.
+         * Give Supabase a moment to finish processing an invitation
+         * or implicit recovery callback.
          */
         const {
           data: { session },
@@ -70,37 +205,17 @@ export default function UpdatePasswordPage() {
 
         if (!mounted) return;
 
-        if (session) {
+        if (session && detectedFlow) {
           setReady(true);
           setLoading(false);
           return;
         }
 
         /*
-         * Listen for PASSWORD_RECOVERY in case Supabase establishes
-         * the recovery session asynchronously.
+         * If an auth event is still being processed, wait briefly
+         * before declaring the link invalid.
          */
-        const {
-          data: { subscription },
-        } = supabase.auth.onAuthStateChange(
-          (event, recoverySession) => {
-            if (!mounted) return;
-
-            if (
-              event === "PASSWORD_RECOVERY" &&
-              recoverySession
-            ) {
-              setReady(true);
-              setLoading(false);
-            }
-          }
-        );
-
-        /*
-         * One final session check for flows where the recovery
-         * session is established shortly after initialisation.
-         */
-        const timeout = window.setTimeout(async () => {
+        timeout = window.setTimeout(async () => {
           if (!mounted) return;
 
           const {
@@ -109,40 +224,62 @@ export default function UpdatePasswordPage() {
 
           if (!mounted) return;
 
-          if (currentSession) {
+          if (currentSession && detectedFlow) {
             setReady(true);
-          } else {
+            setLoading(false);
+            return;
+          }
+
+          if (detectedFlow === "invite") {
+            setMessage(
+              "This invitation link is invalid or has expired. Please ask a portal administrator to send a new invitation."
+            );
+          } else if (detectedFlow === "recovery") {
             setMessage(
               "This password reset link is invalid or has expired. Please request a new one."
+            );
+          } else {
+            setMessage(
+              "This password setup link is no longer valid. Please use a fresh invitation or password reset link."
             );
           }
 
           setLoading(false);
-        }, 1000);
-
-        return () => {
-          window.clearTimeout(timeout);
-          subscription.unsubscribe();
-        };
+        }, 2500);
       } catch (error) {
         console.error(
-          "Password recovery initialization failed:",
+          "Password setup initialization failed:",
           error
         );
 
         if (!mounted) return;
 
         setMessage(
-          "Unable to verify this password reset link. Please request a new one."
+          detectedFlow === "invite"
+            ? "Unable to verify this invitation. Please ask a portal administrator to send a new invitation."
+            : "Unable to verify this password reset link. Please request a new one."
         );
+
         setLoading(false);
       }
+
+      return () => {
+        subscription.unsubscribe();
+
+        if (timeout !== null) {
+          window.clearTimeout(timeout);
+        }
+      };
     }
 
-    initializeRecovery();
+    initializePasswordFlow();
 
     return () => {
       mounted = false;
+
+      if (timeout !== null) {
+        window.clearTimeout(timeout);
+      }
     };
   }, []);
 
@@ -168,41 +305,66 @@ export default function UpdatePasswordPage() {
 
     setUpdating(true);
 
-    const { error } = await supabase.auth.updateUser({
-      password,
-    });
+    try {
+      /*
+       * The user must have an authenticated invitation/recovery
+       * session at this point.
+       *
+       * Because "Require current password when changing password"
+       * has been disabled, a newly invited user can create their
+       * first password here.
+       */
+      const { error } = await supabase.auth.updateUser({
+        password,
+      });
 
-    if (error) {
+      if (error) {
+        console.error(
+          "Password update failed:",
+          error
+        );
+
+        setMessage(
+          error.message ||
+            "Unable to update your password. Please try again."
+        );
+
+        setUpdating(false);
+        return;
+      }
+
+      setSuccess(true);
+
+      setMessage(
+        flow === "invite"
+          ? "Your account password has been created successfully."
+          : "Your password has been updated successfully."
+      );
+
+      setPassword("");
+      setConfirmPassword("");
+      setUpdating(false);
+
+      /*
+       * End the temporary authenticated session.
+       * The user can now sign in normally using their new password.
+       */
+      await supabase.auth.signOut();
+    } catch (error) {
       console.error(
-        "Password update failed:",
+        "Unexpected password update error:",
         error
       );
 
       setMessage(
-        error.message ||
-          "Unable to update your password. Please request a new reset link."
+        "Something went wrong while updating your password. Please try again."
       );
 
       setUpdating(false);
-      return;
     }
-
-    setSuccess(true);
-    setMessage(
-      "Your password has been updated successfully."
-    );
-
-    setPassword("");
-    setConfirmPassword("");
-
-    setUpdating(false);
-
-    /*
-     * End the temporary recovery session.
-     * The user can now sign in normally with the new password.
-     */
-    await supabase.auth.signOut();
   }
+
+  const isInvitation = flow === "invite";
 
   if (loading) {
     return (
@@ -213,12 +375,15 @@ export default function UpdatePasswordPage() {
           </div>
 
           <h1 className="mt-5 text-xl font-bold text-blue-950">
-            Verifying reset link
+            {isInvitation
+              ? "Verifying invitation"
+              : "Verifying password link"}
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Please wait while your secure password recovery
-            session is established.
+            {isInvitation
+              ? "Please wait while your secure invitation session is established."
+              : "Please wait while your secure password recovery session is established."}
           </p>
         </div>
       </main>
@@ -259,16 +424,21 @@ export default function UpdatePasswordPage() {
 
           <div className="px-6 py-7 sm:px-8">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-              Account Recovery
+              {isInvitation
+                ? "Account Setup"
+                : "Account Recovery"}
             </p>
 
             <h1 className="mt-1 text-2xl font-bold text-blue-950">
-              Set a new password
+              {isInvitation
+                ? "Create your password"
+                : "Set a new password"}
             </h1>
 
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Choose a new password for your Student Council
-              Portal account.
+              {isInvitation
+                ? "Your invitation has been verified. Create a password to activate your Student Council Portal account."
+                : "Choose a new password for your Student Council Portal account."}
             </p>
 
             {ready ? (
@@ -330,14 +500,18 @@ export default function UpdatePasswordPage() {
                   className="w-full rounded-xl bg-blue-950 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {updating
-                    ? "Updating..."
-                    : "Update Password"}
+                    ? isInvitation
+                      ? "Creating Password..."
+                      : "Updating..."
+                    : isInvitation
+                      ? "Create Password"
+                      : "Update Password"}
                 </button>
               </form>
             ) : (
               <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-center text-xs leading-5 text-red-700">
                 {message ||
-                  "This password reset session is no longer valid."}
+                  "This password setup session is no longer valid."}
               </div>
             )}
 
