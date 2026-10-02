@@ -2,17 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  "https://lllmgmfofwczpqbmigey.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxsbG1nbWZvZndjenBxYm1pZ2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTIxNzYsImV4cCI6MjEwNTEyODE3Nn0.H_YfM8J3ZOy-B1lH7jgc4JtHu4rhUsigZ72qoI-b1ss"
-);
+import { supabase } from "@/lib/supabase";
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -26,69 +20,123 @@ export default function UpdatePasswordPage() {
     let mounted = true;
 
     async function initializeRecovery() {
-      /*
-       * Supabase sends a PASSWORD_RECOVERY event when the
-       * recovery link establishes the temporary recovery session.
-       */
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        /*
+         * Supabase may redirect here with a PKCE `code`.
+         * Exchange it for a session before attempting to update
+         * the user's password.
+         */
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get("code");
 
-      if (!mounted) return;
+        if (code) {
+          const { error } =
+            await supabase.auth.exchangeCodeForSession(code);
 
-      if (session) {
-        setReady(true);
-        setLoading(false);
-        return;
-      }
+          if (error) {
+            console.error(
+              "Recovery code exchange failed:",
+              error
+            );
 
-      /*
-       * Listen for the recovery event in case the session is
-       * established immediately after the page loads.
-       */
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange(
-        (event, recoverySession) => {
-          if (!mounted) return;
+            if (mounted) {
+              setMessage(
+                "This password reset link is invalid or has expired. Please request a new one."
+              );
+              setLoading(false);
+            }
 
-          if (
-            event === "PASSWORD_RECOVERY" &&
-            recoverySession
-          ) {
-            setReady(true);
-            setLoading(false);
+            return;
           }
+
+          /*
+           * Remove the one-time code from the browser URL.
+           * This prevents accidental reuse if the page is refreshed.
+           */
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
         }
-      );
 
-      /*
-       * Give Supabase a short opportunity to establish the
-       * recovery session from the reset link.
-       */
-      window.setTimeout(async () => {
-        if (!mounted) return;
-
+        /*
+         * Check whether Supabase now has a valid authenticated
+         * recovery session.
+         */
         const {
-          data: { session: currentSession },
+          data: { session },
         } = await supabase.auth.getSession();
 
         if (!mounted) return;
 
-        if (currentSession) {
+        if (session) {
           setReady(true);
-        } else {
-          setMessage(
-            "This password reset link is invalid or has expired. Please request a new one."
-          );
+          setLoading(false);
+          return;
         }
 
-        setLoading(false);
-      }, 1000);
+        /*
+         * Listen for PASSWORD_RECOVERY in case Supabase establishes
+         * the recovery session asynchronously.
+         */
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(
+          (event, recoverySession) => {
+            if (!mounted) return;
 
-      return () => {
-        subscription.unsubscribe();
-      };
+            if (
+              event === "PASSWORD_RECOVERY" &&
+              recoverySession
+            ) {
+              setReady(true);
+              setLoading(false);
+            }
+          }
+        );
+
+        /*
+         * One final session check for flows where the recovery
+         * session is established shortly after initialisation.
+         */
+        const timeout = window.setTimeout(async () => {
+          if (!mounted) return;
+
+          const {
+            data: { session: currentSession },
+          } = await supabase.auth.getSession();
+
+          if (!mounted) return;
+
+          if (currentSession) {
+            setReady(true);
+          } else {
+            setMessage(
+              "This password reset link is invalid or has expired. Please request a new one."
+            );
+          }
+
+          setLoading(false);
+        }, 1000);
+
+        return () => {
+          window.clearTimeout(timeout);
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error(
+          "Password recovery initialization failed:",
+          error
+        );
+
+        if (!mounted) return;
+
+        setMessage(
+          "Unable to verify this password reset link. Please request a new one."
+        );
+        setLoading(false);
+      }
     }
 
     initializeRecovery();
@@ -120,10 +168,9 @@ export default function UpdatePasswordPage() {
 
     setUpdating(true);
 
-    const { error } =
-      await supabase.auth.updateUser({
-        password,
-      });
+    const { error } = await supabase.auth.updateUser({
+      password,
+    });
 
     if (error) {
       console.error(
