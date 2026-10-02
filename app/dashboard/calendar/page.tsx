@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { timeToMinutes } from "@/lib/schedule/routine";
 type Category =
   | "Academic"
   | "Examinations"
@@ -44,6 +45,11 @@ event_id: number | string;
 start_date: string;
 end_date: string;
 };
+type DateOverrideStatus = "special" | "holiday";
+type DateOverride = { id: string; date: string; status: DateOverrideStatus; title?: string; description?: string };
+type RawDateOverride = { id: number | string; date: string; status: string; title?: string | null; description?: string | null };
+type ScheduleDraft = { id?: string; title: string; description: string; start: string; end: string; target: string; venue: string };
+
 const CATEGORY_CONFIG: Record<
   Category,
   {
@@ -654,6 +660,12 @@ export default function DashboardCalendarPage() {
   const [category, setCategory] = useState<Category | "All">("All");
   const [search, setSearch] = useState("");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [dateOverrides, setDateOverrides] = useState<Record<string, DateOverride>>({});
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft[]>([]);
+  const [dayStatus, setDayStatus] = useState<"normal" | DateOverrideStatus>("normal");
+  const [dayTitle, setDayTitle] = useState("");
+  const [dayDescription, setDayDescription] = useState("");
+  const [savingDay, setSavingDay] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -671,7 +683,7 @@ export default function DashboardCalendarPage() {
     setLoading(true);
     setCalendarError(null);
 
-    const [eventsResponse, periodsResponse] = await Promise.all([
+    const [eventsResponse, periodsResponse, overridesResponse] = await Promise.all([
       supabase
         .from("calendar_events")
         .select("id,title,event_date,description,event_time,category,created_by,target,venue")
@@ -680,12 +692,17 @@ export default function DashboardCalendarPage() {
         .from("calendar_event_periods")
         .select("id,event_id,start_date,end_date")
         .order("start_date", { ascending: true }),
+      supabase
+        .from("calendar_date_overrides")
+        .select("id,date,status,title,description")
+        .order("date", { ascending: true }),
     ]);
 
-    if (eventsResponse.error || periodsResponse.error) {
+    if (eventsResponse.error || periodsResponse.error || overridesResponse.error) {
       const message =
         eventsResponse.error?.message ||
         periodsResponse.error?.message ||
+        overridesResponse.error?.message ||
         "Unable to load calendar data.";
       setCalendarError(message);
       setEvents([]);
@@ -699,6 +716,13 @@ export default function DashboardCalendarPage() {
         (periodsResponse.data || []) as RawPeriod[]
       )
     );
+    const overrideMap: Record<string, DateOverride> = {};
+    for (const row of (overridesResponse.data || []) as RawDateOverride[]) {
+      if (row.status === "special" || row.status === "holiday") {
+        overrideMap[row.date] = { id: String(row.id), date: row.date, status: row.status, title: row.title || undefined, description: row.description || undefined };
+      }
+    }
+    setDateOverrides(overrideMap);
     setLoading(false);
   }
 
@@ -972,6 +996,99 @@ export default function DashboardCalendarPage() {
       );
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const selectedOverride = dateOverrides[selectedDate];
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadSelectedDaySchedule() {
+      const override = dateOverrides[selectedDate];
+      if (!override || override.status !== "special") {
+        if (mounted) setScheduleDraft([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("calendar_date_schedule")
+        .select("id,override_id,title,description,start_time,end_time,target,venue,sort_order")
+        .eq("override_id", Number(override.id))
+        .order("sort_order", { ascending: true });
+      if (error) {
+        console.error("Special day schedule loading error:", error);
+        if (mounted) setScheduleDraft([]);
+        return;
+      }
+      if (!mounted) return;
+      setScheduleDraft((data || []).map((row: any) => ({
+        id: String(row.id), title: row.title || "", description: row.description || "",
+        start: row.start_time ? String(row.start_time).slice(0,5) : "", end: row.end_time ? String(row.end_time).slice(0,5) : "",
+        target: row.target || "", venue: row.venue || "",
+      })));
+    }
+    setDayStatus(selectedOverride?.status || "normal");
+    setDayTitle(selectedOverride?.title || "");
+    setDayDescription(selectedOverride?.description || "");
+    loadSelectedDaySchedule();
+    return () => { mounted = false; };
+  }, [selectedDate, selectedOverride?.id, selectedOverride?.status]);
+
+  const addScheduleBlock = () => {
+    setScheduleDraft((current) => [...current, { title: "", description: "", start: "", end: "", target: "", venue: "" }]);
+  };
+
+  const updateScheduleBlock = (index: number, patch: Partial<ScheduleDraft>) => {
+    setScheduleDraft((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  };
+
+  const removeScheduleBlock = (index: number) => {
+    setScheduleDraft((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const saveDayConfiguration = async () => {
+    if (!isAdmin || savingDay) return;
+    setSavingDay(true);
+    setNotice(null);
+    setCalendarError(null);
+    try {
+      if (dayStatus === "normal") {
+        const existing = dateOverrides[selectedDate];
+        if (existing) {
+          const { error } = await supabase.from("calendar_date_overrides").delete().eq("id", Number(existing.id));
+          if (error) throw error;
+        }
+        setNotice("Normal recurring routine restored for this date.");
+      } else {
+        if (dayStatus === "special") {
+          for (const block of scheduleDraft) {
+            if (!block.title.trim() || !block.start || !block.end || timeToMinutes(block.end) <= timeToMinutes(block.start)) {
+              throw new Error("Every Special Day schedule block needs a title and a valid start/end time.");
+            }
+          }
+        }
+        const { data: overrideRow, error: overrideError } = await supabase
+          .from("calendar_date_overrides")
+          .upsert({ date: selectedDate, status: dayStatus, title: dayTitle.trim() || null, description: dayDescription.trim() || null, updated_by: profileEmail || null, updated_at: new Date().toISOString(), created_by: profileEmail || null }, { onConflict: "date" })
+          .select("id,date,status,title,description")
+          .single();
+        if (overrideError) throw overrideError;
+        const overrideId = Number(overrideRow.id);
+
+        const { error: deleteError } = await supabase.from("calendar_date_schedule").delete().eq("override_id", overrideId);
+        if (deleteError) throw deleteError;
+
+        if (dayStatus === "special" && scheduleDraft.length > 0) {
+          const { error: insertError } = await supabase.from("calendar_date_schedule").insert(scheduleDraft.map((block, index) => ({ override_id: overrideId, title: block.title.trim(), description: block.description.trim() || null, start_time: block.start, end_time: block.end, target: block.target.trim() || null, venue: block.venue.trim() || null, sort_order: index, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })));
+          if (insertError) throw insertError;
+        }
+        setNotice(dayStatus === "holiday" ? "Holiday saved successfully." : "Special Day schedule saved successfully.");
+      }
+      await fetchCalendar();
+    } catch (error) {
+      console.error("Day configuration save error:", error);
+      setCalendarError(error instanceof Error ? error.message : "Unable to save this day configuration.");
+    } finally {
+      setSavingDay(false);
     }
   };
 
@@ -1378,6 +1495,73 @@ export default function DashboardCalendarPage() {
             </div>
 
             <div className="border-t border-slate-100 p-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">Day management</div>
+                    <div className="mt-1 text-[11px] font-black text-slate-800">Schedule status</div>
+                    <p className="mt-1 text-[8px] leading-4 text-slate-400">Special Days replace the recurring routine. Holidays remove it.</p>
+                  </div>
+                  {selectedOverride && (
+                    <span className={`rounded-full px-2 py-1 text-[7px] font-black uppercase tracking-[0.12em] ${selectedOverride.status === "holiday" ? "bg-orange-50 text-orange-600" : "bg-fuchsia-50 text-fuchsia-600"}`}>
+                      {selectedOverride.status}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-1.5">
+                  {([
+                    ["normal", "Normal"],
+                    ["special", "Special Day"],
+                    ["holiday", "Holiday"],
+                  ] as const).map(([value, label]) => (
+                    <button key={value} type="button" onClick={() => setDayStatus(value)} className={`rounded-xl border px-2 py-2 text-[8px] font-black transition ${dayStatus === value ? "border-blue-300 bg-white text-blue-700 shadow-sm" : "border-slate-200 bg-white/60 text-slate-500 hover:border-slate-300"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {dayStatus !== "normal" && (
+                  <div className="mt-3 space-y-2">
+                    <input value={dayTitle} onChange={(e) => setDayTitle(e.target.value)} placeholder={dayStatus === "holiday" ? "Holiday title, e.g. Dussehra" : "Special Day title, e.g. Carnival"} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[9px] font-semibold text-slate-800 outline-none focus:border-blue-300" />
+                    <textarea value={dayDescription} onChange={(e) => setDayDescription(e.target.value)} placeholder="Optional description" rows={2} className="w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[9px] text-slate-700 outline-none focus:border-blue-300" />
+                  </div>
+                )}
+
+                {dayStatus === "special" && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">Special schedule</div>
+                      <button type="button" onClick={addScheduleBlock} className="inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1.5 text-[7px] font-black text-blue-600 shadow-sm ring-1 ring-slate-200 hover:ring-blue-200"><PlusIcon /> Add block</button>
+                    </div>
+                    {scheduleDraft.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-[8px] text-slate-400">No custom blocks yet.</div>
+                    ) : scheduleDraft.map((block, index) => (
+                      <div key={block.id || `draft-${index}`} className="rounded-xl border border-slate-200 bg-white p-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[7px] font-black uppercase tracking-[0.12em] text-slate-400">Block {index + 1}</span>
+                          <button type="button" onClick={() => removeScheduleBlock(index)} className="text-[7px] font-black text-red-500 hover:text-red-700">Remove</button>
+                        </div>
+                        <input value={block.title} onChange={(e) => updateScheduleBlock(index, { title: e.target.value })} placeholder="Schedule block title" className="mt-2 h-8 w-full rounded-lg border border-slate-200 px-2 text-[9px] font-bold outline-none focus:border-blue-300" />
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <input type="time" value={block.start} onChange={(e) => updateScheduleBlock(index, { start: e.target.value })} className="h-8 rounded-lg border border-slate-200 px-2 text-[9px] font-semibold outline-none focus:border-blue-300" />
+                          <input type="time" value={block.end} onChange={(e) => updateScheduleBlock(index, { end: e.target.value })} className="h-8 rounded-lg border border-slate-200 px-2 text-[9px] font-semibold outline-none focus:border-blue-300" />
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <input value={block.venue} onChange={(e) => updateScheduleBlock(index, { venue: e.target.value })} placeholder="Venue" className="h-8 rounded-lg border border-slate-200 px-2 text-[8px] outline-none focus:border-blue-300" />
+                          <input value={block.target} onChange={(e) => updateScheduleBlock(index, { target: e.target.value })} placeholder="Audience" className="h-8 rounded-lg border border-slate-200 px-2 text-[8px] outline-none focus:border-blue-300" />
+                        </div>
+                        <input value={block.description} onChange={(e) => updateScheduleBlock(index, { description: e.target.value })} placeholder="Optional description" className="mt-2 h-8 w-full rounded-lg border border-slate-200 px-2 text-[8px] outline-none focus:border-blue-300" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button type="button" onClick={saveDayConfiguration} disabled={savingDay} className="mt-3 w-full rounded-xl bg-slate-950 px-3 py-2.5 text-[9px] font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {savingDay ? "Saving day..." : dayStatus === "normal" ? "Restore normal routine" : dayStatus === "holiday" ? "Save holiday" : "Save Special Day"}
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => openCreate(selectedDate)}
