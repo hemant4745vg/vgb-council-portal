@@ -549,7 +549,7 @@ value: string;
 }) {
 return (
 <div className="border-b border-slate-100 py-3 last:border-b-0">
-<div className="text-[8px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
+<div className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
 {label}
 </div>
 
@@ -1017,7 +1017,7 @@ export default function DashboardCalendarPage() {
 
   if (profileLoading) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f4f7fc]">
+      <main className="grid min-h-screen place-items-center bg-[#f6f8fc]">
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-[3px] border-blue-100 border-t-blue-600" />
           <p className="mt-3 text-xs font-bold text-slate-400">
@@ -1030,7 +1030,7 @@ export default function DashboardCalendarPage() {
 
   if (!isAdmin) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f4f7fc] px-6">
+      <main className="grid min-h-screen place-items-center bg-[#f6f8fc] px-6">
         <div className="max-w-md rounded-[24px] border border-slate-200 bg-white p-8 text-center shadow-[0_10px_35px_rgba(15,23,42,0.07)]">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-500">
             <CalendarIcon className="h-6 w-6" />
@@ -1047,19 +1047,19 @@ export default function DashboardCalendarPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f4f7fc] text-slate-900">
-      <div className="mx-auto max-w-[1540px] px-3 pb-10 pt-4 sm:px-5 lg:px-7 lg:pt-6">
-        <section className="relative mb-5 overflow-hidden rounded-[24px] bg-gradient-to-br from-[#172554] via-[#1d4ed8] to-[#4f46e5] px-5 py-6 text-white shadow-[0_18px_50px_rgba(30,64,175,0.20)] sm:px-7 sm:py-7">
-          <div className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-fuchsia-400/15 blur-3xl" />
+    <main className="min-h-screen bg-[#f6f8fc] text-slate-900">
+      <div className="mx-auto max-w-[1580px] px-3 pb-10 pt-4 sm:px-5 lg:px-8 lg:pt-6">
+        <section className="relative mb-5 overflow-hidden rounded-[20px] border border-blue-900/20 bg-[#102a63] px-5 py-5 text-white shadow-[0_16px_40px_rgba(15,42,99,0.16)] sm:px-7 sm:py-6">
+          <div className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full bg-blue-300/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-cyan-300/8 blur-3xl" />
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.2em] text-blue-100 backdrop-blur">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.2em] text-blue-100 backdrop-blur-sm">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
                 Dashboard · Calendar
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white ring-1 ring-white/20 backdrop-blur">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-sm">
                   <CalendarIcon className="h-6 w-6" />
                 </div>
                 <div>
@@ -1093,7 +1093,7 @@ export default function DashboardCalendarPage() {
           </div>
         )}
 
-        <section className="mb-5 overflow-hidden rounded-[20px] border border-slate-200/90 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
+        <section className="mb-5 overflow-hidden rounded-[16px] border border-slate-200 bg-white shadow-[0_6px_24px_rgba(15,23,42,0.05)]">
           <div className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-2">
               <button
@@ -1160,7 +1160,7 @@ export default function DashboardCalendarPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-100 px-4 py-3 sm:px-5">
+          <div className="border-t border-slate-100 px-4 py-3 sm:px-6">
             <div className="flex items-center gap-2 overflow-x-auto">
               {FILTERS.map((item) => {
                 const active = category === item.key;
@@ -1205,8 +1205,8 @@ export default function DashboardCalendarPage() {
         )}
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_10px_35px_rgba(15,23,42,0.07)]">
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-blue-50/40 to-slate-50">
+          <div className="overflow-hidden rounded-[16px] border border-slate-200 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
               {WEEKDAYS.map((day, index) => (
                 <div
                   key={day.short}
@@ -1258,9 +1258,9 @@ export default function DashboardCalendarPage() {
                       return (
                         <div
                           key={dateKey}
-                          className={`group relative min-h-[116px] border-b border-r border-slate-100 p-1.5 transition sm:min-h-[132px] sm:p-2 ${
-                            !inMonth ? "bg-slate-50/80" : "bg-white"
-                          } ${isSelected ? "bg-blue-50/60" : ""}`}
+                          className={`group relative min-h-[124px] border-b border-r border-slate-100 p-1.5 transition sm:min-h-[142px] sm:p-2 ${
+                            !inMonth ? "bg-[#fafbfe]" : "bg-white"
+                          } ${isSelected ? "bg-blue-50/45" : ""}`}
                         >
                           <button
                             type="button"
@@ -1298,10 +1298,10 @@ export default function DashboardCalendarPage() {
                                   type="button"
                                   onClick={() => selectEvent(event, dateKey)}
                                   title={`${event.title} · ${formatPeriods(event.periods)}`}
-                                  className={`group/event relative flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border px-1.5 py-1.5 text-left transition ${
+                                  className={`group/event relative flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md border px-2 py-1.5 text-left transition ${
                                     active
                                       ? `${config.soft} ${config.border} ring-2 ring-blue-400/25`
-                                      : `${config.pill} hover:brightness-[0.97]`
+                                      : `${config.pill} hover:brightness-[0.985] hover:shadow-sm`
                                   }`}
                                 >
                                   <span className={`absolute left-0 top-0 h-full w-0.5 ${config.accent}`} />
@@ -1348,7 +1348,7 @@ export default function DashboardCalendarPage() {
             </div>
           </div>
 
-          <aside className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_10px_35px_rgba(15,23,42,0.07)]">
+          <aside className="overflow-hidden rounded-[16px] border border-slate-200 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
             <div className="relative overflow-hidden bg-gradient-to-br from-[#eef4ff] via-white to-[#f6f0ff] px-5 py-5">
               <div className="relative">
                 <div className="flex items-center justify-between">
@@ -1552,7 +1552,7 @@ export default function DashboardCalendarPage() {
 
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="calendar-event-modal-title"
