@@ -1,990 +1,937 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-type NewsCategory =
-  | "All"
-  | "India"
-  | "World & Geopolitics"
-  | "Economy & Markets"
-  | "Geoeconomics"
-  | "Technology & AI"
-  | "Government & Public Policy"
-  | "Society"
-  | "Environment & Disasters"
-  | "Uttar Pradesh"
-  | "BRICS & Global South"
-  | "Rupee & Indian Economy"
-  | "Forecasting & Data"
-  | "Political & Legal Cases"
-  | "Controversies & Media Literacy";
+type Category = "All" | "India" | "World" | "Economy" | "Science & Tech";
 
-type NewsArticle = {
+type NewsItem = {
   id: number;
   title: string;
-  slug: string;
-  excerpt: string | null;
-  content: string;
-  category: Exclude<NewsCategory, "All">;
-  subcategory: string | null;
-  source_name: string | null;
-  source_url: string | null;
+  summary: string | null;
+  source: string;
+  source_url: string;
+  published_at: string;
+  category: Exclude<Category, "All">;
   image_url: string | null;
-  published_at: string | null;
-  author: string | null;
-  featured: boolean;
 };
 
-const CATEGORIES: NewsCategory[] = [
+const CATEGORIES: Category[] = [
   "All",
   "India",
-  "World & Geopolitics",
-  "Economy & Markets",
-  "Geoeconomics",
-  "Technology & AI",
-  "Government & Public Policy",
-  "Society",
-  "Environment & Disasters",
-  "Uttar Pradesh",
-  "BRICS & Global South",
-  "Rupee & Indian Economy",
-  "Forecasting & Data",
-  "Political & Legal Cases",
-  "Controversies & Media Literacy",
+  "World",
+  "Economy",
+  "Science & Tech",
 ];
 
-const DESKS = [
+const CATEGORY_META: Record<
+  Exclude<Category, "All">,
   {
-    title: "India",
-    description: "Politics, institutions, governance and major national developments.",
-    category: "India" as NewsCategory,
-    accent: "IND",
+    label: string;
+    description: string;
+  }
+> = {
+  India: {
+    label: "India",
+    description: "National affairs, policy, politics and society",
   },
-  {
-    title: "World & Geopolitics",
-    description: "International relations, conflicts, alliances and strategic affairs.",
-    category: "World & Geopolitics" as NewsCategory,
-    accent: "GEO",
+  World: {
+    label: "World",
+    description: "International affairs and geopolitics",
   },
-  {
-    title: "Economy & Markets",
-    description: "Growth, inflation, markets, fiscal policy and economic indicators.",
-    category: "Economy & Markets" as NewsCategory,
-    accent: "ECO",
+  Economy: {
+    label: "Economy",
+    description: "Markets, business, trade and economic policy",
   },
-  {
-    title: "Technology & AI",
-    description: "Artificial intelligence, technology policy, platforms and digital systems.",
-    category: "Technology & AI" as NewsCategory,
-    accent: "AI",
+  "Science & Tech": {
+    label: "Science & Tech",
+    description: "Science, technology, AI and innovation",
   },
-  {
-    title: "BRICS & Global South",
-    description: "Emerging powers, multilateral institutions and South-South relations.",
-    category: "BRICS & Global South" as NewsCategory,
-    accent: "BRI",
-  },
-  {
-    title: "Rupee & Indian Economy",
-    description: "Currency movements, external sector, trade and monetary questions.",
-    category: "Rupee & Indian Economy" as NewsCategory,
-    accent: "₹",
-  },
-];
+};
 
-function formatDate(value: string | null) {
-  if (!value) return "Date unavailable";
+const SOURCE_PRIORITY: Record<string, number> = {
+  "Press Information Bureau": 100,
+  "The Indian Express": 95,
+  "Hindustan Times": 88,
+  NDTV: 86,
+  "Business Standard": 82,
+};
 
-  const date = new Date(value);
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = Date.now();
+  const difference = now - date.getTime();
 
   if (Number.isNaN(date.getTime())) {
-    return "Date unavailable";
+    return "Recently";
   }
 
-  return new Intl.DateTimeFormat("en-IN", {
+  if (difference < 0) {
+    return "Just now";
+  }
+
+  const seconds = Math.floor(difference / 1000);
+
+  if (seconds < 60) {
+    return "Just now";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+  });
+}
+
+function formatExactDate(dateString: string): string {
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleString("en-IN", {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(date);
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) return "Date unavailable";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Date unavailable";
-  }
-
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(date);
+  });
 }
 
-function getInitials(name: string | null) {
-  if (!name) return "VG";
-
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
+function getCategoryClass(category: NewsItem["category"]): string {
+  switch (category) {
+    case "India":
+      return "bg-blue-50 text-blue-700 ring-blue-100";
+    case "World":
+      return "bg-violet-50 text-violet-700 ring-violet-100";
+    case "Economy":
+      return "bg-emerald-50 text-emerald-700 ring-emerald-100";
+    case "Science & Tech":
+      return "bg-amber-50 text-amber-700 ring-amber-100";
+    default:
+      return "bg-slate-50 text-slate-700 ring-slate-100";
+  }
 }
 
-function CategoryPill({
-  category,
-  active = false,
-  onClick,
+function getSourcePriority(source: string): number {
+  return SOURCE_PRIORITY[source] ?? 70;
+}
+
+function getImageGradient(category: NewsItem["category"]): string {
+  switch (category) {
+    case "India":
+      return "from-blue-700 via-blue-600 to-cyan-500";
+    case "World":
+      return "from-violet-700 via-indigo-600 to-blue-500";
+    case "Economy":
+      return "from-emerald-700 via-emerald-600 to-teal-500";
+    case "Science & Tech":
+      return "from-slate-800 via-slate-700 to-blue-600";
+    default:
+      return "from-slate-700 to-slate-500";
+  }
+}
+
+function truncateText(text: string | null, length: number): string {
+  if (!text) {
+    return "";
+  }
+
+  const cleaned = text.trim();
+
+  if (cleaned.length <= length) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(0, length).trimEnd()}…`;
+}
+
+function deduplicateStories(items: NewsItem[]): NewsItem[] {
+  const seen = new Set<string>();
+  const result: NewsItem[] = [];
+
+  for (const item of items) {
+    const normalizedTitle = item.title
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const key = normalizedTitle || item.source_url;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(item);
+  }
+
+  return result;
+}
+
+function sortStories(items: NewsItem[]): NewsItem[] {
+  return [...items].sort((a, b) => {
+    const dateDifference =
+      new Date(b.published_at).getTime() -
+      new Date(a.published_at).getTime();
+
+    if (dateDifference !== 0) {
+      return dateDifference;
+    }
+
+    return getSourcePriority(b.source) - getSourcePriority(a.source);
+  });
+}
+
+function NewsImage({
+  item,
+  className = "",
+  priority = false,
 }: {
-  category: NewsCategory;
-  active?: boolean;
-  onClick: () => void;
+  item: NewsItem;
+  className?: string;
+  priority?: boolean;
 }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!item.image_url || failed) {
+    return (
+      <div
+        className={`relative overflow-hidden bg-gradient-to-br ${getImageGradient(
+          item.category
+        )} ${className}`}
+      >
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full border border-white/30" />
+          <div className="absolute -bottom-16 -left-8 h-44 w-44 rounded-full border border-white/20" />
+          <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
+        </div>
+
+        <div className="relative flex h-full items-center justify-center">
+          <div className="rounded-full border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+            <NewsIcon />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition",
-        active
-          ? "border-slate-950 bg-slate-950 text-white"
-          : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-950",
-      ].join(" ")}
-    >
-      {category}
-    </button>
+    <div className={`relative overflow-hidden bg-slate-100 ${className}`}>
+      <img
+        src={item.image_url}
+        alt=""
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+        onError={() => setFailed(true)}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+    </div>
   );
 }
 
-function ArticlePlaceholder({
-  category,
-  large = false,
-}: {
-  category: string;
-  large?: boolean;
-}) {
+function NewsIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      className="h-6 w-6 text-white"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 5.75A1.75 1.75 0 0 1 5.75 4H20v14.25A1.75 1.75 0 0 1 18.25 20H5.75A1.75 1.75 0 0 1 4 18.25V5.75Z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 8h8M8 11.5h8M8 15h4"
+      />
+    </svg>
+  );
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14 5h5v5M19 5l-8 8"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M18 13.5V18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4.5"
+      />
+    </svg>
+  );
+}
+
+function RefreshIcon({ spinning = false }: { spinning?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={`h-4 w-4 ${spinning ? "animate-spin" : ""}`}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M20 11a8.1 8.1 0 0 0-14.9-4.3L4 8"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 4v4h4"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 13a8.1 8.1 0 0 0 14.9 4.3L20 16"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M20 20v-4h-4"
+      />
+    </svg>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5 12h14M13 6l6 6-6 6"
+      />
+    </svg>
+  );
+}
+
+function SkeletonBlock({ className }: { className: string }) {
   return (
     <div
-      className={[
-        "relative overflow-hidden bg-slate-950",
-        large ? "h-72 sm:h-96" : "h-48",
-      ].join(" ")}
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.12),transparent_30%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.08),transparent_35%)]" />
+      className={`animate-pulse rounded-2xl bg-slate-200/80 ${className}`}
+    />
+  );
+}
 
-      <div className="absolute left-6 top-6 flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-sm font-bold tracking-widest text-white backdrop-blur">
-        VG
-      </div>
-
-      <div className="absolute bottom-6 left-6 right-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
-          {category}
-        </p>
-        <div className="mt-2 h-px w-24 bg-white/30" />
+function FeaturedSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <SkeletonBlock className="h-[280px] w-full rounded-none sm:h-[360px]" />
+      <div className="space-y-4 p-6 sm:p-8">
+        <SkeletonBlock className="h-5 w-24" />
+        <SkeletonBlock className="h-8 w-full max-w-3xl" />
+        <SkeletonBlock className="h-8 w-4/5 max-w-2xl" />
+        <SkeletonBlock className="h-16 w-full max-w-3xl" />
       </div>
     </div>
   );
 }
 
-function ArticleCard({
-  article,
-  onOpen,
+function StorySkeleton() {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <SkeletonBlock className="h-44 w-full rounded-none" />
+      <div className="space-y-3 p-5">
+        <SkeletonBlock className="h-4 w-20" />
+        <SkeletonBlock className="h-5 w-full" />
+        <SkeletonBlock className="h-5 w-4/5" />
+        <SkeletonBlock className="h-4 w-28" />
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  category,
+  onRefresh,
+  refreshing,
 }: {
-  article: NewsArticle;
-  onOpen: (article: NewsArticle) => void;
+  category: Category;
+  onRefresh: () => void;
+  refreshing: boolean;
 }) {
   return (
-    <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg">
-      {article.image_url ? (
-        <button
-          type="button"
-          onClick={() => onOpen(article)}
-          className="block w-full text-left"
-        >
-          <div className="h-48 overflow-hidden bg-slate-100">
-            <img
-              src={article.image_url}
-              alt=""
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
-            />
-          </div>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onOpen(article)}
-          className="block w-full text-left"
-        >
-          <ArticlePlaceholder category={article.category} />
-        </button>
-      )}
+    <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+        <NewsIcon />
+      </div>
 
-      <div className="p-5">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider">
-          <span className="text-slate-950">{article.category}</span>
+      <h2 className="mt-5 text-lg font-semibold text-slate-900">
+        No stories available
+      </h2>
 
-          {article.subcategory && (
-            <>
-              <span className="text-slate-300">•</span>
-              <span className="text-slate-400">
-                {article.subcategory}
-              </span>
-            </>
-          )}
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+        There are currently no stories in{" "}
+        {category === "All" ? "the news feed" : `the ${category} section`}.
+        The automatic news pipeline may still be collecting the latest
+        stories.
+      </p>
+
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={refreshing}
+        className="mt-6 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <RefreshIcon spinning={refreshing} />
+        Refresh
+      </button>
+    </div>
+  );
+}
+
+function ErrorState({
+  onRefresh,
+  refreshing,
+}: {
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  return (
+    <div className="rounded-3xl border border-red-200 bg-red-50 px-6 py-12 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          className="h-6 w-6"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 8v4M12 16h.01"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M10.3 3.9 2.7 17a2 2 0 0 0 1.73 3h15.14a2 2 0 0 0 1.73-3L13.7 3.9a2 2 0 0 0-3.4 0Z"
+          />
+        </svg>
+      </div>
+
+      <h2 className="mt-4 text-lg font-semibold text-red-900">
+        News could not be loaded
+      </h2>
+
+      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-red-700/80">
+        The news database could not be reached right now. Your portal is
+        still alive, which is more than can be said for many production
+        systems at 2 a.m.
+      </p>
+
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={refreshing}
+        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <RefreshIcon spinning={refreshing} />
+        Try again
+      </button>
+    </div>
+  );
+}
+
+function StoryCard({ item }: { item: NewsItem }) {
+  return (
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+      <a
+        href={item.source_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Read ${item.title} from ${item.source}`}
+        className="block"
+      >
+        <NewsImage item={item} className="h-48 sm:h-52" />
+      </a>
+
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex items-center justify-between gap-3">
+          <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${getCategoryClass(
+              item.category
+            )}`}
+          >
+            {item.category}
+          </span>
+
+          <span
+            title={formatExactDate(item.published_at)}
+            className="shrink-0 text-xs text-slate-400"
+          >
+            {formatRelativeTime(item.published_at)}
+          </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onOpen(article)}
-          className="mt-3 block text-left"
-        >
-          <h3 className="text-xl font-bold leading-tight tracking-tight text-slate-950 transition group-hover:text-slate-700">
-            {article.title}
-          </h3>
-        </button>
+        <h3 className="mt-3 line-clamp-3 text-[17px] font-semibold leading-6 tracking-[-0.01em] text-slate-900">
+          <a
+            href={item.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition hover:text-blue-700"
+          >
+            {item.title}
+          </a>
+        </h3>
 
-        {article.excerpt && (
-          <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">
-            {article.excerpt}
+        {item.summary && (
+          <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
+            {truncateText(item.summary, 210)}
           </p>
         )}
 
-        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
-          <span>{formatDate(article.published_at)}</span>
+        <div className="mt-auto flex items-center justify-between gap-3 pt-5">
+          <span className="truncate text-xs font-medium text-slate-500">
+            {item.source}
+          </span>
 
-          <button
-            type="button"
-            onClick={() => onOpen(article)}
-            className="font-semibold text-slate-950 transition group-hover:underline"
+          <a
+            href={item.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-blue-700 transition hover:text-blue-800"
           >
-            Read story →
-          </button>
+            Read
+            <ExternalLinkIcon />
+          </a>
         </div>
       </div>
     </article>
   );
 }
 
-function FeaturedArticle({
-  article,
-  onOpen,
-}: {
-  article: NewsArticle;
-  onOpen: (article: NewsArticle) => void;
-}) {
+function FeaturedStory({ item }: { item: NewsItem }) {
   return (
-    <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
-        <button
-          type="button"
-          onClick={() => onOpen(article)}
-          className="relative block min-h-[330px] overflow-hidden text-left"
-        >
-          {article.image_url ? (
-            <img
-              src={article.image_url}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          ) : (
-            <ArticlePlaceholder
-              category={article.category}
-              large
-            />
-          )}
+    <article className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <a
+        href={item.source_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block h-[270px] overflow-hidden sm:h-[360px]"
+        aria-label={`Read ${item.title} from ${item.source}`}
+      >
+        <NewsImage
+          item={item}
+          priority
+          className="h-full w-full"
+        />
 
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-7 pt-24">
-            <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur">
-              Featured
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+
+        <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-8">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-bold ${getCategoryClass(
+                item.category
+              )}`}
+            >
+              {item.category}
+            </span>
+
+            <span className="text-xs font-medium text-white/80">
+              {item.source} · {formatRelativeTime(item.published_at)}
             </span>
           </div>
-        </button>
 
-        <div className="flex flex-col justify-center p-7 sm:p-9">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            <span>{article.category}</span>
+          <h2 className="mt-3 max-w-4xl text-2xl font-bold leading-tight tracking-[-0.025em] text-white sm:text-4xl">
+            {item.title}
+          </h2>
+        </div>
+      </a>
 
-            {article.subcategory && (
-              <>
-                <span className="text-slate-300">•</span>
-                <span>{article.subcategory}</span>
-              </>
-            )}
+      <div className="p-5 sm:p-7">
+        {item.summary && (
+          <p className="max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+            {truncateText(item.summary, 420)}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+          <div className="text-xs text-slate-400">
+            Published {formatExactDate(item.published_at)}
           </div>
 
-          <button
-            type="button"
-            onClick={() => onOpen(article)}
-            className="mt-4 text-left"
+          <a
+            href={item.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            <h2 className="text-3xl font-black leading-[1.05] tracking-tight text-slate-950 sm:text-4xl">
-              {article.title}
-            </h2>
-          </button>
-
-          {article.excerpt && (
-            <p className="mt-5 text-base leading-7 text-slate-600">
-              {article.excerpt}
-            </p>
-          )}
-
-          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
-            <span>{formatDate(article.published_at)}</span>
-
-            {article.source_name && (
-              <>
-                <span className="text-slate-300">•</span>
-                <span>{article.source_name}</span>
-              </>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onOpen(article)}
-            className="mt-7 w-fit rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            Read featured story
-          </button>
+            Read full story
+            <ExternalLinkIcon />
+          </a>
         </div>
       </div>
     </article>
-  );
-}
-
-function ArticleReader({
-  article,
-  onClose,
-}: {
-  article: NewsArticle;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
-      <div className="mx-auto min-h-full max-w-4xl">
-        <article className="overflow-hidden rounded-3xl bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-7">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-950 text-xs font-bold text-white">
-                VG
-              </div>
-              <span className="text-sm font-semibold text-slate-600">
-                VGB News Desk
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-            >
-              Close
-            </button>
-          </div>
-
-          {article.image_url ? (
-            <div className="max-h-[420px] overflow-hidden bg-slate-100">
-              <img
-                src={article.image_url}
-                alt=""
-                className="max-h-[420px] w-full object-cover"
-              />
-            </div>
-          ) : (
-            <ArticlePlaceholder category={article.category} large />
-          )}
-
-          <div className="px-6 py-8 sm:px-12 sm:py-10">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-              <span>{article.category}</span>
-
-              {article.subcategory && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span>{article.subcategory}</span>
-                </>
-              )}
-            </div>
-
-            <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[1.05] tracking-tight text-slate-950 sm:text-5xl">
-              {article.title}
-            </h1>
-
-            {article.excerpt && (
-              <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-600">
-                {article.excerpt}
-              </p>
-            )}
-
-            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-slate-100 py-4 text-sm text-slate-500">
-              <span>{formatDateTime(article.published_at)}</span>
-
-              {article.author && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span>By {article.author}</span>
-                </>
-              )}
-
-              {article.source_name && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span>{article.source_name}</span>
-                </>
-              )}
-            </div>
-
-            <div className="mt-9 whitespace-pre-wrap text-[17px] leading-8 text-slate-800">
-              {article.content}
-            </div>
-
-            {article.source_url && article.source_name && (
-              <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Original source
-                </p>
-
-                <a
-                  href={article.source_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex font-semibold text-slate-950 underline underline-offset-4"
-                >
-                  {article.source_name} ↗
-                </a>
-              </div>
-            )}
-          </div>
-        </article>
-      </div>
-    </div>
   );
 }
 
 export default function NewsPage() {
-  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [stories, setStories] = useState<NewsItem[]>([]);
   const [selectedCategory, setSelectedCategory] =
-    useState<NewsCategory>("All");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedArticle, setSelectedArticle] =
-    useState<NewsArticle | null>(null);
+    useState<Category>("All");
+
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadArticles() {
+  const loadNews = useCallback(async (manual = false) => {
+    if (manual) {
+      setRefreshing(true);
+    } else {
       setLoading(true);
-      setError(null);
-
-      const { data, error: fetchError } = await supabase
-        .from("news_articles")
-        .select(
-          `
-            id,
-            title,
-            slug,
-            excerpt,
-            content,
-            category,
-            subcategory,
-            source_name,
-            source_url,
-            image_url,
-            published_at,
-            author,
-            featured
-          `,
-        )
-        .eq("status", "published")
-        .order("featured", { ascending: false })
-        .order("published_at", { ascending: false });
-
-      if (!mounted) return;
-
-      if (fetchError) {
-        console.error("Failed to load news articles:", fetchError);
-        setError("The news desk could not load stories right now.");
-        setArticles([]);
-      } else {
-        setArticles((data ?? []) as NewsArticle[]);
-      }
-
-      setLoading(false);
     }
 
-    loadArticles();
+    setError(null);
 
-    return () => {
-      mounted = false;
-    };
+    try {
+      const { data, error: queryError } = await supabase
+        .from("news_items")
+        .select(
+          "id, title, summary, source, source_url, published_at, category, image_url"
+        )
+        .order("published_at", { ascending: false })
+        .limit(120);
+
+      if (queryError) {
+        throw queryError;
+      }
+
+      const cleaned = (data ?? []) as NewsItem[];
+
+      setStories(sortStories(deduplicateStories(cleaned)));
+      setLastUpdated(new Date());
+    } catch (queryError) {
+      console.error("Failed to load news:", queryError);
+
+      setError(
+        queryError instanceof Error
+          ? queryError.message
+          : "Unable to load news."
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  const filteredArticles = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+  useEffect(() => {
+    void loadNews();
+  }, [loadNews]);
 
-    return articles.filter((article) => {
-      const matchesCategory =
-        selectedCategory === "All" ||
-        article.category === selectedCategory;
+  const filteredStories = useMemo(() => {
+    if (selectedCategory === "All") {
+      return stories;
+    }
 
-      if (!matchesCategory) return false;
+    return stories.filter(
+      (story) => story.category === selectedCategory
+    );
+  }, [selectedCategory, stories]);
 
-      if (!query) return true;
-
-      return [
-        article.title,
-        article.excerpt,
-        article.content,
-        article.category,
-        article.subcategory,
-        article.source_name,
-        article.author,
-      ]
-        .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(query),
-        );
-    });
-  }, [articles, selectedCategory, searchQuery]);
-
-  const featuredArticle = useMemo(
-    () => articles.find((article) => article.featured) ?? articles[0] ?? null,
-    [articles],
-  );
-
-  const regularArticles = useMemo(() => {
-    const featuredId = featuredArticle?.id;
-
-    return filteredArticles.filter((article) => article.id !== featuredId);
-  }, [filteredArticles, featuredArticle]);
+  const featuredStory = filteredStories[0] ?? null;
+  const secondaryStories = filteredStories.slice(1, 5);
+  const remainingStories = filteredStories.slice(5);
 
   const categoryCounts = useMemo(() => {
-    const counts = new Map<string, number>();
+    const counts: Record<Exclude<Category, "All">, number> = {
+      India: 0,
+      World: 0,
+      Economy: 0,
+      "Science & Tech": 0,
+    };
 
-    for (const article of articles) {
-      counts.set(
-        article.category,
-        (counts.get(article.category) ?? 0) + 1,
-      );
+    for (const story of stories) {
+      counts[story.category] += 1;
     }
 
     return counts;
-  }, [articles]);
+  }, [stories]);
 
-  const displayedFeatured =
-    selectedCategory === "All" && !searchQuery.trim()
-      ? featuredArticle
-      : null;
+  const pageDescription =
+    selectedCategory === "All"
+      ? "Current affairs from India, the world, the economy, and science & technology."
+      : CATEGORY_META[selectedCategory].description;
 
   return (
-    <main className="min-h-screen bg-[#f7f7f5] text-slate-950">
+    <main className="min-h-screen bg-[#f7f8fa]">
       {/* Header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-5 sm:px-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-950 text-sm font-black tracking-widest text-white">
-                VG
-              </div>
-
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-                  VidyaGyan Student Council
-                </p>
-                <h1 className="mt-0.5 text-2xl font-black tracking-tight">
-                  News Desk
-                </h1>
-              </div>
-            </div>
-
-            <nav className="flex flex-wrap items-center gap-2 text-sm">
-              <Link
-                href="/"
-                className="rounded-lg px-3 py-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
-              >
-                Home
-              </Link>
-
-              <Link
-                href="/tools"
-                className="rounded-lg px-3 py-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
-              >
-                Tools
-              </Link>
-
-              <Link
-                href="/tools/news"
-                className="rounded-lg bg-slate-950 px-4 py-2 font-semibold text-white transition hover:bg-slate-800"
-              >
-                News Lab
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero */}
       <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20">
-          <div className="max-w-4xl">
-            <div className="mb-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-              <span className="h-px w-8 bg-slate-300" />
-              Current Affairs
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-blue-600" />
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
+                  VGB News
+                </span>
+              </div>
+
+              <h1 className="text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-4xl">
+                News & Current Affairs
+              </h1>
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-[15px]">
+                {pageDescription}
+              </p>
             </div>
 
-            <h2 className="text-5xl font-black leading-[0.95] tracking-[-0.04em] sm:text-7xl">
-              Understand the
-              <br />
-              world as it changes.
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="hidden text-right sm:block">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  Feed status
+                </p>
+                <p className="mt-0.5 text-sm font-medium text-slate-700">
+                  Updated automatically
+                </p>
+              </div>
 
-            <p className="mt-7 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-              A student-facing current-affairs desk covering India,
-              geopolitics, economics, technology, public policy and the
-              questions underneath the headlines.
-            </p>
-          </div>
-
-          <div className="mt-10 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <label className="relative block">
-              <span className="sr-only">Search news</span>
-
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                ⌕
-              </span>
-
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search stories, topics, sources..."
-                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
-              />
-            </label>
-
-            <Link
-              href="/tools/news"
-              className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              Open News Lab →
-            </Link>
+              <button
+                type="button"
+                onClick={() => void loadNews(true)}
+                disabled={loading || refreshing}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshIcon spinning={refreshing} />
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Category navigation */}
-      <section className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto max-w-7xl overflow-x-auto px-5 py-3 sm:px-8">
-          <div className="flex gap-2">
-            {CATEGORIES.map((category) => (
-              <CategoryPill
-                key={category}
-                category={category}
-                active={selectedCategory === category}
-                onClick={() => setSelectedCategory(category)}
-              />
-            ))}
-          </div>
+      <section className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto max-w-7xl overflow-x-auto px-4 sm:px-6 lg:px-8">
+          <nav
+            className="flex min-w-max items-center gap-1 py-2"
+            aria-label="News categories"
+          >
+            {CATEGORIES.map((category) => {
+              const active = selectedCategory === category;
+
+              const count =
+                category === "All"
+                  ? stories.length
+                  : categoryCounts[category];
+
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setSelectedCategory(category)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+                    active
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {category}
+                  {!loading && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        active
+                          ? "bg-white/15 text-white"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </section>
 
-      <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14">
+      {/* Main content */}
+      <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
+        {/* Status line */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              {selectedCategory === "All"
+                ? "Latest stories"
+                : selectedCategory}
+            </p>
+
+            <p className="mt-0.5 text-xs text-slate-400">
+              {loading
+                ? "Loading the latest stories…"
+                : `${filteredStories.length} ${
+                    filteredStories.length === 1 ? "story" : "stories"
+                  } available`}
+            </p>
+          </div>
+
+          {lastUpdated && !loading && (
+            <p className="text-xs text-slate-400">
+              Checked {formatRelativeTime(lastUpdated.toISOString())}
+            </p>
+          )}
+        </div>
+
         {/* Loading */}
         {loading && (
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="h-96 animate-pulse rounded-3xl bg-slate-200 lg:col-span-2" />
-            <div className="h-96 animate-pulse rounded-3xl bg-slate-200" />
+          <div className="space-y-7">
+            <FeaturedSkeleton />
+
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <StorySkeleton key={index} />
+              ))}
+            </div>
           </div>
         )}
 
         {/* Error */}
         {!loading && error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-            <p className="font-semibold text-red-900">{error}</p>
-            <p className="mt-1 text-sm text-red-700">
-              Check the Supabase connection and the published-news policy.
-            </p>
-          </div>
+          <ErrorState
+            onRefresh={() => void loadNews(true)}
+            refreshing={refreshing}
+          />
         )}
 
-        {/* Empty state */}
-        {!loading && !error && articles.length === 0 && (
-          <section className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center sm:px-12">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-white">
-              VG
-            </div>
-
-            <p className="mt-7 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-              News Desk
-            </p>
-
-            <h2 className="mt-3 text-3xl font-black tracking-tight">
-              The newsroom is ready.
-            </h2>
-
-            <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-slate-600">
-              There are no published current-affairs stories yet. Once
-              articles are added to the editorial workflow and published,
-              they will appear here automatically.
-            </p>
-
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link
-                href="/tools/news"
-                className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Explore News Lab
-              </Link>
-
-              <Link
-                href="/tools"
-                className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Browse All Tools
-              </Link>
-            </div>
-          </section>
+        {/* Empty */}
+        {!loading && !error && filteredStories.length === 0 && (
+          <EmptyState
+            category={selectedCategory}
+            onRefresh={() => void loadNews(true)}
+            refreshing={refreshing}
+          />
         )}
 
-        {/* Featured */}
-        {!loading &&
-          !error &&
-          displayedFeatured &&
-          filteredArticles.length > 0 && (
-            <section>
-              <div className="mb-5 flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                    Lead story
-                  </p>
-                  <h2 className="mt-1 text-2xl font-black tracking-tight">
-                    Featured
+        {/* News */}
+        {!loading && !error && filteredStories.length > 0 && (
+          <div className="space-y-10">
+            {/* Featured */}
+            {featuredStory && (
+              <section>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                    Top story
                   </h2>
                 </div>
 
-                <span className="text-sm text-slate-400">
-                  {articles.length}{" "}
-                  {articles.length === 1 ? "published story" : "published stories"}
-                </span>
-              </div>
+                <FeaturedStory item={featuredStory} />
+              </section>
+            )}
 
-              <FeaturedArticle
-                article={displayedFeatured}
-                onOpen={setSelectedArticle}
-              />
-            </section>
-          )}
-
-        {/* Search/filter heading */}
-        {!loading &&
-          !error &&
-          articles.length > 0 &&
-          (searchQuery.trim() || selectedCategory !== "All") && (
-            <section className="mb-8">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                Filtered desk
-              </p>
-
-              <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-                <h2 className="text-2xl font-black tracking-tight">
-                  {selectedCategory === "All"
-                    ? "Search results"
-                    : selectedCategory}
-                </h2>
-
-                <p className="text-sm text-slate-500">
-                  {filteredArticles.length}{" "}
-                  {filteredArticles.length === 1 ? "story" : "stories"}
-                </p>
-              </div>
-            </section>
-          )}
-
-        {/* Articles */}
-        {!loading &&
-          !error &&
-          regularArticles.length > 0 && (
-            <section className="mt-10">
-              {!displayedFeatured && (
-                <div className="mb-6">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                    Latest reporting
-                  </p>
-                  <h2 className="mt-1 text-2xl font-black tracking-tight">
-                    Stories
+            {/* Secondary stories */}
+            {secondaryStories.length > 0 && (
+              <section>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                    More from the feed
                   </h2>
                 </div>
-              )}
 
-              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {regularArticles.map((article) => (
-                  <ArticleCard
-                    key={article.id}
-                    article={article}
-                    onOpen={setSelectedArticle}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  {secondaryStories.map((story) => (
+                    <StoryCard key={story.id} item={story} />
+                  ))}
+                </div>
+              </section>
+            )}
 
-        {/* No filter results */}
-        {!loading &&
-          !error &&
-          articles.length > 0 &&
-          filteredArticles.length === 0 && (
-            <section className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
-              <p className="text-lg font-bold text-slate-950">
-                No stories match this filter.
-              </p>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Try another desk or clear the search.
-              </p>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCategory("All");
-                  setSearchQuery("");
-                }}
-                className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
-              >
-                Clear filters
-              </button>
-            </section>
-          )}
-
-        {/* News desks */}
-        <section className="mt-20 border-t border-slate-200 pt-12">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                Coverage map
-              </p>
-              <h2 className="mt-2 text-3xl font-black tracking-tight">
-                News desks
-              </h2>
-            </div>
-
-            <p className="max-w-xl text-sm leading-6 text-slate-500">
-              Different desks, different lenses. Because putting every
-              geopolitical, economic and technological development under
-              “News” is how information architecture quietly dies.
-            </p>
-          </div>
-
-          <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {DESKS.map((desk) => {
-              const count = categoryCounts.get(desk.category) ?? 0;
-
-              return (
-                <button
-                  key={desk.title}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCategory(desk.category);
-                    setSearchQuery("");
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="group rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <span className="flex h-10 min-w-10 items-center justify-center rounded-lg bg-slate-950 px-2 text-xs font-black tracking-wider text-white">
-                      {desk.accent}
-                    </span>
-
-                    <span className="text-xs font-medium text-slate-400">
-                      {count} {count === 1 ? "story" : "stories"}
-                    </span>
+            {/* Remaining stories */}
+            {remainingStories.length > 0 && (
+              <section>
+                <div className="mb-5 flex items-end justify-between gap-4 border-b border-slate-200 pb-3">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-[-0.02em] text-slate-900">
+                      Latest
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Recent stories across the selected coverage.
+                    </p>
                   </div>
+                </div>
 
-                  <h3 className="mt-5 text-lg font-bold tracking-tight text-slate-950">
-                    {desk.title}
-                  </h3>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {remainingStories.map((story) => (
+                    <StoryCard key={story.id} item={story} />
+                  ))}
+                </div>
+              </section>
+            )}
 
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {desk.description}
+            {/* Footer information */}
+            <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Automatic news feed
                   </p>
-
-                  <span className="mt-5 inline-block text-sm font-semibold text-slate-950 transition group-hover:translate-x-1">
-                    Explore desk →
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Analytical layer */}
-        <section className="mt-16 overflow-hidden rounded-3xl bg-slate-950 text-white">
-          <div className="grid lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="p-7 sm:p-10">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/40">
-                Beyond the headline
-              </p>
-
-              <h2 className="mt-3 max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">
-                Read the story.
-                <br />
-                Then interrogate it.
-              </h2>
-
-              <p className="mt-5 max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
-                The News Desk tells you what happened. The News Lab helps you
-                examine sources, separate claims from evidence, build
-                timelines, map policy effects and reason about uncertainty.
-              </p>
-
-              <Link
-                href="/tools/news"
-                className="mt-7 inline-flex rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-slate-100"
-              >
-                Open News Lab →
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-2 border-t border-white/10 lg:border-l lg:border-t-0">
-              {[
-                ["01", "Source Lab"],
-                ["02", "Claim Checker"],
-                ["03", "Timeline"],
-                ["04", "Forecasting"],
-              ].map(([number, label]) => (
-                <div
-                  key={number}
-                  className="border-b border-r border-white/10 p-6 last:border-b-0"
-                >
-                  <span className="text-xs font-bold text-white/30">
-                    {number}
-                  </span>
-                  <p className="mt-8 text-sm font-semibold text-white/80">
-                    {label}
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+                    Stories are collected automatically from the portal&apos;s
+                    configured news sources and stored in the VGB news
+                    database. Headlines link back to their original
+                    publishers.
                   </p>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      </div>
 
-      {/* Article reader */}
-      {selectedArticle && (
-        <ArticleReader
-          article={selectedArticle}
-          onClose={() => setSelectedArticle(null)}
-        />
-      )}
+                <div className="flex shrink-0 items-center gap-2 text-xs font-medium text-slate-500">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Automated
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
