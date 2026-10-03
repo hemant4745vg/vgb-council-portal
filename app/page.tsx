@@ -324,8 +324,8 @@ function ClockDisplay({ time, date }: { time: string; date: string }) {
 
 function HeroField() {
   const nodes = [
-    { x: 9, y: 30, label: "NEWS" }, { x: 27, y: 67, label: "TOOLS" }, { x: 45, y: 28, label: "TIMELINE" },
-    { x: 63, y: 70, label: "COUNCIL" }, { x: 80, y: 30, label: "WEATHER" }, { x: 90, y: 62, label: "CAMPUS" },
+    { x: 9, y: 30 }, { x: 27, y: 67 }, { x: 45, y: 28 },
+    { x: 63, y: 70 }, { x: 80, y: 30 }, { x: 90, y: 62 },
   ];
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
@@ -342,10 +342,10 @@ function HeroField() {
           <path d="M5 12 C24 28 37 5 55 22 S82 45 102 28" /><path d="M5 18 C25 34 39 11 57 28 S84 51 102 34" /><path d="M5 24 C26 40 41 17 59 34 S86 57 102 40" />
         </g>
         <g stroke="#93c5fd" strokeOpacity=".16" strokeWidth=".12">
-          {nodes.map((node, i) => i < nodes.length - 1 ? <line key={node.label} x1={node.x} y1={node.y} x2={nodes[i + 1].x} y2={nodes[i + 1].y} /> : null)}
+          {nodes.map((node, i) => i < nodes.length - 1 ? <line key={`${node.x}-${node.y}`} x1={node.x} y1={node.y} x2={nodes[i + 1].x} y2={nodes[i + 1].y} /> : null)}
           <line x1="9" y1="30" x2="45" y2="28" /><line x1="45" y1="28" x2="80" y2="30" /><line x1="63" y1="70" x2="90" y2="62" />
         </g>
-        {nodes.map((node, index) => <g key={node.label} className={index % 2 === 0 ? "hero-node" : "hero-node-slow"}><circle cx={node.x} cy={node.y} r="3.2" fill="#60a5fa" fillOpacity=".07" /><circle cx={node.x} cy={node.y} r="1" fill="#bae6fd" fillOpacity=".9" /><text x={node.x + 2} y={node.y - 2} fill="#bfdbfe" fillOpacity=".22" fontSize="1.2" letterSpacing=".12">{node.label}</text></g>)}
+        {nodes.map((node, index) => <g key={`${node.x}-${node.y}`} className={index % 2 === 0 ? "hero-node" : "hero-node-slow"}><circle cx={node.x} cy={node.y} r="3.2" fill="#60a5fa" fillOpacity=".07" /><circle cx={node.x} cy={node.y} r="1" fill="#bae6fd" fillOpacity=".9" /></g>)}
       </svg>
       <div className="absolute right-[7%] top-[21%] h-3 w-3 rounded-full bg-cyan-200/80 shadow-[0_0_34px_9px_rgba(103,232,249,.12)] hero-pulse" />
       <div className="absolute bottom-[17%] left-[8%] h-2 w-2 rounded-full bg-blue-300/70 hero-pulse" />
@@ -651,14 +651,14 @@ export default function Home() {
             <div className="grid items-center gap-14 lg:grid-cols-[.8fr_1.2fr] lg:gap-10">
               <div className="relative z-10 max-w-xl">
                 <p className="hero-reveal text-[10px] font-black uppercase tracking-[.3em] text-blue-300">VidyaGyan Student Portal</p>
-                <p className="mt-12 text-[clamp(1.2rem,2vw,1.8rem)] font-medium tracking-[-.035em] text-blue-100">{greeting}</p>
+                <p className="mt-10 text-[clamp(1.05rem,1.7vw,1.5rem)] font-medium tracking-[-.035em] text-blue-100/95">{greeting}</p>
                 <h1 className="mt-1 text-[clamp(4rem,9vw,8.5rem)] font-semibold leading-[.86] tracking-[-.09em] text-white">{firstName.toUpperCase()}</h1>
                 <div className="mt-9 border-l border-blue-400/50 pl-5">
-                  <p className="text-[10px] font-black uppercase tracking-[.2em] text-blue-200/60">{profileLoading ? "Student" : profile?.role || "Student"}</p>
-                  <p className="mt-2 text-sm font-medium tracking-[.02em] text-blue-100/70">VIDYAGYAN · 2026–27</p>
+                  <p className="text-[11px] font-black uppercase tracking-[.2em] text-blue-100/80">{profileLoading ? "Student" : profile?.role || "Student"}</p>
+                  <p className="mt-2 text-sm font-medium tracking-[.02em] text-blue-100/65">VIDYAGYAN · 2026–27</p>
                 </div>
               </div>
-              <div className="relative z-10 flex justify-end">
+              <div className="relative z-10 flex translate-y-4 justify-end lg:translate-y-5">
                 <ClockDisplay time={clock} date={dateLabel} />
               </div>
             </div>
