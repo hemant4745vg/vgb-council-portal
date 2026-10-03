@@ -1,15 +1,19 @@
-import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Category = "India" | "World" | "Economy" | "Science & Tech";
 
 type FeedConfig = {
+  id: string;
   url: string;
   source: string;
   category: Category;
+  priority: number;
 };
 
 type ParsedItem = {
@@ -21,133 +25,393 @@ type ParsedItem = {
   published_at: string;
   category: Category;
   image_url: string | null;
+  priority: number;
 };
 
 const FEEDS: FeedConfig[] = [
+  // ─────────────────────────────────────────────
+  // INDIA
+  // ─────────────────────────────────────────────
+
   {
+    id: "pib-india",
     url: "https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=1",
     source: "Press Information Bureau",
     category: "India",
+    priority: 100,
   },
+
   {
+    id: "ie-india",
     url: "https://indianexpress.com/section/india/feed/",
     source: "The Indian Express",
     category: "India",
+    priority: 95,
   },
+
   {
+    id: "ie-politics",
+    url: "https://indianexpress.com/section/politics/feed/",
+    source: "The Indian Express",
+    category: "India",
+    priority: 94,
+  },
+
+  {
+    id: "ie-political-pulse",
+    url: "https://indianexpress.com/section/political-pulse/feed/",
+    source: "The Indian Express",
+    category: "India",
+    priority: 93,
+  },
+
+  {
+    id: "ht-india",
+    url: "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml",
+    source: "Hindustan Times",
+    category: "India",
+    priority: 88,
+  },
+
+  {
+    id: "ndtv-india",
+    url: "https://feeds.feedburner.com/ndtvnews-india-news",
+    source: "NDTV",
+    category: "India",
+    priority: 86,
+  },
+
+  {
+    id: "bs-india",
+    url: "https://www.business-standard.com/rss/india-news-101.rss",
+    source: "Business Standard",
+    category: "India",
+    priority: 82,
+  },
+
+  // ─────────────────────────────────────────────
+  // WORLD
+  // ─────────────────────────────────────────────
+
+  {
+    id: "ie-world",
     url: "https://indianexpress.com/section/world/feed/",
     source: "The Indian Express",
     category: "World",
+    priority: 95,
   },
+
   {
+    id: "ht-world",
+    url: "https://www.hindustantimes.com/feeds/rss/world-news/rssfeed.xml",
+    source: "Hindustan Times",
+    category: "World",
+    priority: 88,
+  },
+
+  {
+    id: "ndtv-world",
+    url: "https://feeds.feedburner.com/ndtvnews-world-news",
+    source: "NDTV",
+    category: "World",
+    priority: 86,
+  },
+
+  {
+    id: "bs-world",
+    url: "https://www.business-standard.com/rss/world-news-221.rss",
+    source: "Business Standard",
+    category: "World",
+    priority: 82,
+  },
+
+  // ─────────────────────────────────────────────
+  // ECONOMY
+  // ─────────────────────────────────────────────
+
+  {
+    id: "ie-economy",
     url: "https://indianexpress.com/section/business/economy/feed/",
     source: "The Indian Express",
     category: "Economy",
+    priority: 95,
   },
+
   {
+    id: "ie-business",
+    url: "https://indianexpress.com/section/business/feed/",
+    source: "The Indian Express",
+    category: "Economy",
+    priority: 92,
+  },
+
+  {
+    id: "ht-business",
+    url: "https://www.hindustantimes.com/feeds/rss/business/rssfeed.xml",
+    source: "Hindustan Times",
+    category: "Economy",
+    priority: 87,
+  },
+
+  {
+    id: "bs-economy",
+    url: "https://www.business-standard.com/rss/economy-102.rss",
+    source: "Business Standard",
+    category: "Economy",
+    priority: 91,
+  },
+
+  {
+    id: "bs-markets",
+    url: "https://www.business-standard.com/rss/markets-106.rss",
+    source: "Business Standard",
+    category: "Economy",
+    priority: 88,
+  },
+
+  {
+    id: "ndtv-business",
+    url: "https://feeds.feedburner.com/ndtvprofit-latest",
+    source: "NDTV",
+    category: "Economy",
+    priority: 84,
+  },
+
+  // ─────────────────────────────────────────────
+  // SCIENCE & TECHNOLOGY
+  // ─────────────────────────────────────────────
+
+  {
+    id: "ie-technology",
     url: "https://indianexpress.com/section/technology/feed/",
     source: "The Indian Express",
     category: "Science & Tech",
+    priority: 94,
   },
+
   {
+    id: "ie-science",
     url: "https://indianexpress.com/section/technology/science/feed/",
     source: "The Indian Express",
     category: "Science & Tech",
+    priority: 93,
+  },
+
+  {
+    id: "ie-ai",
+    url: "https://indianexpress.com/section/technology/artificial-intelligence/feed/",
+    source: "The Indian Express",
+    category: "Science & Tech",
+    priority: 92,
+  },
+
+  {
+    id: "ht-technology",
+    url: "https://www.hindustantimes.com/feeds/rss/technology/rssfeed.xml",
+    source: "Hindustan Times",
+    category: "Science & Tech",
+    priority: 87,
+  },
+
+  {
+    id: "ht-science",
+    url: "https://www.hindustantimes.com/feeds/rss/science/rssfeed.xml",
+    source: "Hindustan Times",
+    category: "Science & Tech",
+    priority: 86,
+  },
+
+  {
+    id: "ndtv-tech",
+    url: "https://feeds.feedburner.com/gadgets360-latest",
+    source: "NDTV",
+    category: "Science & Tech",
+    priority: 84,
+  },
+
+  {
+    id: "bs-technology",
+    url: "https://www.business-standard.com/rss/technology-108.rss",
+    source: "Business Standard",
+    category: "Science & Tech",
+    priority: 84,
   },
 ];
 
 const MAX_AGE_HOURS = 72;
-const MAX_ITEMS_PER_FEED = 20;
-const MAX_TOTAL_ITEMS = 80;
+const MAX_ITEMS_PER_FEED = 40;
+const MAX_TOTAL_ITEMS = 250;
 
-function cleanText(value: string | undefined | null) {
-  if (!value) return "";
-
-  return decodeEntities(
-    value
-      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-  );
+function getEnv(name: string): string {
+  return process.env[name]?.trim() ?? "";
 }
 
-function decodeEntities(value: string) {
-  const named: Record<string, string> = {
-    amp: "&",
-    apos: "'",
-    quot: '"',
-    lt: "<",
-    gt: ">",
-    nbsp: " ",
-    ndash: "–",
-    mdash: "—",
-    lsquo: "‘",
-    rsquo: "’",
-    ldquo: "“",
-    rdquo: "”",
-  };
-
+function decodeHtml(value: string): string {
   return value
-    .replace(
-      /&(#x?[0-9a-f]+|amp|apos|quot|lt|gt|nbsp|ndash|mdash|lsquo|rsquo|ldquo|rdquo);/gi,
-      (_, entity: string) => {
-        const lower = entity.toLowerCase();
-
-        if (lower.startsWith("#x")) {
-          const code = parseInt(lower.slice(2), 16);
-          return Number.isFinite(code) ? String.fromCodePoint(code) : _;
-        }
-
-        if (lower.startsWith("#")) {
-          const code = parseInt(lower.slice(1), 10);
-          return Number.isFinite(code) ? String.fromCodePoint(code) : _;
-        }
-
-        return named[lower] ?? _;
-      }
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_, code) =>
+      String.fromCharCode(Number(code))
     )
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
+      String.fromCharCode(parseInt(code, 16))
+    );
+}
+
+function cleanText(value: string): string {
+  return decodeHtml(value)
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-function getTag(block: string, tag: string) {
-  const expression = new RegExp(
-    `<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`,
+function extractTag(xml: string, tag: string): string | null {
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const regex = new RegExp(
+    `<${escaped}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${escaped}>`,
     "i"
   );
 
-  return block.match(expression)?.[1]?.trim() ?? "";
+  const match = xml.match(regex);
+
+  return match?.[1]?.trim() || null;
 }
 
-function getAttribute(block: string, tag: string, attribute: string) {
-  const expression = new RegExp(
-    `<${tag}\\b[^>]*\\s${attribute}=["']([^"']+)["'][^>]*\\/?>`,
-    "i"
-  );
+function extractTagVariants(
+  xml: string,
+  tags: string[]
+): string | null {
+  for (const tag of tags) {
+    const value = extractTag(xml, tag);
 
-  return block.match(expression)?.[1] ?? "";
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
-function getImage(block: string) {
-  return (
-    getAttribute(block, "media:content", "url") ||
-    getAttribute(block, "media:thumbnail", "url") ||
-    getAttribute(block, "enclosure", "url") ||
-    null
+function extractItems(xml: string): string[] {
+  const rssItems = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi);
+
+  if (rssItems?.length) {
+    return rssItems;
+  }
+
+  const atomEntries = xml.match(
+    /<entry(?:\s[^>]*)?>[\s\S]*?<\/entry>/gi
   );
+
+  return atomEntries ?? [];
+}
+
+function extractLink(item: string): string | null {
+  const link = extractTag(item, "link");
+
+  if (link) {
+    return decodeHtml(link).trim();
+  }
+
+  const atomMatch = item.match(
+    /<link\b[^>]*href=["']([^"']+)["'][^>]*\/?>/i
+  );
+
+  return atomMatch?.[1]?.trim() ?? null;
+}
+
+function extractImage(item: string): string | null {
+  const mediaUrl = item.match(
+    /<media:(?:content|thumbnail)\b[^>]*url=["']([^"']+)["']/i
+  );
+
+  if (mediaUrl?.[1]) {
+    return decodeHtml(mediaUrl[1]);
+  }
+
+  const enclosure = item.match(
+    /<enclosure\b[^>]*url=["']([^"']+)["']/i
+  );
+
+  if (enclosure?.[1]) {
+    return decodeHtml(enclosure[1]);
+  }
+
+  const imageTag = item.match(
+    /<img\b[^>]*src=["']([^"']+)["']/i
+  );
+
+  if (imageTag?.[1]) {
+    return decodeHtml(imageTag[1]);
+  }
+
+  return null;
+}
+
+function parseDate(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(cleanText(value));
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
+}
+
+function normalizeUrl(value: string): string {
+  try {
+    const url = new URL(value);
+
+    // Tracking parameters do not identify a different article.
+    const removableParams = [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "output",
+      "ref",
+      "source",
+    ];
+
+    for (const param of removableParams) {
+      url.searchParams.delete(param);
+    }
+
+    url.hash = "";
+
+    return url.toString();
+  } catch {
+    return value.trim();
+  }
 }
 
 function makeExternalId(
-  guid: string,
-  sourceUrl: string,
-  title: string
-) {
-  const basis = guid || sourceUrl || title;
+  guid: string | null,
+  link: string,
+  title: string,
+  source: string
+): string {
+  const identity =
+    guid?.trim() ||
+    normalizeUrl(link) ||
+    `${source}:${title.trim().toLowerCase()}`;
 
   return createHash("sha256")
-    .update(basis)
+    .update(identity)
     .digest("hex");
 }
 
@@ -155,216 +419,325 @@ function parseFeed(
   xml: string,
   feed: FeedConfig
 ): ParsedItem[] {
-  const blocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) ?? [];
-  const now = Date.now();
-  const minimumTime =
-    now - MAX_AGE_HOURS * 60 * 60 * 1000;
+  const items = extractItems(xml);
+  const cutoff =
+    Date.now() - MAX_AGE_HOURS * 60 * 60 * 1000;
 
-  return blocks
-    .slice(0, MAX_ITEMS_PER_FEED)
-    .map((block) => {
-      const title = cleanText(getTag(block, "title"));
-      const description = cleanText(
-        getTag(block, "description") ||
-          getTag(block, "content:encoded")
-      );
+  const parsed: ParsedItem[] = [];
 
-      const sourceUrl =
-        cleanText(getTag(block, "link")) ||
-        cleanText(getTag(block, "guid"));
+  for (const item of items.slice(0, MAX_ITEMS_PER_FEED)) {
+    const rawTitle = extractTag(item, "title");
 
-      const guid = cleanText(getTag(block, "guid"));
+    const rawSummary = extractTagVariants(item, [
+      "description",
+      "content:encoded",
+      "summary",
+      "content",
+    ]);
 
-      const rawDate =
-        cleanText(getTag(block, "pubDate")) ||
-        cleanText(getTag(block, "dc:date"));
+    const rawGuid = extractTagVariants(item, [
+      "guid",
+      "id",
+    ]);
 
-      const parsedDate = new Date(rawDate);
+    const rawLink = extractLink(item);
 
-      if (
-        !title ||
-        !sourceUrl ||
-        !rawDate ||
-        Number.isNaN(parsedDate.getTime())
-      ) {
-        return null;
-      }
+    const rawDate = extractTagVariants(item, [
+      "pubDate",
+      "dc:date",
+      "published",
+      "updated",
+    ]);
 
-      if (parsedDate.getTime() < minimumTime) {
-        return null;
-      }
+    if (!rawTitle || !rawLink) {
+      continue;
+    }
 
-      return {
-        external_id: makeExternalId(
-          guid,
-          sourceUrl,
-          title
-        ),
-        title: title.slice(0, 240),
-        summary: description
-          ? description.slice(0, 280)
-          : null,
-        source: feed.source,
-        source_url: sourceUrl,
-        published_at: parsedDate.toISOString(),
-        category: feed.category,
-        image_url: getImage(block),
-      };
-    })
-    .filter(Boolean) as ParsedItem[];
+    const title = cleanText(rawTitle);
+    const summary = rawSummary
+      ? cleanText(rawSummary).slice(0, 800)
+      : null;
+
+    const sourceUrl = normalizeUrl(decodeHtml(rawLink));
+    const publishedAt = parseDate(rawDate);
+
+    if (!publishedAt) {
+      continue;
+    }
+
+    if (new Date(publishedAt).getTime() < cutoff) {
+      continue;
+    }
+
+    if (!title || !sourceUrl) {
+      continue;
+    }
+
+    parsed.push({
+      external_id: makeExternalId(
+        rawGuid,
+        sourceUrl,
+        title,
+        feed.source
+      ),
+      title,
+      summary,
+      source: feed.source,
+      source_url: sourceUrl,
+      published_at: publishedAt,
+      category: feed.category,
+      image_url: extractImage(item),
+      priority: feed.priority,
+    });
+  }
+
+  return parsed;
 }
 
-async function fetchFeed(feed: FeedConfig) {
+function deduplicate(items: ParsedItem[]): ParsedItem[] {
+  const byIdentity = new Map<string, ParsedItem>();
+
+  for (const item of items) {
+    const identity = `${item.category}:${item.source_url}`;
+
+    const existing = byIdentity.get(identity);
+
+    if (!existing) {
+      byIdentity.set(identity, item);
+      continue;
+    }
+
+    if (item.priority > existing.priority) {
+      byIdentity.set(identity, item);
+    }
+  }
+
+  return Array.from(byIdentity.values());
+}
+
+function sortItems(items: ParsedItem[]): ParsedItem[] {
+  return [...items].sort((a, b) => {
+    const dateDifference =
+      new Date(b.published_at).getTime() -
+      new Date(a.published_at).getTime();
+
+    if (dateDifference !== 0) {
+      return dateDifference;
+    }
+
+    return b.priority - a.priority;
+  });
+}
+
+async function fetchFeed(feed: FeedConfig): Promise<ParsedItem[]> {
   const response = await fetch(feed.url, {
     headers: {
-      "User-Agent":
-        "VGB-Student-Council-Portal/1.0 RSS reader",
       Accept:
         "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+      "User-Agent":
+        "VGB-Student-Council-Portal-NewsBot/1.0",
     },
     cache: "no-store",
   });
 
   if (!response.ok) {
     throw new Error(
-      `${feed.source} feed returned ${response.status}`
+      `${feed.source} returned HTTP ${response.status}`
     );
   }
 
-  return response.text();
-}
+  const xml = await response.text();
 
-function getSupabaseAdmin() {
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ??
-    process.env.SUPABASE_URL;
-
-  const serviceKey =
-    process.env.SUPABASE_SECRET_KEY ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceKey) {
-    throw new Error(
-      "Missing Supabase server credentials."
-    );
+  if (!xml.trim()) {
+    throw new Error(`${feed.source} returned an empty feed`);
   }
 
-  return createClient(supabaseUrl, serviceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  return parseFeed(xml, feed);
 }
 
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authorization = request.headers.get("authorization");
+  return ingest(request);
+}
 
-  if (
-    !cronSecret ||
-    authorization !== `Bearer ${cronSecret}`
-  ) {
-    return Response.json(
-      { success: false, error: "Unauthorized" },
+export async function POST(request: Request) {
+  return ingest(request);
+}
+
+async function ingest(request: Request) {
+  const cronSecret = getEnv("CRON_SECRET");
+
+  if (!cronSecret) {
+    console.error("CRON_SECRET is not configured.");
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Server configuration error.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const authorization =
+    request.headers.get("authorization") ?? "";
+
+  const expectedAuthorization = `Bearer ${cronSecret}`;
+
+  if (authorization !== expectedAuthorization) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized.",
+      },
       { status: 401 }
     );
   }
 
-  try {
-    const results = await Promise.allSettled(
-      FEEDS.map(async (feed) => {
-        const xml = await fetchFeed(feed);
-        return parseFeed(xml, feed);
-      })
+  const supabaseUrl =
+    getEnv("SUPABASE_URL") ||
+    getEnv("NEXT_PUBLIC_SUPABASE_URL");
+
+  const supabaseSecret =
+    getEnv("SUPABASE_SECRET_KEY") ||
+    getEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseSecret) {
+    console.error(
+      "Missing Supabase server credentials."
     );
 
-    const items: ParsedItem[] = [];
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "Supabase server credentials are not configured.",
+      },
+      { status: 500 }
+    );
+  }
 
-    for (const result of results) {
-      if (result.status === "fulfilled") {
-        items.push(...result.value);
-      } else {
-        console.error(
-          "News feed error:",
-          result.reason
-        );
-      }
+  const supabase = createClient(
+    supabaseUrl,
+    supabaseSecret,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
     }
+  );
 
-    const unique = new Map<string, ParsedItem>();
+  const feedResults = await Promise.allSettled(
+    FEEDS.map((feed) => fetchFeed(feed))
+  );
 
-    for (const item of items) {
-      if (!unique.has(item.external_id)) {
-        unique.set(item.external_id, item);
-      }
-    }
+  const allItems: ParsedItem[] = [];
 
-    const finalItems = Array.from(unique.values())
-      .sort(
-        (a, b) =>
-          new Date(b.published_at).getTime() -
-          new Date(a.published_at).getTime()
-      )
-      .slice(0, MAX_TOTAL_ITEMS);
+  const feedStatus = FEEDS.map((feed, index) => {
+    const result = feedResults[index];
 
-    if (finalItems.length === 0) {
-      return Response.json({
+    if (result.status === "fulfilled") {
+      allItems.push(...result.value);
+
+      return {
+        id: feed.id,
+        source: feed.source,
+        category: feed.category,
+        items: result.value.length,
         success: true,
-        fetched: 0,
-        message: "No fresh stories found.",
-      });
+      };
     }
 
-    const supabase = getSupabaseAdmin();
+    console.error(
+      `News feed failed: ${feed.id}`,
+      result.reason
+    );
+
+    return {
+      id: feed.id,
+      source: feed.source,
+      category: feed.category,
+      items: 0,
+      success: false,
+      error:
+        result.reason instanceof Error
+          ? result.reason.message
+          : "Unknown feed error",
+    };
+  });
+
+  const dedupedItems = deduplicate(allItems);
+  const sortedItems = sortItems(dedupedItems).slice(
+    0,
+    MAX_TOTAL_ITEMS
+  );
+
+  let upserted = 0;
+
+  if (sortedItems.length > 0) {
+    const rows = sortedItems.map(
+      ({
+        priority: _priority,
+        ...item
+      }) => item
+    );
 
     const { error } = await supabase
       .from("news_items")
-      .upsert(finalItems, {
+      .upsert(rows, {
         onConflict: "external_id",
         ignoreDuplicates: false,
       });
 
     if (error) {
-      console.error(error);
+      console.error(
+        "Supabase news upsert failed:",
+        error
+      );
 
-      return Response.json(
+      return NextResponse.json(
         {
           success: false,
           error: error.message,
+          feeds: feedStatus,
         },
         { status: 500 }
       );
     }
 
-    const cutoff = new Date(
-      Date.now() -
-        14 * 24 * 60 * 60 * 1000
-    ).toISOString();
+    upserted = rows.length;
+  }
 
-    await supabase
-      .from("news_items")
-      .delete()
-      .lt("published_at", cutoff);
+  // Keep the public news database intentionally small.
+  const retentionCutoff = new Date(
+    Date.now() - 14 * 24 * 60 * 60 * 1000
+  ).toISOString();
 
-    return Response.json({
-      success: true,
-      fetched: finalItems.length,
-      feeds: FEEDS.length,
-      updated_at: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("News ingestion failed:", error);
+  const { error: cleanupError } = await supabase
+    .from("news_items")
+    .delete()
+    .lt("published_at", retentionCutoff);
 
-    return Response.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unknown ingestion error",
-      },
-      { status: 500 }
+  if (cleanupError) {
+    console.error(
+      "News cleanup failed:",
+      cleanupError
     );
   }
+
+  const successfulFeeds = feedStatus.filter(
+    (feed) => feed.success
+  ).length;
+
+  const failedFeeds = feedStatus.length - successfulFeeds;
+
+  return NextResponse.json({
+    success: successfulFeeds > 0,
+    fetched: allItems.length,
+    deduplicated: dedupedItems.length,
+    upserted,
+    feeds: feedStatus.length,
+    successful_feeds: successfulFeeds,
+    failed_feeds: failedFeeds,
+    updated_at: new Date().toISOString(),
+  });
 }
