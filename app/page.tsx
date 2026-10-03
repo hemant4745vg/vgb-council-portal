@@ -41,6 +41,17 @@ interface PortalProfile {
   admin_status: string | null;
 }
 
+interface NewsItem {
+  id: string | number;
+  title: string;
+  summary?: string | null;
+  source: string;
+  source_url: string;
+  published_at: string;
+  category: "India" | "World" | "Economy" | "Science & Tech";
+  image_url?: string | null;
+}
+
 interface WeatherData {
   current: {
     temperature: number;
@@ -568,6 +579,12 @@ export default function Home() {
   const [weatherError, setWeatherError] =
     useState(false);
 
+  const [newsStories, setNewsStories] =
+    useState<NewsItem[]>([]);
+
+  const [newsLoading, setNewsLoading] =
+    useState(true);
+
   /* =======================================================
      CLOCK
   ======================================================= */
@@ -833,6 +850,50 @@ export default function Home() {
   }, []);
 
   /* =======================================================
+     NEWS
+  ======================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadNews() {
+      try {
+        const { data, error } = await supabase
+          .from("news_items")
+          .select(
+            "id, title, summary, source, source_url, published_at, category, image_url"
+          )
+          .order("published_at", { ascending: false })
+          .limit(6);
+
+        if (error) throw error;
+        if (!mounted) return;
+
+        const seen = new Set<string>();
+        const cleaned = ((data ?? []) as NewsItem[]).filter((story) => {
+          const key = `${story.title.trim().toLowerCase()}|${story.source}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        setNewsStories(cleaned);
+      } catch (error) {
+        console.error("Unable to fetch homepage news:", error);
+        if (mounted) setNewsStories([]);
+      } finally {
+        if (mounted) setNewsLoading(false);
+      }
+    }
+
+    loadNews();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /* =======================================================
      DERIVED DATA
   ======================================================= */
 
@@ -920,1242 +981,451 @@ export default function Home() {
      RENDER
   ======================================================= */
 
-  return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff_0,_#f7f8f5_42%,_#eef2ef_100%)] font-sans text-slate-900">
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
-      <main className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
+  const featuredNews = newsStories[0] ?? null;
+  const secondaryNews = newsStories.slice(1, 4);
+
+  const quickLinks = [
+    {
+      title: "News",
+      description: "Current affairs from India, the world, the economy and science & technology.",
+      href: "/news",
+      label: "Current affairs",
+    },
+    {
+      title: "Calendar",
+      description: "Campus events, examinations, programmes and the wider academic year.",
+      href: "/calendar",
+      label: "Plan ahead",
+    },
+    {
+      title: "Daily Timeline",
+      description: "See the school-day routine as a clear, time-based campus timeline.",
+      href: "/timetable",
+      label: "Your day",
+    },
+    {
+      title: "Academic Tools",
+      description: "Interactive tools for mathematics, sciences, humanities and revision.",
+      href: "/tools",
+      label: "Study",
+    },
+    {
+      title: "Council",
+      description: "Student Council structure, leadership and house representation.",
+      href: "/council",
+      label: "Student leadership",
+    },
+    {
+      title: "Cafeteria",
+      description: "Daily and weekly campus menu information in one place.",
+      href: "/cafeteria",
+      label: "Campus life",
+    },
+  ];
+
+  const academicTools = [
+    { title: "Mathematics", description: "Explore calculations, graphs and mathematical workspaces.", href: "/tools/mathematics" },
+    { title: "Physics", description: "Work through concepts, formulas and physics utilities.", href: "/tools/physics" },
+    { title: "Chemistry", description: "Useful chemistry references and interactive study tools.", href: "/tools/chemistry" },
+    { title: "Biology", description: "Explore systems, structures and simulation-style learning.", href: "/tools/biology" },
+    { title: "Economics", description: "Build intuition around economic concepts and analysis.", href: "/tools/economics" },
+    { title: "Political Science", description: "Study institutions, ideas, systems and political concepts.", href: "/tools/political-science" },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#f6f8fc] font-sans text-slate-900">
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-9">
 
         {/* =================================================
-            HERO
+            HERO / WELCOME
         ================================================= */}
-
-        <section
-          id="home"
-          className="relative overflow-hidden rounded-[2rem] bg-blue-950 text-white shadow-xl"
-        >
-
-          {/* Background geometry */}
-
+        <section className="relative overflow-hidden rounded-[2rem] bg-[#0f1f4d] text-white shadow-[0_20px_60px_-25px_rgba(15,31,77,0.45)]">
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-
-            <div className="absolute -right-32 -top-32 h-[460px] w-[460px] rounded-full border border-white/[0.08]" />
-
-            <div className="absolute -right-8 -top-8 h-[300px] w-[300px] rounded-full border border-white/[0.07]" />
-
-            <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.025]" />
-
-            <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full border border-emerald-300/[0.08]" />
-
+            <div className="absolute -right-28 -top-28 h-[420px] w-[420px] rounded-full border border-white/[0.08]" />
+            <div className="absolute -right-4 top-4 h-[280px] w-[280px] rounded-full border border-white/[0.06]" />
+            <div className="absolute -bottom-44 -left-20 h-[440px] w-[440px] rounded-full border border-emerald-300/[0.08]" />
             <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
           </div>
 
-          <div className="relative px-6 py-9 sm:px-10 md:px-14 md:py-12 lg:px-16 lg:py-14">
-
-            {/* =================================================
-                TOP CONTEXT
-            ================================================= */}
-
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-
-              <div>
-
+          <div className="relative px-6 py-8 sm:px-9 sm:py-10 md:px-12 md:py-12 lg:px-14">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
                 <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-3.5 py-1.5">
-
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-
                   <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">
-                    VidyaGyan Bulandshahr
+                    VidyaGyan Bulandshahr · 2026–27
                   </span>
-
                 </div>
 
-                <h1 className="mt-5 text-3xl font-bold leading-tight tracking-[-0.035em] sm:text-4xl md:text-5xl">
-                  {greeting},{" "}
-                  {firstName}.
+                <h1 className="mt-5 text-4xl font-bold leading-[1.05] tracking-[-0.045em] sm:text-5xl md:text-6xl">
+                  {greeting}, {firstName}.
                 </h1>
 
-                <p className="mt-2 max-w-xl text-sm leading-6 text-blue-200/80 md:text-base">
-                  Here&apos;s what&apos;s
-                  happening on campus
-                  today.
+                <p className="mt-4 max-w-xl text-sm leading-6 text-blue-100/75 sm:text-base">
+                  Your campus, your day, and the information worth seeing first.
                 </p>
 
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <a
+                    href="#right-now"
+                    className="inline-flex items-center rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-[#0f1f4d] shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-100"
+                  >
+                    See what matters now
+                    <span className="ml-2">↓</span>
+                  </a>
+                  <Link
+                    href="/news"
+                    className="inline-flex items-center rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                  >
+                    Open News
+                    <span className="ml-2">→</span>
+                  </Link>
+                </div>
               </div>
 
-              {profile && (
-                <div className="flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 backdrop-blur-sm">
-
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-
-                  <div className="text-right">
-
-                    <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-blue-300">
-                      {profile.role ||
-                        "Student"}
-                    </p>
-
-                    <p className="text-xs font-medium text-white">
-                      Campus account
-                    </p>
-
-                  </div>
-
-                </div>
-              )}
-
-            </div>
-
-            {/* =================================================
-                CLOCK + NEXT EVENT
-            ================================================= */}
-
-            <div className="mx-auto mt-8 max-w-5xl">
-
-              <div className="grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
-
-                {/* =================================================
-                    CLOCK
-                ================================================= */}
-
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] px-5 py-7 shadow-inner backdrop-blur-sm sm:px-8 sm:py-8">
-
-                  <div className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.035]" />
-
-                  <div className="relative">
-
-                    <div className="flex items-center justify-center gap-2">
-
+              <div className="w-full max-w-md lg:max-w-[390px]">
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 backdrop-blur-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-blue-200">
+                      Campus time
+                    </span>
+                    <span className="flex items-center gap-2 text-[10px] font-semibold text-emerald-300">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-
-                      <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">
-                        Campus Time
-                      </span>
-
-                    </div>
-
-                    <div className="mt-5">
-
-                      <AnimatedClock
-                        time={clockTime}
-                        date={clockDate}
-                      />
-
-                    </div>
-
+                      Live
+                    </span>
                   </div>
-
-                </div>
-
-                {/* =================================================
-                    NEXT EVENT
-                ================================================= */}
-
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] px-6 py-6 backdrop-blur-sm sm:px-8 sm:py-7">
-
-                  <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full border border-white/10" />
-
-                  <div className="relative">
-
-                    <div className="flex items-center justify-between gap-3">
-
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300">
-                        Next on Campus
-                      </span>
-
-                      {nextEvent && (
-                        <span className="rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-semibold text-blue-100">
-                          {nextEventDays === 0
-                            ? "Today"
-                            : nextEventDays === 1
-                            ? "Tomorrow"
-                            : `${nextEventDays} days`}
-                        </span>
-                      )}
-
-                    </div>
-
-                    {nextEvent ? (
-                      <>
-                        <h2 className="mt-5 text-2xl font-bold tracking-tight text-white">
-                          {nextEvent.title}
-                        </h2>
-
-                        <div className="mt-4 flex flex-wrap items-center gap-2">
-
-                          <span className="text-sm font-medium text-blue-200">
-                            {formatDate(
-                              nextEvent.event_date
-                            )}
-                          </span>
-
-                          {nextEvent.event_time && (
-                            <>
-                              <span className="h-1 w-1 rounded-full bg-blue-400/50" />
-
-                              <span className="text-sm text-blue-200">
-                                {nextEvent.event_time}
-                              </span>
-                            </>
-                          )}
-
-                          {nextEvent.category && (
-                            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-blue-100">
-                              {nextEvent.category}
-                            </span>
-                          )}
-
-                        </div>
-
-                        <p className="mt-4 text-xs leading-5 text-blue-300">
-                          {nextEvent.target ||
-                            "School Community"}
-
-                          {nextEvent.description &&
-                            ` · ${nextEvent.description}`}
-                        </p>
-
-                        <Link
-                          href={`/calendar?date=${nextEvent.event_date}`}
-                          className="mt-5 inline-flex items-center rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
-                        >
-                          View event
-
-                          <span className="ml-1.5">
-                            →
-                          </span>
-                        </Link>
-                      </>
-                    ) : (
-                      <>
-                        <h2 className="mt-5 text-2xl font-bold tracking-tight text-white">
-                          No upcoming events
-                        </h2>
-
-                        <p className="mt-3 text-xs leading-5 text-blue-300">
-                          There are currently
-                          no future events
-                          recorded in the
-                          portal calendar.
-                        </p>
-
-                        <Link
-                          href="/calendar"
-                          className="mt-5 inline-flex items-center rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
-                        >
-                          Open Calendar
-
-                          <span className="ml-1.5">
-                            →
-                          </span>
-                        </Link>
-                      </>
-                    )}
-
+                  <div className="mt-4">
+                    <AnimatedClock time={clockTime} date={clockDate} />
                   </div>
                 </div>
-
               </div>
-
             </div>
-
-            {/* =================================================
-                HERO ACTIONS
-            ================================================= */}
-
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-
-              <a
-                href="#today"
-                className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-blue-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-100 hover:shadow-md"
-              >
-                View Today
-              </a>
-
-              <Link
-                href="/cafeteria"
-                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
-              >
-                Today&apos;s Menu
-              </Link>
-
-              <Link
-                href="/calendar"
-                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-5 py-2.5 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
-              >
-                Open Calendar
-              </Link>
-
-            </div>
-
-            {/* =================================================
-                STATUS
-            ================================================= */}
-
-            <div className="mt-8 flex items-center justify-center gap-3 text-[10px] text-blue-300/60">
-
-              <span className="h-px w-10 bg-white/10" />
-
-              <span>
-                Student Portal · 2026–27
-              </span>
-
-              <span className="h-px w-10 bg-white/10" />
-
-            </div>
-
           </div>
         </section>
 
         {/* =================================================
-            TODAY
+            RIGHT NOW
         ================================================= */}
-
-        <section
-          id="today"
-          className="mt-10 scroll-mt-24"
-        >
-
+        <section id="right-now" className="mt-10 scroll-mt-24">
           <SectionHeading
-            eyebrow="Today"
-            title="What matters right now."
-            description="A quick campus snapshot. The detailed pages contain the full information."
+            eyebrow="Right Now"
+            title="The useful stuff, without the scavenger hunt."
+            description="The homepage surfaces the live pieces of the portal. Detailed information stays on its dedicated page."
           />
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+            <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70">
+              <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-blue-50" />
+              <div className="relative">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">Your school day</p>
+                    <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Daily Timeline</h2>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-bold text-blue-700">Time-based</span>
+                </div>
 
-            {/* =================================================
-                TODAY ON CAMPUS
-            ================================================= */}
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+                  Your daily school routine is organised as a timeline, so the portal can tell you what comes before and after the current part of the day without pretending it is a teacher timetable.
+                </p>
 
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+                <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Today</p>
+                    <p className="mt-2 text-sm font-bold text-slate-800">{clockDate || "Loading date"}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Current rhythm</p>
+                    <p className="mt-2 text-sm font-bold text-slate-800">{currentMeal?.label || "Campus day"}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Next meal</p>
+                    <p className="mt-2 text-sm font-bold text-slate-800">{nextMeal?.label || "—"}</p>
+                  </div>
+                </div>
 
-              <div className="flex items-center justify-between">
-
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                  Today on Campus
-                </span>
-
-                <span className="text-xs text-slate-400">
-                  {formatDate(today)}
-                </span>
-
+                <Link href="/timetable" className="mt-6 inline-flex items-center rounded-xl bg-[#1746c7] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#123aa5]">
+                  Open daily timeline <span className="ml-2">→</span>
+                </Link>
               </div>
+            </div>
 
-              <h3 className="mt-4 text-xl font-bold text-blue-950">
-                {todayEvents.length > 0
-                  ? `${todayEvents.length} scheduled event${
-                      todayEvents.length > 1
-                        ? "s"
-                        : ""
-                    }`
-                  : "A quieter day"}
-              </h3>
+            <div className="rounded-2xl bg-[#1746c7] p-6 text-white shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200">Next on campus</p>
+              {nextEvent ? (
+                <>
+                  <h2 className="mt-4 text-2xl font-bold tracking-tight">{nextEvent.title}</h2>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-blue-100">
+                    <span>{formatDate(nextEvent.event_date)}</span>
+                    {nextEvent.event_time && <><span className="h-1 w-1 rounded-full bg-blue-300/60" /><span>{nextEvent.event_time}</span></>}
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-blue-100/70">
+                    {nextEvent.target || "School Community"}
+                  </p>
+                  <Link href={`/calendar?date=${nextEvent.event_date}`} className="mt-6 inline-flex items-center text-xs font-bold text-white hover:text-emerald-200">
+                    View event <span className="ml-2">→</span>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <h2 className="mt-4 text-2xl font-bold">Nothing scheduled yet.</h2>
+                  <p className="mt-3 text-sm leading-6 text-blue-100/70">No future campus event is currently recorded in the portal calendar.</p>
+                  <Link href="/calendar" className="mt-6 inline-flex items-center text-xs font-bold text-white hover:text-emerald-200">Open calendar <span className="ml-2">→</span></Link>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
 
-              {todayEvents.length > 0 ? (
-                <div className="mt-4 space-y-3">
+        {/* =================================================
+            NEWS + UPCOMING
+        ================================================= */}
+        <section className="mt-14">
+          <div className="grid gap-10 lg:grid-cols-[1.55fr_0.85fr]">
+            <div>
+              <SectionHeading
+                eyebrow="Latest News"
+                title="Know what changed."
+                description="A small homepage window into the automatic VGB news feed. The full feed remains on News."
+                action={<Link href="/news" className="text-sm font-bold text-blue-800 hover:text-blue-950">All news →</Link>}
+              />
 
-                  {todayEvents
-                    .slice(0, 3)
-                    .map(
-                      (event, index) => {
-                        const styles =
-                          getCategoryStyles(
-                            event.category
-                          );
+              {newsLoading ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div key={index} className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="h-3 w-20 rounded bg-slate-100" />
+                      <div className="mt-4 h-5 w-4/5 rounded bg-slate-100" />
+                      <div className="mt-2 h-5 w-3/5 rounded bg-slate-100" />
+                      <div className="mt-5 h-3 w-full rounded bg-slate-100" />
+                    </div>
+                  ))}
+                </div>
+              ) : featuredNews ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <a href={featuredNews.source_url} target="_blank" rel="noopener noreferrer" className="group relative overflow-hidden rounded-2xl bg-slate-950 p-6 text-white shadow-sm sm:row-span-2">
+                    <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full border border-white/10" />
+                    <div className="relative flex h-full min-h-[260px] flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-blue-200">{featuredNews.category}</span>
+                          <span className="text-[10px] text-slate-400">{featuredNews.source}</span>
+                        </div>
+                        <h3 className="mt-6 text-2xl font-bold leading-tight tracking-tight group-hover:text-blue-200">{featuredNews.title}</h3>
+                        {featuredNews.summary && <p className="mt-4 text-sm leading-6 text-slate-300">{featuredNews.summary.slice(0, 180)}{featuredNews.summary.length > 180 ? "…" : ""}</p>}
+                      </div>
+                      <div className="mt-8 text-xs font-bold text-white">Read story <span className="ml-1">↗</span></div>
+                    </div>
+                  </a>
 
-                        return (
-                          <div
-                            key={`${event.title}-${event.event_date}-${index}`}
-                            className="flex items-start gap-3"
-                          >
-
-                            <span
-                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${styles.dot}`}
-                            />
-
-                            <div className="min-w-0">
-
-                              <p className="text-sm font-semibold text-slate-800">
-                                {event.title}
-                              </p>
-
-                              <p className="mt-0.5 text-xs text-slate-500">
-                                {event.target ||
-                                  "School Community"}
-
-                                {event.event_time &&
-                                  ` · ${event.event_time}`}
-                              </p>
-
-                            </div>
-
-                          </div>
-                        );
-                      }
-                    )}
-
-                  {todayEvents.length > 3 && (
-                    <Link
-                      href="/calendar"
-                      className="inline-block pt-1 text-xs font-semibold text-blue-900 hover:text-emerald-700"
-                    >
-                      +{" "}
-                      {todayEvents.length -
-                        3}{" "}
-                      more on Calendar →
-                    </Link>
-                  )}
-
+                  {secondaryNews.map((story) => (
+                    <a key={story.id} href={story.source_url} target="_blank" rel="noopener noreferrer" className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-700">{story.category}</span>
+                        <span className="text-[10px] text-slate-400">{story.source}</span>
+                      </div>
+                      <h3 className="mt-3 font-bold leading-5 text-slate-900 group-hover:text-blue-800">{story.title}</h3>
+                      <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-500">{story.summary || "Open the original story for the latest details."}</p>
+                    </a>
+                  ))}
                 </div>
               ) : (
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  No event is recorded for
-                  today in the current
-                  calendar.
-                </p>
+                <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+                  <p className="text-sm font-semibold text-slate-800">News is being collected.</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">The automatic feed has no stories available to surface right now.</p>
+                  <Link href="/news" className="mt-4 inline-flex text-xs font-bold text-blue-800">Open News →</Link>
+                </div>
               )}
-
             </div>
 
-            {/* =================================================
-                TIME-AWARE MENU
-            ================================================= */}
+            <div>
+              <SectionHeading
+                eyebrow="Upcoming"
+                title="What is next."
+                description="The next few campus events, not the entire calendar dumped onto your face."
+                action={<Link href="/calendar" className="text-sm font-bold text-blue-800 hover:text-blue-950">Calendar →</Link>}
+              />
 
-            <div className="relative overflow-hidden rounded-2xl bg-blue-950 p-5 text-white shadow-sm">
-
-              <div className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full border border-white/10" />
-
-              <div className="relative">
-
-                <div className="flex items-center justify-between">
-
-                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                    Today&apos;s Menu
-                  </span>
-
-                  {currentMeal && (
-                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-semibold text-blue-100">
-                      Now
-                    </span>
-                  )}
-
-                </div>
-
-                <h3 className="mt-4 text-xl font-bold">
-                  {currentMeal?.label ||
-                    "Campus dining"}
-                </h3>
-
-                <p className="mt-1 text-xs text-blue-300">
-                  {currentMeal?.description ||
-                    "Daily cafeteria menu"}
-                </p>
-
-                <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.055] p-4">
-
-                  <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-blue-300">
-                    Menu
-                  </p>
-
-                  <p className="mt-2 text-sm leading-6 text-blue-100/80">
-                    Menu details are maintained
-                    on the Cafeteria page.
-                  </p>
-
-                  <Link
-                    href="/cafeteria"
-                    className="mt-3 inline-flex items-center text-xs font-semibold text-white hover:text-emerald-300"
-                  >
-                    View {currentMeal?.label || "menu"}
-                    <span className="ml-1.5">
-                      →
-                    </span>
-                  </Link>
-
-                </div>
-
-                {nextMeal && (
-                  <div className="mt-4 flex items-center justify-between gap-3 text-xs">
-
-                    <span className="text-blue-300">
-                      Next
-                    </span>
-
-                    <span className="font-semibold text-blue-100">
-                      {nextMeal.label}
-                    </span>
-
-                  </div>
-                )}
-
-              </div>
-
-            </div>
-
-            {/* =================================================
-                QUICK CAMPUS STATUS
-            ================================================= */}
-
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-
-              <div className="flex items-center justify-between">
-
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-purple-700">
-                  Calendar
-                </span>
-
-                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">
-                  {futureEventCount} upcoming
-                </span>
-
-              </div>
-
-              <h3 className="mt-4 text-xl font-bold text-blue-950">
-                Plan ahead.
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Browse the academic year,
-                examinations, sports,
-                cultural programmes and
-                excursions.
-              </p>
-
-              <Link
-                href="/calendar"
-                className="mt-5 inline-flex items-center text-xs font-semibold text-blue-950 transition hover:text-emerald-700"
-              >
-                Explore full calendar
-
-                <span className="ml-1">
-                  →
-                </span>
-              </Link>
-
-            </div>
-
-          </div>
-        </section>
-
-        {/* =================================================
-            CAMPUS WEATHER
-        ================================================= */}
-
-        <section className="mt-14">
-
-          <SectionHeading
-            eyebrow="Campus Weather"
-            title="Conditions at VidyaGyan."
-            description="Live conditions and the next seven days for the Bulandshahr campus."
-          />
-
-          {weatherLoading && !weather ? (
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-              <div className="animate-pulse">
-                <div className="h-4 w-28 rounded bg-slate-100" />
-                <div className="mt-4 h-10 w-40 rounded bg-slate-100" />
-                <div className="mt-3 h-4 w-56 rounded bg-slate-100" />
-              </div>
-            </div>
-          ) : weather ? (
-            <>
-              <div className="grid gap-4 lg:grid-cols-[1.05fr_1.95fr]">
-
-                <div className="relative overflow-hidden rounded-2xl bg-blue-950 p-6 text-white shadow-sm">
-                  <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full border border-white/10" />
-                  <div className="pointer-events-none absolute -bottom-20 -left-16 h-44 w-44 rounded-full border border-emerald-300/10" />
-
-                  <div className="relative">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                        Now at Campus
-                      </span>
-                      <span className="text-3xl" aria-hidden="true">
-                        {getWeatherInfo(weather.current.weatherCode).icon}
-                      </span>
-                    </div>
-
-                    <div className="mt-5 flex items-end gap-2">
-                      <span className="text-5xl font-bold tracking-tight">
-                        {Math.round(weather.current.temperature)}°
-                      </span>
-                      <span className="mb-1 text-sm text-blue-200">
-                        C
-                      </span>
-                    </div>
-
-                    <p className="mt-2 text-lg font-semibold">
-                      {getWeatherInfo(weather.current.weatherCode).label}
-                    </p>
-
-                    <p className="mt-1 text-xs text-blue-300">
-                      Feels like {Math.round(weather.current.apparentTemperature)}°C
-                    </p>
-
-                    <div className="mt-6 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">
-                          Humidity
-                        </p>
-                        <p className="mt-1 text-sm font-semibold">
-                          {Math.round(weather.current.humidity)}%
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">
-                          Wind
-                        </p>
-                        <p className="mt-1 text-sm font-semibold">
-                          {Math.round(weather.current.windSpeed)} km/h
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">
-                          Rain now
-                        </p>
-                        <p className="mt-1 text-sm font-semibold">
-                          {weather.current.precipitation.toFixed(1)} mm
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">
-                          Daylight
-                        </p>
-                        <p className="mt-1 text-sm font-semibold">
-                          {weather.current.isDay ? "Daytime" : "Night"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                        7-Day Forecast
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        High / low temperatures and rain probability.
-                      </p>
-                    </div>
-
-                    {weather.daily.date[0] && (
-                      <span className="text-xs text-slate-400">
-                        {getShortDate(weather.daily.date[0])}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-                    {weather.daily.date.map((date, index) => {
-                      const info = getWeatherInfo(
-                        weather.daily.weatherCode[index] ?? 0
-                      );
-
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                {upcomingEvents.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {upcomingEvents.slice(0, 4).map((event, index) => {
+                      const styles = getCategoryStyles(event.category);
+                      const isToday = event.event_date === today;
                       return (
-                        <div
-                          key={date}
-                          className={`rounded-xl border p-3 text-center ${
-                            index === 0
-                              ? "border-emerald-200 bg-emerald-50/70"
-                              : "border-slate-100 bg-slate-50/70"
-                          }`}
-                        >
-                          <p className="text-[10px] font-bold text-slate-700">
-                            {formatForecastDay(date, index)}
-                          </p>
-
-                          <div
-                            className="mt-3 text-2xl"
-                            aria-label={info.label}
-                          >
-                            {info.icon}
+                        <Link key={`${event.title}-${event.event_date}-${index}`} href={`/calendar?date=${event.event_date}`} className="group block p-5 transition hover:bg-slate-50">
+                          <div className="flex items-start gap-3">
+                            <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`} />
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-900">{event.title}</h3>
+                                {isToday && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">Today</span>}
+                              </div>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {getShortDate(event.event_date)}{event.event_time ? ` · ${event.event_time}` : ""}
+                              </p>
+                            </div>
                           </div>
-
-                          <p className="mt-2 text-sm font-bold text-blue-950">
-                            {Math.round(weather.daily.temperatureMax[index] ?? 0)}°
-                            <span className="font-normal text-slate-400">
-                              / {Math.round(weather.daily.temperatureMin[index] ?? 0)}°
-                            </span>
-                          </p>
-
-                          <p className="mt-1 text-[10px] font-semibold text-cyan-700">
-                            {Math.round(weather.daily.precipitationProbability[index] ?? 0)}% rain
-                          </p>
-                        </div>
+                        </Link>
                       );
                     })}
                   </div>
-
-                  <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-                    <span>
-                      Sunrise {formatWeatherTime(weather.daily.sunrise[0])}
-                    </span>
-                    <span>
-                      Sunset {formatWeatherTime(weather.daily.sunset[0])}
-                    </span>
-                    <span>
-                      Auto-refreshes every 15 min
-                    </span>
-                  </div>
-                </div>
-
-              </div>
-            </>
-          ) : (
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold text-blue-950">
-                Campus weather is temporarily unavailable.
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                The rest of the portal is still available normally.
-              </p>
-              {weatherError && (
-                <p className="mt-3 text-xs text-slate-400">
-                  Weather data could not be refreshed right now.
-                </p>
-              )}
-            </div>
-          )}
-
-        </section>
-
-        {/* =================================================
-            CAMPUS SNAPSHOT
-        ================================================= */}
-
-        <section className="mt-14">
-
-          <SectionHeading
-            eyebrow="Campus Snapshot"
-            title="A few things worth knowing."
-            description="Quick access to the parts of campus life you are most likely to need."
-          />
-
-          <div className="grid gap-4 md:grid-cols-3">
-
-            {/* =================================================
-                NEXT EVENT
-            ================================================= */}
-
-            <div className="relative overflow-hidden rounded-2xl bg-blue-950 p-5 text-white shadow-sm">
-
-              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full border border-white/10" />
-
-              <div className="relative">
-
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                  Next Up
-                </div>
-
-                {nextEvent ? (
-                  <>
-                    <h3 className="mt-4 text-xl font-bold">
-                      {nextEvent.title}
-                    </h3>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-
-                      <span className="text-sm text-blue-200">
-                        {formatDate(
-                          nextEvent.event_date
-                        )}
-                      </span>
-
-                      {nextEvent.event_time && (
-                        <>
-                          <span className="h-1 w-1 rounded-full bg-blue-400/50" />
-
-                          <span className="text-sm text-blue-200">
-                            {nextEvent.event_time}
-                          </span>
-                        </>
-                      )}
-
-                    </div>
-
-                    <p className="mt-3 text-xs leading-5 text-blue-300">
-                      {nextEvent.target ||
-                        "School Community"}
-
-                      {nextEvent.description &&
-                        ` · ${nextEvent.description}`}
-                    </p>
-
-                    <div className="mt-5 inline-flex rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white">
-                      {nextEventDays === 0
-                        ? "Happening today"
-                        : nextEventDays === 1
-                        ? "Tomorrow"
-                        : `${nextEventDays} days away`}
-                    </div>
-                  </>
                 ) : (
-                  <>
-                    <h3 className="mt-4 text-xl font-bold">
-                      No upcoming events
-                    </h3>
-
-                    <p className="mt-2 text-sm leading-6 text-blue-300">
-                      Nothing is currently
-                      scheduled in the
-                      portal calendar.
-                    </p>
-                  </>
+                  <div className="p-7 text-sm leading-6 text-slate-500">No upcoming campus events are currently recorded.</div>
                 )}
-
               </div>
-
             </div>
-
-            {/* =================================================
-                CAMPUS NOTICES
-            ================================================= */}
-
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-
-              <div className="flex items-center justify-between">
-
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-700">
-                  Campus Notices
-                </span>
-
-                <span className="h-2 w-2 rounded-full bg-slate-300" />
-
-              </div>
-
-              <h3 className="mt-4 text-xl font-bold text-blue-950">
-                No notices connected yet.
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                The homepage is ready for
-                official campus announcements
-                once a notice source is
-                connected.
-              </p>
-
-              <div className="mt-5 text-xs font-semibold text-slate-400">
-                Official notices only
-              </div>
-
-            </div>
-
-            {/* =================================================
-                PROFILE
-            ================================================= */}
-
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-
-              <div className="flex items-center justify-between">
-
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                  Your Portal
-                </span>
-
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-
-              </div>
-
-              {profile ? (
-                <>
-                  <h3 className="mt-4 text-xl font-bold text-blue-950">
-                    {profile.name}
-                  </h3>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    {profile.role ||
-                      "Student"}
-                  </p>
-
-                  <p className="mt-4 text-xs leading-5 text-slate-500">
-                    Your portal access is
-                    connected to your verified
-                    campus account.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h3 className="mt-4 text-xl font-bold text-blue-950">
-                    Campus portal
-                  </h3>
-
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Sign in to see your
-                    personalized campus
-                    information.
-                  </p>
-                </>
-              )}
-
-            </div>
-
           </div>
         </section>
 
         {/* =================================================
-            UPCOMING
+            WEATHER
         ================================================= */}
-
         <section className="mt-14">
-
           <SectionHeading
-            eyebrow="Upcoming"
-            title="The immediate horizon."
-            description="Only the next few events appear here. The complete calendar remains on the Calendar page."
-            action={
-              <Link
-                href="/calendar"
-                className="text-sm font-semibold text-blue-950 hover:text-emerald-700"
-              >
-                View full calendar →
-              </Link>
-            }
+            eyebrow="Campus Weather"
+            title="Conditions at VidyaGyan."
+            description="Live conditions for the Bulandshahr campus, with the short forecast when the weather service cooperates with civilization."
           />
 
-          <div className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-sm">
+          {weatherLoading && !weather ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse">
+              <div className="h-4 w-28 rounded bg-slate-100" />
+              <div className="mt-4 h-10 w-40 rounded bg-slate-100" />
+              <div className="mt-3 h-4 w-56 rounded bg-slate-100" />
+            </div>
+          ) : weather ? (
+            <div className="grid gap-4 lg:grid-cols-[0.8fr_1.7fr]">
+              <div className="relative overflow-hidden rounded-2xl bg-[#0f1f4d] p-6 text-white shadow-sm">
+                <div className="absolute -right-14 -top-14 h-40 w-40 rounded-full border border-white/10" />
+                <div className="relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">Now at campus</span>
+                    <span className="text-3xl" aria-hidden="true">{getWeatherInfo(weather.current.weatherCode).icon}</span>
+                  </div>
+                  <div className="mt-5 flex items-end gap-2">
+                    <span className="text-5xl font-bold tracking-tight">{Math.round(weather.current.temperature)}°</span>
+                    <span className="mb-1 text-sm text-blue-200">C</span>
+                  </div>
+                  <p className="mt-2 text-lg font-semibold">{getWeatherInfo(weather.current.weatherCode).label}</p>
+                  <p className="mt-1 text-xs text-blue-300">Feels like {Math.round(weather.current.apparentTemperature)}°C</p>
+                  <div className="mt-6 grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">Humidity</p><p className="mt-1 text-sm font-semibold">{Math.round(weather.current.humidity)}%</p></div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.055] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-blue-300">Wind</p><p className="mt-1 text-sm font-semibold">{Math.round(weather.current.windSpeed)} km/h</p></div>
+                  </div>
+                </div>
+              </div>
 
-            {upcomingEvents.length > 0 ? (
-              <div className="divide-y divide-slate-100">
-
-                {upcomingEvents.map(
-                  (
-                    event,
-                    index
-                  ) => {
-                    const styles =
-                      getCategoryStyles(
-                        event.category
-                      );
-
-                    const isToday =
-                      event.event_date ===
-                      today;
-
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">7-day forecast</p>
+                    <p className="mt-1 text-sm text-slate-500">High / low temperatures and rain probability.</p>
+                  </div>
+                  <Link href="/" className="hidden text-xs font-semibold text-slate-400 sm:block">Auto-refresh · 15 min</Link>
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                  {weather.daily.date.map((date, index) => {
+                    const info = getWeatherInfo(weather.daily.weatherCode[index] ?? 0);
                     return (
-                      <Link
-                        key={`${event.title}-${event.event_date}-${index}`}
-                        href={`/calendar?date=${event.event_date}`}
-                        className="group flex flex-col gap-4 px-5 py-5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-                      >
-
-                        <div className="flex min-w-0 items-start gap-4">
-
-                          <div className="pt-1">
-
-                            <span
-                              className={`block h-2.5 w-2.5 rounded-full ${styles.dot}`}
-                            />
-
-                          </div>
-
-                          <div className="min-w-0">
-
-                            <div className="flex flex-wrap items-center gap-2">
-
-                              <h3 className="font-semibold text-slate-800 group-hover:text-blue-950">
-                                {event.title}
-                              </h3>
-
-                              {isToday && (
-                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-800">
-                                  Today
-                                </span>
-                              )}
-
-                            </div>
-
-                            <p className="mt-1 text-xs text-slate-500">
-
-                              {event.target ||
-                                "School Community"}
-
-                              {event.description &&
-                                ` · ${event.description}`}
-
-                              {event.event_time &&
-                                ` · ${event.event_time}`}
-
-                            </p>
-
-                          </div>
-
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-3 sm:justify-end">
-
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${styles.bg} ${styles.text}`}
-                          >
-                            {event.category ||
-                              "Campus"}
-                          </span>
-
-                          <span className="whitespace-nowrap text-xs font-semibold text-slate-500">
-                            {getShortDate(
-                              event.event_date
-                            )}
-                          </span>
-
-                          <span className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-950">
-                            →
-                          </span>
-
-                        </div>
-
-                      </Link>
+                      <div key={date} className={`rounded-xl border p-3 text-center ${index === 0 ? "border-emerald-200 bg-emerald-50/70" : "border-slate-100 bg-slate-50/70"}`}>
+                        <p className="text-[10px] font-bold text-slate-700">{formatForecastDay(date, index)}</p>
+                        <div className="mt-3 text-2xl" aria-label={info.label}>{info.icon}</div>
+                        <p className="mt-2 text-sm font-bold text-blue-950">{Math.round(weather.daily.temperatureMax[index] ?? 0)}° <span className="font-normal text-slate-400">/ {Math.round(weather.daily.temperatureMin[index] ?? 0)}°</span></p>
+                        <p className="mt-1 text-[10px] font-semibold text-cyan-700">{Math.round(weather.daily.precipitationProbability[index] ?? 0)}% rain</p>
+                      </div>
                     );
-                  }
-                )}
-
+                  })}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
+                  <span>Sunrise {formatWeatherTime(weather.daily.sunrise[0])}</span>
+                  <span>Sunset {formatWeatherTime(weather.daily.sunset[0])}</span>
+                </div>
               </div>
-            ) : (
-              <div className="p-8 text-center text-sm text-slate-500">
-                No upcoming events are
-                currently available.
-              </div>
-            )}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">Campus weather is temporarily unavailable.</p>
+              <p className="mt-1 text-sm text-slate-500">The rest of the portal remains available normally.</p>
+            </div>
+          )}
+        </section>
 
+        {/* =================================================
+            ACADEMIC TOOLS
+        ================================================= */}
+        <section className="mt-14">
+          <SectionHeading
+            eyebrow="Academic Tools"
+            title="Tools for actually doing things."
+            description="The homepage highlights the academic workspace. The Tools hub contains the complete catalogue."
+            action={<Link href="/tools" className="text-sm font-bold text-blue-800 hover:text-blue-950">All tools →</Link>}
+          />
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {academicTools.map((tool, index) => (
+              <Link key={tool.title} href={tool.href} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">0{index + 1}</span>
+                  <span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-700">→</span>
+                </div>
+                <h3 className="mt-4 font-bold text-slate-900 group-hover:text-blue-800">{tool.title}</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-500">{tool.description}</p>
+              </Link>
+            ))}
           </div>
         </section>
 
         {/* =================================================
             QUICK ACCESS
         ================================================= */}
-
         <section className="mt-14">
-
           <SectionHeading
             eyebrow="Quick Access"
             title="Everything else, in its proper place."
-            description="Focused pages for the parts of campus life that deserve more than a homepage card."
+            description="The homepage should help you get somewhere, not become somewhere you have to live."
           />
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-            {[
-              {
-                title: "Leadership",
-                description:
-                  "Institutional leadership, house administration and campus structure.",
-                href: "/leadership",
-                eyebrow: "Institution",
-                accent:
-                  "from-blue-50 to-indigo-50",
-              },
-              {
-                title: "Council",
-                description:
-                  "Student Council, functional leadership and house representatives.",
-                href: "/council",
-                eyebrow:
-                  "Student Leadership",
-                accent:
-                  "from-emerald-50 to-teal-50",
-              },
-              {
-                title: "Cafeteria",
-                description:
-                  "Daily and weekly menu information for the campus.",
-                href: "/cafeteria",
-                eyebrow:
-                  "Campus Life",
-                accent:
-                  "from-orange-50 to-amber-50",
-              },
-              {
-                title: "Calendar",
-                description:
-                  "Annual events, live additions and the complete campus schedule.",
-                href: "/calendar",
-                eyebrow:
-                  "Planning",
-                accent:
-                  "from-purple-50 to-violet-50",
-              },
-              {
-                title: "Activities",
-                description:
-                  "Sports, cultural programmes, student initiatives and participation.",
-                href: "/activities",
-                eyebrow:
-                  "Student Life",
-                accent:
-                  "from-rose-50 to-pink-50",
-              },
-              {
-                title: "Study Material",
-                description:
-                  "Notes, revision sheets, HOTS and VidyaGyan previous papers.",
-                href: "/study-material",
-                eyebrow:
-                  "Academics",
-                accent:
-                  "from-cyan-50 to-sky-50",
-              },
-            ].map((item) => (
-              <Link
-                key={item.title}
-                href={item.href}
-                className={`group rounded-2xl border border-slate-200/80 bg-gradient-to-br ${item.accent} p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
-              >
-
-                <div className="flex items-center justify-between">
-
-                  <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    {item.eyebrow}
-                  </span>
-
-                  <span className="text-slate-400 transition group-hover:translate-x-1 group-hover:text-blue-950">
-                    →
-                  </span>
-
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {quickLinks.map((item) => (
+              <Link key={item.title} href={item.href} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.17em] text-slate-400">{item.label}</span>
+                  <span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-700">→</span>
                 </div>
-
-                <h3 className="mt-4 text-lg font-bold text-blue-950">
-                  {item.title}
-                </h3>
-
-                <p className="mt-2 text-xs leading-5 text-slate-600">
-                  {item.description}
-                </p>
-
-                <div className="mt-5 text-xs font-semibold text-blue-950">
-                  Explore →
-                </div>
-
+                <h3 className="mt-3 text-lg font-bold text-slate-900 group-hover:text-blue-800">{item.title}</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-500">{item.description}</p>
               </Link>
             ))}
-
           </div>
         </section>
-
       </main>
 
-      {/* =================================================
-          FOOTER
-      ================================================= */}
-
       <footer className="mt-16 border-t border-slate-200 bg-white">
-
-        <div className="mx-auto max-w-7xl px-5 py-10 lg:px-8">
-
-          <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
-
-            {/* Portal */}
-
+        <div className="mx-auto max-w-7xl px-5 py-9 lg:px-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
-
-              <div className="font-bold text-blue-950">
-                VidyaGyan Portal
-              </div>
-
-              <p className="mt-2 max-w-sm text-xs leading-5 text-slate-500">
-                A unified digital layer for
-                campus information, student
-                life and institutional
-                leadership.
-              </p>
-
+              <div className="font-bold text-[#0f1f4d]">VidyaGyan Portal</div>
+              <p className="mt-1 text-xs text-slate-500">A unified digital layer for campus information, student life and academic tools.</p>
             </div>
-
-            {/* Portal links */}
-
-            <div>
-
-              <div className="text-xs font-bold text-slate-700">
-                Portal
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-slate-500">
-
-                <Link
-                  href="/leadership"
-                  className="transition hover:text-blue-950"
-                >
-                  Leadership
-                </Link>
-
-                <Link
-                  href="/council"
-                  className="transition hover:text-blue-950"
-                >
-                  Council
-                </Link>
-
-                <Link
-                  href="/cafeteria"
-                  className="transition hover:text-blue-950"
-                >
-                  Cafeteria
-                </Link>
-
-                <Link
-                  href="/calendar"
-                  className="transition hover:text-blue-950"
-                >
-                  Calendar
-                </Link>
-
-                <Link
-                  href="/activities"
-                  className="transition hover:text-blue-950"
-                >
-                  Activities
-                </Link>
-
-                <Link
-                  href="/study-material"
-                  className="transition hover:text-blue-950"
-                >
-                  Study Material
-                </Link>
-
-              </div>
-
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500">
+              <Link href="/news" className="hover:text-blue-900">News</Link>
+              <Link href="/calendar" className="hover:text-blue-900">Calendar</Link>
+              <Link href="/timetable" className="hover:text-blue-900">Daily Timeline</Link>
+              <Link href="/tools" className="hover:text-blue-900">Tools</Link>
+              <Link href="/council" className="hover:text-blue-900">Council</Link>
             </div>
-
-            {/* Institution */}
-
-            <div className="md:text-right">
-
-              <div className="text-xs font-bold text-slate-700">
-                VidyaGyan Bulandshahr
-              </div>
-
-              <p className="mt-2 text-xs text-slate-400">
-                Student Portal · 2026–27
-              </p>
-
-              <p className="mt-1 text-xs text-slate-400">
-                Campus Time · Asia/Kolkata
-              </p>
-
-            </div>
-
           </div>
-
-          <div className="mt-8 flex flex-col gap-2 border-t border-slate-100 pt-5 md:flex-row md:items-center md:justify-between">
-
-            <span className="text-[10px] text-slate-400">
-              VidyaGyan Leadership Academy
-            </span>
-
-            <span className="text-[10px] text-slate-400">
-              Portal Infrastructure · 2026–27
-            </span>
-
+          <div className="mt-7 flex flex-col gap-2 border-t border-slate-100 pt-5 text-[10px] text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+            <span>VidyaGyan Leadership Academy · Bulandshahr</span>
+            <span>Student Portal · 2026–27 · Asia/Kolkata</span>
           </div>
-
         </div>
-
       </footer>
-
     </div>
   );
 }
