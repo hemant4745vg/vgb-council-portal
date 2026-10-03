@@ -482,40 +482,25 @@ function CafeteriaPanel({ hour }: { hour: number }) {
 }
 
 function MapExplorer() {
-  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${VIDYAGYAN_LAT},${VIDYAGYAN_LON}`;
+  const mapEmbedUrl = `https://www.google.com/maps?q=${VIDYAGYAN_LAT},${VIDYAGYAN_LON}&z=16&output=embed`;
   return (
-    <a href={mapsUrl} target="_blank" rel="noreferrer" className="group relative min-h-[360px] overflow-hidden border border-blue-200/20 bg-[#06142f] text-white transition duration-500 hover:border-blue-300/55 hover:shadow-[0_30px_90px_-50px_rgba(59,130,246,.65)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_55%_45%,rgba(59,130,246,.28),transparent_35%),linear-gradient(145deg,#0a234a,#06142f)]" />
-      <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(147,197,253,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.12)_1px,transparent_1px)] [background-size:34px_34px]" />
-      <svg viewBox="0 0 360 360" className="absolute inset-0 h-full w-full text-blue-100/80 transition duration-700 group-hover:scale-[1.03]" aria-hidden="true">
-        <path d="M157 48l30 18 15 34 28 18-7 31 25 25-17 25 8 31-25 23-15 35-25-13-19 23-20-25-29-10 4-31-18-23 20-28-6-29 24-21 4-34z" fill="currentColor" opacity=".08" stroke="currentColor" strokeWidth="2" />
-        <path d="M166 67c16 26 25 44 19 67-7 27 10 43 20 57M147 108c23 7 38 19 56 38M119 163c25-9 49-7 75 8M135 211c22-12 46-10 67 4" fill="none" stroke="currentColor" strokeWidth="1.5" opacity=".35" />
-        <circle cx="180" cy="126" r="8" fill="currentColor" opacity=".95" />
-        <circle cx="180" cy="126" r="24" fill="none" stroke="currentColor" opacity=".25" className="hero-pulse" />
-        <path d="M180 101c-9 13-17 22-17 31a17 17 0 1 0 34 0c0-9-8-18-17-31z" fill="currentColor" opacity=".88" />
-      </svg>
-      <div className="relative flex h-full flex-col justify-between p-7 sm:p-8">
-        <div className="flex items-start justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-cyan-200/75">Campus location</p><h3 className="mt-3 text-2xl font-semibold tracking-[-.045em]">Map Explorer</h3></div><span className="text-blue-200/45 transition group-hover:translate-x-1 group-hover:text-blue-100">↗</span></div>
-        <div><p className="max-w-[255px] text-sm leading-6 text-blue-100/70">Open the VidyaGyan campus location in Google Maps and navigate directly from the portal.</p><p className="mt-4 text-[9px] font-bold uppercase tracking-[.15em] text-blue-200/45">28.3835° N · 77.7049° E</p><div className="mt-5 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[.16em] text-cyan-200">Open Google Maps <span className="transition group-hover:translate-x-1">→</span></div></div>
+    <div className="relative min-h-[360px] overflow-hidden border border-blue-200/20 bg-[#06142f] text-white shadow-[0_30px_90px_-60px_rgba(37,99,235,.55)]">
+      <div className="absolute left-5 top-5 z-10 rounded-full border border-white/15 bg-[#06142f]/85 px-3 py-1.5 text-[8px] font-black uppercase tracking-[.16em] text-cyan-100 backdrop-blur-md">Campus location</div>
+      <iframe
+        title="VidyaGyan campus location on Google Maps"
+        src={mapEmbedUrl}
+        className="absolute inset-0 h-full w-full border-0"
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        allowFullScreen
+      />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between bg-gradient-to-t from-[#06142f]/90 via-[#06142f]/35 to-transparent px-5 pb-5 pt-16">
+        <div>
+          <p className="text-sm font-semibold text-white">Map Explorer</p>
+          <p className="mt-1 text-[9px] font-bold uppercase tracking-[.14em] text-blue-100/65">28.3835° N · 77.7049° E</p>
+        </div>
+        <span className="text-[8px] font-black uppercase tracking-[.14em] text-cyan-200">Interactive · Google Maps</span>
       </div>
-    </a>
-  );
-}
-
-function WeatherScene({ code, isDay }: { code: number; isDay: boolean }) {
-  const rainy = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code);
-  const cloudy = [1, 2, 3, 45, 48, 51, 53, 55, 56, 57].includes(code);
-  const storm = [95, 96, 99].includes(code);
-  return (
-    <div className="relative min-h-[360px] overflow-hidden border border-blue-100 bg-[#081a3d]">
-      <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(147,197,253,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.08)_1px,transparent_1px)] [background-size:46px_46px]" />
-      <div className={`absolute left-1/2 top-1/2 h-52 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl ${isDay ? "bg-sky-300/10" : "bg-indigo-300/10"}`} />
-      {!cloudy && !storm && <div className={`absolute right-[18%] top-[18%] h-28 w-28 rounded-full ${isDay ? "bg-amber-100/80 shadow-[0_0_80px_30px_rgba(253,224,71,.08)]" : "bg-slate-200/20 shadow-[0_0_70px_20px_rgba(191,219,254,.08)]"}`} />}
-      {cloudy && <div className="absolute left-1/2 top-24 h-16 w-48 -translate-x-1/2 rounded-full bg-slate-100/15"><div className="absolute -left-5 -top-8 h-20 w-20 rounded-full bg-slate-100/15" /><div className="absolute left-12 -top-11 h-24 w-24 rounded-full bg-slate-100/15" /><div className="absolute right-0 -top-6 h-16 w-16 rounded-full bg-slate-100/15" /></div>}
-      {rainy && <div className="absolute inset-x-12 top-32 bottom-12 overflow-hidden opacity-60">{Array.from({ length: 20 }).map((_, index) => <span key={index} className="weather-rain absolute top-0 h-12 w-px bg-blue-200/60" style={{ left: `${(index * 17) % 100}%`, animationDelay: `${(index % 7) * 170}ms` }} />)}</div>}
-      {storm && <div className="absolute left-1/2 top-32 h-28 w-px -translate-x-1/2 rotate-[18deg] bg-cyan-100/70 weather-pulse" />}
-      <div className="absolute bottom-0 inset-x-0 h-36 bg-gradient-to-t from-[#06142f] to-transparent" />
-      <div className="absolute bottom-7 left-7 right-7 flex items-end justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-blue-200/45">Atmospheric field</p><p className="mt-2 text-sm font-semibold text-white/80">VidyaGyan · Bulandshahr</p></div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-blue-200/40">{isDay ? "Day" : "Night"} · live</span></div>
     </div>
   );
 }
@@ -815,8 +800,7 @@ export default function Home() {
                   <div className="rounded-xl border border-white/10 bg-white/[.04] p-3"><p className="text-[8px] font-black uppercase tracking-[.15em] text-blue-100/40">Sunset</p><p className="mt-1 text-xs font-semibold text-white/80">{formatForecastTime(weather.daily.sunset[0])}</p></div>
                 </div>
               </div>
-              <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-3 sm:p-4 lg:grid-cols-[1.05fr_.95fr] lg:border-t-0 lg:border-l">
-                <WeatherScene code={weather.current.weatherCode} isDay={weather.current.isDay} />
+              <div className="border-t border-slate-200 bg-slate-50 p-3 sm:p-4 lg:border-t-0 lg:border-l">
                 <MapExplorer />
               </div>
             </div>
