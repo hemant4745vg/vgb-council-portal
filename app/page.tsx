@@ -279,24 +279,30 @@ function formatForecastDay(value: string, index: number) {
 }
 
 function ClockDigit({ value }: { value: string }) {
-  const [previous, setPrevious] = useState(value);
+  const [displayed, setDisplayed] = useState(value);
+  const [incoming, setIncoming] = useState(value);
   const [rolling, setRolling] = useState(false);
 
   useEffect(() => {
-    if (previous === value) return;
+    if (value === displayed) return;
+
+    setIncoming(value);
     setRolling(true);
     const timer = window.setTimeout(() => {
-      setPrevious(value);
+      setDisplayed(value);
       setRolling(false);
     }, 520);
+
     return () => window.clearTimeout(timer);
-  }, [value, previous]);
+  }, [value, displayed]);
 
   return (
     <span className="relative inline-block h-[1em] w-[0.62em] overflow-hidden align-bottom" aria-hidden="true">
-      <span className={`absolute inset-x-0 top-0 flex flex-col transition-transform duration-500 [transition-timing-function:cubic-bezier(.16,1,.3,1)] ${rolling ? "-translate-y-1/2" : "translate-y-0"}`}>
-        <span className="flex h-[1em] items-center justify-center">{previous}</span>
-        <span className="flex h-[1em] items-center justify-center">{value}</span>
+      <span
+        className={`absolute inset-x-0 top-0 flex flex-col will-change-transform ${rolling ? "clock-digit-roll" : "translate-y-0"}`}
+      >
+        <span className="flex h-[1em] shrink-0 items-center justify-center">{displayed}</span>
+        <span className="flex h-[1em] shrink-0 items-center justify-center">{incoming}</span>
       </span>
     </span>
   );
@@ -328,6 +334,35 @@ function HeroField() {
       <div className="absolute inset-0 opacity-45 [background-image:linear-gradient(rgba(147,197,253,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.045)_1px,transparent_1px)] [background-size:72px_72px] [transform:perspective(900px)_rotateX(62deg)_scale(1.35)] [transform-origin:center_bottom]" />
       <div className="absolute right-[-8%] top-[-20%] h-[700px] w-[700px] rounded-full bg-blue-500/[.08] blur-3xl" />
       <div className="absolute left-[-12%] bottom-[-34%] h-[560px] w-[900px] rounded-full bg-blue-900/[.22] blur-3xl" />
+
+      <svg viewBox="0 0 1600 760" preserveAspectRatio="none" className="absolute inset-0 h-full w-full text-blue-300/25" aria-hidden="true">
+        <g fill="none" stroke="currentColor" strokeWidth="1.2">
+          <path d="M-40 72 C180 20 340 120 520 58 S860 35 1010 100 S1330 150 1640 42" opacity=".52" />
+          <path d="M-40 122 C170 70 330 155 535 104 S830 75 1000 142 S1330 190 1640 105" opacity=".38" />
+          <path d="M-40 174 C180 125 360 215 570 155 S850 130 1050 198 S1370 250 1640 168" opacity=".26" />
+          <path d="M-40 410 C190 340 330 455 560 385 S850 325 1080 402 S1390 470 1640 365" opacity=".55" />
+          <path d="M-40 458 C190 390 370 505 600 432 S860 380 1090 448 S1390 520 1640 420" opacity=".38" />
+          <path d="M-40 510 C200 438 370 558 620 485 S900 435 1110 500 S1400 565 1640 470" opacity=".25" />
+          <path d="M-40 620 C180 560 390 660 610 605 S900 545 1120 615 S1400 680 1640 585" opacity=".28" />
+        </g>
+        <g fill="currentColor">
+          <circle cx="118" cy="88" r="6" opacity=".78" />
+          <circle cx="585" cy="67" r="6" opacity=".68" />
+          <circle cx="1015" cy="100" r="5" opacity=".6" />
+          <circle cx="1280" cy="144" r="7" opacity=".75" />
+          <circle cx="430" cy="432" r="6" opacity=".72" />
+          <circle cx="915" cy="380" r="6" opacity=".65" />
+          <circle cx="1370" cy="470" r="5" opacity=".6" />
+        </g>
+        <g fill="none" stroke="currentColor" strokeWidth="1" opacity=".35">
+          <circle cx="118" cy="88" r="23" />
+          <circle cx="585" cy="67" r="23" />
+          <circle cx="1280" cy="144" r="26" />
+          <circle cx="430" cy="432" r="23" />
+          <circle cx="915" cy="380" r="23" />
+        </g>
+      </svg>
+
       <div className="absolute right-[18%] top-[16%] h-[3px] w-[3px] rounded-full bg-cyan-200/70 shadow-[0_0_28px_8px_rgba(103,232,249,.1)] hero-pulse" />
       <div className="absolute left-[8%] bottom-[17%] h-[2px] w-[2px] rounded-full bg-blue-300/60 hero-pulse" />
       <div className="absolute right-[20%] top-[50%] h-[520px] w-[520px] -translate-y-1/2 rounded-full border border-blue-200/[.04] hero-orbit" />
@@ -447,22 +482,23 @@ function CafeteriaPanel({ hour }: { hour: number }) {
 }
 
 function MapExplorer() {
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${VIDYAGYAN_LAT},${VIDYAGYAN_LON}`;
   return (
-    <Link href="/tools/geography" className="group relative min-h-[360px] overflow-hidden border border-blue-100 bg-[#071b3c] text-white transition duration-500 hover:border-blue-300/40">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_60%_45%,rgba(59,130,246,.18),transparent_36%),linear-gradient(145deg,#071b3c,#06142f)]" />
-      <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(147,197,253,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.12)_1px,transparent_1px)] [background-size:34px_34px]" />
-      <svg viewBox="0 0 360 360" className="absolute inset-0 h-full w-full text-blue-200/80" aria-hidden="true">
+    <a href={mapsUrl} target="_blank" rel="noreferrer" className="group relative min-h-[360px] overflow-hidden border border-blue-200/20 bg-[#06142f] text-white transition duration-500 hover:border-blue-300/55 hover:shadow-[0_30px_90px_-50px_rgba(59,130,246,.65)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_55%_45%,rgba(59,130,246,.28),transparent_35%),linear-gradient(145deg,#0a234a,#06142f)]" />
+      <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(147,197,253,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.12)_1px,transparent_1px)] [background-size:34px_34px]" />
+      <svg viewBox="0 0 360 360" className="absolute inset-0 h-full w-full text-blue-100/80 transition duration-700 group-hover:scale-[1.03]" aria-hidden="true">
         <path d="M157 48l30 18 15 34 28 18-7 31 25 25-17 25 8 31-25 23-15 35-25-13-19 23-20-25-29-10 4-31-18-23 20-28-6-29 24-21 4-34z" fill="currentColor" opacity=".08" stroke="currentColor" strokeWidth="2" />
         <path d="M166 67c16 26 25 44 19 67-7 27 10 43 20 57M147 108c23 7 38 19 56 38M119 163c25-9 49-7 75 8M135 211c22-12 46-10 67 4" fill="none" stroke="currentColor" strokeWidth="1.5" opacity=".35" />
-        <circle cx="180" cy="126" r="7" fill="currentColor" opacity=".8" />
-        <circle cx="180" cy="126" r="18" fill="none" stroke="currentColor" opacity=".22" />
-        <path d="M180 109l-6 10h12z" fill="currentColor" opacity=".9" />
+        <circle cx="180" cy="126" r="8" fill="currentColor" opacity=".95" />
+        <circle cx="180" cy="126" r="24" fill="none" stroke="currentColor" opacity=".25" className="hero-pulse" />
+        <path d="M180 101c-9 13-17 22-17 31a17 17 0 1 0 34 0c0-9-8-18-17-31z" fill="currentColor" opacity=".88" />
       </svg>
       <div className="relative flex h-full flex-col justify-between p-7 sm:p-8">
-        <div className="flex items-start justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-blue-200/70">Explore geography</p><h3 className="mt-3 text-2xl font-semibold tracking-[-.045em]">Map Explorer</h3></div><span className="text-blue-200/45 transition group-hover:translate-x-1 group-hover:text-blue-100">↗</span></div>
-        <div><p className="max-w-[240px] text-sm leading-6 text-blue-100/60">Explore India and the world through political, physical, river, climate and resource maps.</p><div className="mt-5 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[.16em] text-blue-200">Open Geography Tool <span className="transition group-hover:translate-x-1">→</span></div></div>
+        <div className="flex items-start justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-cyan-200/75">Campus location</p><h3 className="mt-3 text-2xl font-semibold tracking-[-.045em]">Map Explorer</h3></div><span className="text-blue-200/45 transition group-hover:translate-x-1 group-hover:text-blue-100">↗</span></div>
+        <div><p className="max-w-[255px] text-sm leading-6 text-blue-100/70">Open the VidyaGyan campus location in Google Maps and navigate directly from the portal.</p><p className="mt-4 text-[9px] font-bold uppercase tracking-[.15em] text-blue-200/45">28.3835° N · 77.7049° E</p><div className="mt-5 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[.16em] text-cyan-200">Open Google Maps <span className="transition group-hover:translate-x-1">→</span></div></div>
       </div>
-    </Link>
+    </a>
   );
 }
 
@@ -670,8 +706,9 @@ export default function Home() {
   const timelineEntries = useMemo(getTimelineForToday, []);
   const currentTimeline = useMemo(() => currentTimelineEntry(minute, timelineEntries), [minute, timelineEntries]);
   const nextTimeline = useMemo(() => nextTimelineEntry(minute, timelineEntries), [minute, timelineEntries]);
-  const firstName = profile?.name?.trim()?.split(/\s+/)[0] ?? "there";
-  const greeting = greetingFor(hour);
+  const isSignedIn = Boolean(profile);
+  const firstName = profile?.name?.trim()?.split(/\s+/)[0] ?? "VIDYAGYAN";
+  const greeting = isSignedIn ? greetingFor(hour) : "Welcome to,";
   const currentMeal = getCurrentMeal(hour);
   const featuredNews = news[0];
   const secondaryNews = news.slice(1, 4);
@@ -685,16 +722,18 @@ export default function Home() {
       <style jsx global>{`
         @keyframes heroOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes heroPulse { 0%,100% { opacity:.25; transform:scale(.8); } 50% { opacity:1; transform:scale(1.08); } }
+        @keyframes clockDigitRoll { from { transform:translateY(0); } to { transform:translateY(-50%); } }
         @keyframes weatherRain { 0% { transform:translateY(-60px); opacity:0; } 20% { opacity:.65; } 100% { transform:translateY(300px); opacity:0; } }
         @keyframes subjectFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
         .hero-orbit { animation:heroOrbit 48s linear infinite; }
         .hero-pulse { animation:heroPulse 4s ease-in-out infinite; }
+        .clock-digit-roll { animation:clockDigitRoll 520ms cubic-bezier(.16,1,.3,1) forwards; }
         .hero-contours { animation:heroContour 14s ease-in-out infinite; transform-box:fill-box; }
         .weather-rain { animation:weatherRain 1.7s linear infinite; }
         .weather-pulse { animation:heroPulse 2s ease-in-out infinite; }
         .subject-dot { animation:subjectFloat 4s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
         @media (prefers-reduced-motion: reduce) {
-          .hero-orbit,.hero-pulse,.weather-rain,.weather-pulse,.subject-dot { animation:none !important; }
+          .hero-orbit,.hero-pulse,.weather-rain,.weather-pulse,.subject-dot,.clock-digit-roll { animation:none !important; }
           * { scroll-behavior:auto !important; }
         }
       `}</style>
@@ -710,7 +749,7 @@ export default function Home() {
                 <p className="mt-10 text-[clamp(1.05rem,1.7vw,1.5rem)] font-medium tracking-[-.035em] text-blue-100/95">{greeting}</p>
                 <h1 className="mt-1 text-[clamp(4rem,9vw,8.5rem)] font-semibold leading-[.86] tracking-[-.09em] text-white">{firstName.toUpperCase()}</h1>
                 <div className="mt-9 border-l border-blue-400/50 pl-5">
-                  <p className="text-[11px] font-black uppercase tracking-[.2em] text-blue-100/80">{profileLoading ? "Student" : profile?.role || "Student"}</p>
+                  <p className="text-[11px] font-black uppercase tracking-[.2em] text-blue-100/80">{profileLoading ? "Student Portal" : profile?.role || "Student Portal"}</p>
                   <p className="mt-2 text-sm font-medium tracking-[.02em] text-blue-100/65">VIDYAGYAN · 2026–27</p>
                 </div>
               </div>
@@ -755,15 +794,26 @@ export default function Home() {
           <SectionHeader eyebrow="VidyaGyan weather" title="The campus atmosphere, now and next." description="Forecast data for the VidyaGyan campus coordinates, with a detailed view of today and a compact three-day horizon." />
           {weatherLoading && !weather ? <div className="mt-8 h-[620px] animate-pulse bg-slate-200" /> : weather ? <div className="mt-8 overflow-hidden border border-slate-200 bg-white">
             <div className="grid lg:grid-cols-[.82fr_1.18fr]">
-              <div className="p-7 sm:p-10 lg:p-12">
-                <div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-blue-700">Right now</p><p className="mt-3 text-sm font-semibold text-slate-500">VidyaGyan · Bulandshahr</p></div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-slate-400">Open-Meteo · live</span></div>
-                <div className="mt-10 flex items-end gap-2"><span className="text-[clamp(4.5rem,8vw,7.5rem)] font-semibold leading-none tracking-[-.09em] text-slate-950">{Math.round(weather.current.temperature)}°</span><span className="mb-3 text-xl font-semibold text-slate-400">C</span></div>
-                <p className="mt-2 text-lg font-semibold text-slate-900">{weatherLabel(weather.current.weatherCode)}</p>
-                <p className="mt-2 text-sm text-slate-500">Feels like {Math.round(weather.current.apparentTemperature)}°C · {weather.current.isDay ? "daytime" : "night"}</p>
-                <div className="mt-10 grid grid-cols-2 gap-y-7 sm:grid-cols-3">
-                  <ForecastMetric label="Humidity" value={`${Math.round(weather.current.humidity)}%`} /><ForecastMetric label="Cloud cover" value={`${Math.round(weather.current.cloudCover)}%`} /><ForecastMetric label="Wind" value={`${Math.round(weather.current.windSpeed)} km/h ${windDirection(weather.current.windDirection)}`} /><ForecastMetric label="Pressure" value={`${Math.round(weather.current.pressure)} hPa`} /><ForecastMetric label="Visibility" value={`${Math.round(weather.current.visibility / 1000)} km`} /><ForecastMetric label="UV index" value={weather.current.uvIndex.toFixed(1)} /><ForecastMetric label="Precipitation" value={`${weather.current.precipitation.toFixed(1)} mm`} /><ForecastMetric label="Rain" value={`${weather.current.rain.toFixed(1)} mm`} /><ForecastMetric label="Showers" value={`${weather.current.showers.toFixed(1)} mm`} />
+              <div className="relative overflow-hidden bg-[radial-gradient(circle_at_12%_18%,rgba(56,189,248,.24),transparent_28%),radial-gradient(circle_at_82%_88%,rgba(37,99,235,.24),transparent_34%),linear-gradient(145deg,#06142f,#0a2854)] p-7 text-white sm:p-10 lg:p-12">
+                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-300/10 blur-3xl" />
+                <div className="absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-blue-500/15 blur-3xl" />
+                <div className="relative z-10 flex items-start justify-between gap-4"><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-cyan-200/80">Right now</p><p className="mt-3 text-sm font-semibold text-blue-50/75">VidyaGyan · Bulandshahr</p></div><span className="rounded-full border border-white/10 bg-white/[.05] px-3 py-1.5 text-[8px] font-bold uppercase tracking-[.15em] text-cyan-100/65">Open-Meteo · live</span></div>
+                <div className="relative z-10 mt-8 flex items-center justify-between gap-6"><div><div className="flex items-end gap-2"><span className="text-[clamp(4.5rem,8vw,7.5rem)] font-semibold leading-none tracking-[-.09em] text-white">{Math.round(weather.current.temperature)}°</span><span className="mb-3 text-xl font-semibold text-cyan-100/55">C</span></div><p className="mt-3 text-lg font-semibold text-white">{weatherLabel(weather.current.weatherCode)}</p><p className="mt-2 text-sm text-blue-100/55">Feels like {Math.round(weather.current.apparentTemperature)}°C · {weather.current.isDay ? "daytime" : "night"}</p></div><div className="relative hidden h-28 w-28 shrink-0 sm:block">{weather.current.isDay ? <div className="absolute inset-5 rounded-full bg-amber-200/80 shadow-[0_0_55px_20px_rgba(253,224,71,.14)]" /> : <div className="absolute inset-5 rounded-full bg-slate-200/45 shadow-[0_0_55px_20px_rgba(191,219,254,.1)]" />}<div className="absolute inset-0 rounded-full border border-cyan-200/15" /></div></div>
+                <div className="relative z-10 mt-9 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {[
+                    ["Humidity", `${Math.round(weather.current.humidity)}%`],
+                    ["Cloud cover", `${Math.round(weather.current.cloudCover)}%`],
+                    ["Wind", `${Math.round(weather.current.windSpeed)} km/h ${windDirection(weather.current.windDirection)}`],
+                    ["Pressure", `${Math.round(weather.current.pressure)} hPa`],
+                    ["Visibility", `${Math.round(weather.current.visibility / 1000)} km`],
+                    ["UV index", weather.current.uvIndex.toFixed(1)],
+                  ].map(([label, value]) => <div key={label} className="rounded-xl border border-white/10 bg-white/[.055] p-3 backdrop-blur-sm"><p className="text-[8px] font-black uppercase tracking-[.15em] text-cyan-100/45">{label}</p><p className="mt-1 text-xs font-semibold text-white/90">{value}</p></div>)}
                 </div>
-                <div className="mt-10 grid grid-cols-2 gap-6 border-t border-slate-100 pt-6"><div><p className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Sunrise</p><p className="mt-1 text-sm font-semibold">{formatForecastTime(weather.daily.sunrise[0])}</p></div><div><p className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Sunset</p><p className="mt-1 text-sm font-semibold">{formatForecastTime(weather.daily.sunset[0])}</p></div></div>
+                <div className="relative z-10 mt-5 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl border border-white/10 bg-white/[.04] p-3"><p className="text-[8px] font-black uppercase tracking-[.15em] text-blue-100/40">Rain</p><p className="mt-1 text-xs font-semibold text-white/80">{weather.current.rain.toFixed(1)} mm</p></div>
+                  <div className="rounded-xl border border-white/10 bg-white/[.04] p-3"><p className="text-[8px] font-black uppercase tracking-[.15em] text-blue-100/40">Sunrise</p><p className="mt-1 text-xs font-semibold text-white/80">{formatForecastTime(weather.daily.sunrise[0])}</p></div>
+                  <div className="rounded-xl border border-white/10 bg-white/[.04] p-3"><p className="text-[8px] font-black uppercase tracking-[.15em] text-blue-100/40">Sunset</p><p className="mt-1 text-xs font-semibold text-white/80">{formatForecastTime(weather.daily.sunset[0])}</p></div>
+                </div>
               </div>
               <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-3 sm:p-4 lg:grid-cols-[1.05fr_.95fr] lg:border-t-0 lg:border-l">
                 <WeatherScene code={weather.current.weatherCode} isDay={weather.current.isDay} />
