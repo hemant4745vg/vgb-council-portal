@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { type Session } from "@supabase/supabase-js";
 import { usePathname } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 type UserProfile = {
   id: number;
@@ -319,6 +319,16 @@ function AccountMenu({
 export default function Navbar() {
   const pathname = usePathname();
 
+  /*
+   * SSR-compatible browser Supabase client.
+   *
+   * This replaces the previous singleton imported from
+   * "@/lib/supabase". The client created here uses
+   * @supabase/ssr and therefore participates in the
+   * cookie-based authentication flow used by middleware.
+   */
+  const supabase = createClient();
+
   const [session, setSession] = useState<Session | null>(null);
 
   const [profile, setProfile] =
@@ -409,7 +419,7 @@ export default function Navbar() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase]);
 
   /* =========================================================
      LOAD PROFILE WHEN SESSION CHANGES
@@ -510,7 +520,7 @@ export default function Navbar() {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, supabase]);
 
   /* =========================================================
      CLOSE MENUS ON OUTSIDE CLICK
