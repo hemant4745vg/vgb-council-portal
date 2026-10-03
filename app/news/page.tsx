@@ -171,11 +171,10 @@ function deduplicateStories(items: NewsItem[]): NewsItem[] {
 
   for (const item of items) {
     const normalizedTitle = item.title
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
+  .toLowerCase()
+  .replace(/[^a-z0-9\s]/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
     const key = normalizedTitle || item.source_url;
 
     if (seen.has(key)) {
