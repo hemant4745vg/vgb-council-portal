@@ -504,7 +504,7 @@ function WeatherVisual({ isDay, code }: { isDay: boolean; code: number }) {
 }
 
 function MapExplorer() {
-  const mapEmbedUrl = `https://www.google.com/maps?q=${VIDYAGYAN_LAT},${VIDYAGYAN_LON}&z=17&output=embed`;
+  const mapEmbedUrl = `https://www.google.com/maps?q=${VIDYAGYAN_LAT},${VIDYAGYAN_LON}&t=k&z=17&output=embed`;
   return (
     <div className="relative h-full min-h-[520px] overflow-hidden rounded-[1.25rem] border border-slate-200 bg-[#dfe7ee] text-white shadow-[0_30px_90px_-60px_rgba(37,99,235,.45)] sm:min-h-[560px] lg:min-h-0">
       <iframe
