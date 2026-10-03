@@ -548,6 +548,255 @@ function AnimatedClock({
 }
 
 /* =========================================================
+   WEATHER SCENE
+========================================================= */
+
+function WeatherScene({ code, isDay }: { code: number; isDay: boolean }) {
+  const rainy = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code);
+  const cloudy = [1, 2, 3, 45, 48, 51, 53, 55, 56, 57].includes(code);
+  const storm = [95, 96, 99].includes(code);
+
+  return (
+    <div className="relative min-h-[330px] overflow-hidden border border-white/10 bg-gradient-to-br from-[#102c62] via-[#0a1f48] to-[#06142f]">
+      <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(147,197,253,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.08)_1px,transparent_1px)] [background-size:46px_46px]" />
+      <div className={`absolute left-1/2 top-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl ${isDay ? 'bg-sky-300/10' : 'bg-indigo-400/10'}`} />
+
+      {!cloudy && !storm && (
+        <div className={`absolute right-16 top-14 h-28 w-28 rounded-full border border-white/10 ${isDay ? 'bg-amber-100/80 shadow-[0_0_70px_25px_rgba(253,224,71,.09)]' : 'bg-slate-200/15 shadow-[0_0_60px_18px_rgba(191,219,254,.08)]'}`} />
+      )}
+
+      {cloudy && (
+        <div className="absolute left-1/2 top-24 h-16 w-44 -translate-x-1/2 rounded-full bg-slate-200/15 blur-[1px]">
+          <div className="absolute -left-4 -top-7 h-20 w-20 rounded-full bg-slate-100/15" />
+          <div className="absolute left-12 -top-10 h-24 w-24 rounded-full bg-slate-100/15" />
+          <div className="absolute right-0 -top-5 h-16 w-16 rounded-full bg-slate-100/15" />
+        </div>
+      )}
+
+      {rainy && (
+        <div className="absolute inset-x-12 top-28 bottom-10 overflow-hidden opacity-60">
+          {Array.from({ length: 18 }).map((_, index) => (
+            <span
+              key={index}
+              className="vgb-rain absolute top-0 h-10 w-px bg-blue-200/60"
+              style={{ left: `${(index * 17) % 100}%`, animationDelay: `${(index % 6) * 180}ms` }}
+            />
+          ))}
+        </div>
+      )}
+
+      {storm && (
+        <div className="absolute left-1/2 top-32 h-28 w-px -translate-x-1/2 rotate-[18deg] bg-cyan-100/70 shadow-[0_0_22px_8px_rgba(165,243,252,.18)] vgb-pulse" />
+      )}
+
+      <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-[#06142f] to-transparent" />
+      <div className="absolute bottom-7 left-7 right-7 flex items-end justify-between">
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-[.2em] text-blue-200/40">Atmospheric view</p>
+          <p className="mt-2 text-sm font-semibold text-blue-50/80">Bulandshahr campus</p>
+        </div>
+        <div className="text-right text-[9px] font-bold uppercase tracking-[.16em] text-blue-200/35">
+          {isDay ? 'Day field' : 'Night field'}
+          <br />
+          live conditions
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   ACADEMIC SUBJECT VISUALS
+========================================================= */
+
+function SubjectVisual({ kind }: { kind: string }) {
+  if (kind === 'math') {
+    return (
+      <svg viewBox="0 0 420 300" className="h-full w-full" preserveAspectRatio="none">
+        <g stroke="currentColor" strokeOpacity=".16" strokeWidth="1">
+          {Array.from({ length: 11 }).map((_, i) => <line key={`v-${i}`} x1={i * 42} y1="0" x2={i * 42} y2="300" />)}
+          {Array.from({ length: 8 }).map((_, i) => <line key={`h-${i}`} x1="0" y1={i * 42} x2="420" y2={i * 42} />)}
+        </g>
+        <path d="M0 230 C70 215 95 90 165 110 S260 245 325 105 S380 70 420 40" fill="none" stroke="currentColor" strokeWidth="3" strokeOpacity=".62" />
+        <path d="M0 150 C80 125 120 160 180 145 S300 80 420 120" fill="none" stroke="currentColor" strokeWidth="1.5" strokeOpacity=".28" />
+        <circle cx="266" cy="191" r="5" fill="currentColor" opacity=".75" />
+      </svg>
+    );
+  }
+
+  if (kind === 'physics') {
+    return (
+      <svg viewBox="0 0 420 240" className="h-full w-full">
+        <ellipse cx="210" cy="120" rx="125" ry="48" fill="none" stroke="currentColor" strokeWidth="2" opacity=".35" />
+        <ellipse cx="210" cy="120" rx="72" ry="125" fill="none" stroke="currentColor" strokeWidth="1.5" opacity=".22" transform="rotate(-28 210 120)" />
+        <circle cx="210" cy="120" r="18" fill="currentColor" opacity=".22" />
+        <circle cx="320" cy="106" r="6" fill="currentColor" opacity=".75" />
+        <circle cx="151" cy="22" r="4" fill="currentColor" opacity=".55" />
+      </svg>
+    );
+  }
+
+  if (kind === 'economics') {
+    return (
+      <svg viewBox="0 0 420 240" className="h-full w-full">
+        <path d="M55 205H385M55 205V25" fill="none" stroke="currentColor" strokeWidth="2" opacity=".25" />
+        <path d="M75 45 C145 78 205 118 365 188" fill="none" stroke="currentColor" strokeWidth="3" opacity=".55" />
+        <path d="M75 185 C145 160 205 95 365 48" fill="none" stroke="currentColor" strokeWidth="3" opacity=".42" />
+        <circle cx="221" cy="123" r="5" fill="currentColor" opacity=".75" />
+        <path d="M221 123V205M55 123H221" stroke="currentColor" strokeDasharray="4 6" opacity=".2" />
+      </svg>
+    );
+  }
+
+  if (kind === 'geography') {
+    return (
+      <svg viewBox="0 0 420 240" className="h-full w-full">
+        <g fill="none" stroke="currentColor" strokeWidth="1.5">
+          <ellipse cx="210" cy="120" rx="175" ry="86" opacity=".22" />
+          <ellipse cx="210" cy="120" rx="140" ry="67" opacity=".26" />
+          <ellipse cx="210" cy="120" rx="105" ry="48" opacity=".32" />
+          <ellipse cx="210" cy="120" rx="70" ry="31" opacity=".38" />
+          <path d="M38 154 C90 105 128 170 178 116 S270 64 340 120 S385 162 405 140" opacity=".42" />
+        </g>
+      </svg>
+    );
+  }
+
+  if (kind === 'pol') {
+    return (
+      <svg viewBox="0 0 420 240" className="h-full w-full">
+        <g stroke="currentColor" strokeWidth="1.5" opacity=".28">
+          <path d="M210 120L85 55M210 120L330 52M210 120L105 195M210 120L332 190M210 120L210 32" />
+        </g>
+        {[['210','120',10],['85','55',6],['330','52',6],['105','195',6],['332','190',6],['210','32',6]].map(([x,y,r], i) => <circle key={i} cx={Number(x)} cy={Number(y)} r={Number(r)} fill="currentColor" opacity={i === 0 ? '.55' : '.3'} />)}
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 420 240" className="h-full w-full">
+      <g fill="none" stroke="currentColor" strokeWidth="1.5" opacity=".34">
+        <polygon points="210,35 260,64 260,122 210,151 160,122 160,64" />
+        <polygon points="210,89 260,118 260,176 210,205 160,176 160,118" />
+        <line x1="160" y1="64" x2="160" y2="122" />
+        <line x1="260" y1="64" x2="260" y2="122" />
+        <line x1="210" y1="35" x2="210" y2="89" />
+      </g>
+      <circle cx="210" cy="120" r="13" fill="currentColor" opacity=".22" />
+    </svg>
+  );
+}
+
+/* =========================================================
+   HERO CAMPUS FIELD
+========================================================= */
+
+function CampusField() {
+  const nodes = [
+    { x: 18, y: 30, label: "NEWS", r: 3.5 },
+    { x: 34, y: 68, label: "TOOLS", r: 2.5 },
+    { x: 52, y: 42, label: "TIMELINE", r: 3 },
+    { x: 68, y: 72, label: "COUNCIL", r: 2.5 },
+    { x: 82, y: 34, label: "CAMPUS", r: 3.5 },
+    { x: 76, y: 55, label: "WEATHER", r: 2 },
+  ];
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+    >
+      <div className="absolute inset-0 opacity-70 [background-image:linear-gradient(rgba(148,163,184,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,.045)_1px,transparent_1px)] [background-size:72px_72px]" />
+
+      <svg
+        className="absolute inset-0 h-full w-full opacity-90"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id="vgb-field-line" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#5ea1ff" stopOpacity="0" />
+            <stop offset="0.5" stopColor="#5ea1ff" stopOpacity="0.42" />
+            <stop offset="1" stopColor="#8ee8ff" stopOpacity="0" />
+          </linearGradient>
+          <radialGradient id="vgb-field-glow">
+            <stop offset="0" stopColor="#4f8cff" stopOpacity=".22" />
+            <stop offset="1" stopColor="#4f8cff" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        <ellipse cx="70" cy="50" rx="31" ry="27" fill="url(#vgb-field-glow)" />
+
+        <g fill="none" stroke="url(#vgb-field-line)" strokeWidth="0.18">
+          <path d="M-5 76 C18 60 30 82 51 67 S82 45 105 61" />
+          <path d="M-5 82 C18 66 32 87 53 73 S84 51 105 67" />
+          <path d="M-5 88 C19 72 35 93 55 79 S86 57 105 73" />
+          <path d="M-5 94 C20 78 37 99 57 85 S88 63 105 79" />
+          <path d="M5 12 C25 28 35 5 54 22 S80 45 101 28" />
+          <path d="M5 18 C25 34 37 11 56 28 S82 51 101 34" />
+          <path d="M5 24 C25 40 39 17 58 34 S84 57 101 40" />
+        </g>
+
+        <g stroke="#78c7ff" strokeOpacity=".16" strokeWidth=".12">
+          {nodes.slice(0, -1).map((node, index) => {
+            const next = nodes[index + 1];
+            return (
+              <line
+                key={`${node.label}-${next.label}`}
+                x1={node.x}
+                y1={node.y}
+                x2={next.x}
+                y2={next.y}
+              />
+            );
+          })}
+          <line x1="18" y1="30" x2="52" y2="42" />
+          <line x1="34" y1="68" x2="68" y2="72" />
+          <line x1="52" y1="42" x2="82" y2="34" />
+          <line x1="68" y1="72" x2="76" y2="55" />
+        </g>
+
+        {nodes.map((node, index) => (
+          <g key={node.label}>
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={node.r * 2.8}
+              fill="#4f8cff"
+              fillOpacity=".035"
+              className={index % 2 === 0 ? "vgb-pulse" : ""}
+            />
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={node.r}
+              fill="#9ad9ff"
+              fillOpacity=".85"
+            />
+            <text
+              x={node.x + 1.4}
+              y={node.y - 2.2}
+              fill="#a9d5ff"
+              fillOpacity=".42"
+              fontSize="1.35"
+              letterSpacing=".18"
+            >
+              {node.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+
+      <div className="absolute -right-32 top-1/2 h-[540px] w-[540px] -translate-y-1/2 rounded-full border border-blue-200/[.055] vgb-orbit" />
+      <div className="absolute right-[8%] top-[18%] h-2 w-2 rounded-full bg-cyan-200/80 shadow-[0_0_24px_8px_rgba(103,232,249,.16)] vgb-pulse" />
+      <div className="absolute left-[12%] top-[72%] h-1.5 w-1.5 rounded-full bg-blue-300/70 vgb-pulse" />
+      <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-blue-300/[.025] to-transparent vgb-scan" />
+      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#06142f] via-[#06142f]/60 to-transparent" />
+    </div>
+  );
+}
+
+/* =========================================================
    HOME
 ========================================================= */
 
