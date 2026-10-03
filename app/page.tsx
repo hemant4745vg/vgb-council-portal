@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 type Category = "Flagship" | "Academic" | "Cultural" | "Exams" | "Sports" | "Excursion";
 
