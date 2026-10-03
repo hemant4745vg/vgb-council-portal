@@ -65,7 +65,8 @@ function SignInPanel({
   const isError =
     message.toLowerCase().includes("failed") ||
     message.toLowerCase().includes("denied") ||
-    message.toLowerCase().includes("enter");
+    message.toLowerCase().includes("enter") ||
+    message.toLowerCase().includes("error");
 
   return (
     <div className="absolute right-0 top-[calc(100%+0.75rem)] z-[60] w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -322,14 +323,14 @@ export default function Navbar() {
   /*
    * SSR-compatible browser Supabase client.
    *
-   * This replaces the previous singleton imported from
-   * "@/lib/supabase". The client created here uses
-   * @supabase/ssr and therefore participates in the
-   * cookie-based authentication flow used by middleware.
+   * Authentication remains PASSWORD BASED.
+   * @supabase/ssr only provides the session/cookie
+   * infrastructure. It does not force magic-link login.
    */
   const supabase = createClient();
 
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] =
+    useState<Session | null>(null);
 
   const [profile, setProfile] =
     useState<UserProfile | null>(null);
@@ -374,9 +375,20 @@ export default function Navbar() {
     async function initializeAuth() {
       const {
         data: { session: currentSession },
+        error,
       } = await supabase.auth.getSession();
 
       if (!mounted) return;
+
+      if (error) {
+        console.error(
+          "NAV: Failed to retrieve auth session:",
+          {
+            message: error.message,
+            status: error.status,
+          }
+        );
+      }
 
       console.log(
         "NAV: Initial session:",
@@ -446,73 +458,95 @@ export default function Navbar() {
         userEmail
       );
 
-      const { data, error } =
-        await supabase.rpc("get_my_portal_profile");
+      try {
+        const { data, error } =
+          await supabase.rpc(
+            "get_my_portal_profile"
+          );
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      console.log("NAV: Profile result:", {
-        data,
-        error,
-      });
+        console.log("NAV: Profile result:", {
+          data,
+          error,
+        });
 
-      if (error) {
+        if (error) {
+          console.error(
+            "NAV: Profile RPC failed:",
+            {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+            }
+          );
+
+          setProfile(null);
+          setProfileError(true);
+          setProfileLoading(false);
+
+          return;
+        }
+
+        const profileData: RpcProfile | null =
+          Array.isArray(data)
+            ? ((data[0] as RpcProfile | undefined) ??
+              null)
+            : (data as RpcProfile | null);
+
+        if (!profileData) {
+          console.warn(
+            "NAV: Authenticated user has no portal profile:",
+            userEmail
+          );
+
+          /*
+           * Do NOT sign the user out.
+           *
+           * A missing portal profile is not the same as
+           * an invalid authentication session.
+           */
+          setProfile(null);
+          setProfileError(true);
+          setProfileLoading(false);
+
+          return;
+        }
+
+        const normalizedProfile: UserProfile = {
+          id: Number(profileData.id),
+          name: profileData.name ?? null,
+          email:
+            profileData.email?.trim() ||
+            userEmail,
+          role: profileData.role ?? null,
+          admin_status:
+            profileData.admin_status === "yes"
+              ? "yes"
+              : "no",
+        };
+
+        console.log(
+          "NAV: Profile successfully loaded:",
+          normalizedProfile
+        );
+
+        setProfile(normalizedProfile);
+        setProfileError(false);
+        setProfileLoading(false);
+      } catch (error) {
+        if (cancelled) return;
+
         console.error(
-          "NAV: Profile RPC failed:",
+          "NAV: Unexpected profile loading error:",
           error
         );
 
         setProfile(null);
         setProfileError(true);
         setProfileLoading(false);
-
-        return;
       }
-
-      const profileData: RpcProfile | null =
-        Array.isArray(data)
-          ? ((data[0] as RpcProfile | undefined) ?? null)
-          : (data as RpcProfile | null);
-
-      if (!profileData) {
-        console.warn(
-          "NAV: No portal profile found for:",
-          userEmail
-        );
-
-        setProfile(null);
-        setProfileError(true);
-        setProfileLoading(false);
-
-        await supabase.auth.signOut();
-
-        if (!cancelled) {
-          setSession(null);
-          setProfile(null);
-        }
-
-        return;
-      }
-
-      const normalizedProfile: UserProfile = {
-        id: Number(profileData.id),
-        name: profileData.name ?? null,
-        email: profileData.email ?? userEmail,
-        role: profileData.role ?? null,
-        admin_status:
-          profileData.admin_status === "yes"
-            ? "yes"
-            : "no",
-      };
-
-      console.log(
-        "NAV: Profile successfully loaded:",
-        normalizedProfile
-      );
-
-      setProfile(normalizedProfile);
-      setProfileError(false);
-      setProfileLoading(false);
     }
 
     fetchProfile();
@@ -609,7 +643,12 @@ export default function Navbar() {
     if (error) {
       console.error(
         "NAV: Email resolution failed:",
-        error
+        {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        }
       );
 
       return null;
@@ -640,8 +679,7 @@ export default function Navbar() {
     const formattedEmail =
       email.trim().toLowerCase();
 
-    const formattedPassword =
-      password;
+    const formattedPassword = password;
 
     if (
       !formattedEmail.endsWith(
@@ -682,17 +720,19 @@ export default function Navbar() {
     );
 
     const { error } =
-      await supabase.auth.signInWithPassword(
-        {
-          email: canonicalEmail,
-          password: formattedPassword,
-        }
-      );
+      await supabase.auth.signInWithPassword({
+        email: canonicalEmail,
+        password: formattedPassword,
+      });
 
     if (error) {
       console.error(
         "Password sign-in failed:",
-        error
+        {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        }
       );
 
       setMessage(
@@ -707,7 +747,6 @@ export default function Navbar() {
     setPassword("");
     setMessage("");
     setSignInOpen(false);
-
     setLoading(false);
   }
 
@@ -716,7 +755,18 @@ export default function Navbar() {
      ========================================================= */
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    const { error } =
+      await supabase.auth.signOut();
+
+    if (error) {
+      console.error(
+        "NAV: Sign-out failed:",
+        {
+          message: error.message,
+          status: error.status,
+        }
+      );
+    }
 
     setSession(null);
     setProfile(null);
@@ -728,6 +778,7 @@ export default function Navbar() {
     setMessage("");
 
     setAccountOpen(false);
+    setSignInOpen(false);
   }
 
   /* =========================================================
