@@ -287,13 +287,18 @@ function ClockDigit({ value }: { value: string }) {
     if (value === displayed) return;
 
     setIncoming(value);
-    setRolling(true);
+    setRolling(false);
+    const frame = window.requestAnimationFrame(() => setRolling(true));
     const timer = window.setTimeout(() => {
       setDisplayed(value);
       setRolling(false);
-    }, 520);
+      setIncoming(value);
+    }, 560);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
   }, [value, displayed]);
 
   return (
@@ -481,25 +486,42 @@ function CafeteriaPanel({ hour }: { hour: number }) {
   );
 }
 
-function MapExplorer() {
-  const mapEmbedUrl = `https://www.google.com/maps?q=${VIDYAGYAN_LAT},${VIDYAGYAN_LON}&z=16&output=embed`;
+function WeatherVisual({ isDay, code }: { isDay: boolean; code: number }) {
+  const rainy = code >= 51 && code <= 67 || code >= 80 && code <= 82;
+  const storm = code >= 95;
+  const cloudy = code >= 1 && code <= 48;
   return (
-    <div className="relative min-h-[360px] overflow-hidden border border-blue-200/20 bg-[#06142f] text-white shadow-[0_30px_90px_-60px_rgba(37,99,235,.55)]">
-      <div className="absolute left-5 top-5 z-10 rounded-full border border-white/15 bg-[#06142f]/85 px-3 py-1.5 text-[8px] font-black uppercase tracking-[.16em] text-cyan-100 backdrop-blur-md">Campus location</div>
+    <div className="relative h-36 w-40 shrink-0 overflow-hidden rounded-[2rem] border border-cyan-100/10 bg-white/[.035] shadow-[inset_0_0_50px_rgba(56,189,248,.05)] sm:h-40 sm:w-44">
+      <div className={`absolute inset-0 ${isDay ? "bg-[radial-gradient(circle_at_68%_32%,rgba(253,224,71,.22),transparent_28%),linear-gradient(145deg,rgba(14,165,233,.12),transparent)" : "bg-[radial-gradient(circle_at_68%_28%,rgba(191,219,254,.16),transparent_24%),linear-gradient(145deg,rgba(37,99,235,.12),transparent)"}`} />
+      {isDay ? <div className="absolute right-7 top-7 h-14 w-14 rounded-full bg-amber-200/80 shadow-[0_0_45px_18px_rgba(253,224,71,.16)]" /> : <div className="absolute right-8 top-7 h-14 w-14 rounded-full bg-slate-100/75 shadow-[0_0_42px_14px_rgba(191,219,254,.13)] after:absolute after:-right-2 after:top-[-2px] after:h-14 after:w-14 after:rounded-full after:bg-[#0a2854]" />}
+      {!isDay && Array.from({ length: 8 }).map((_, i) => <span key={i} className="absolute h-1 w-1 rounded-full bg-blue-100/45" style={{ left: `${18 + (i * 19) % 72}%`, top: `${15 + (i * 23) % 48}%` }} />)}
+      {cloudy && <div className="absolute bottom-8 left-7 h-8 w-24 rounded-full bg-blue-50/35 shadow-[0_0_28px_rgba(147,197,253,.1)]"><span className="absolute -left-1 bottom-1 h-8 w-8 rounded-full bg-blue-50/35" /><span className="absolute left-8 bottom-3 h-10 w-10 rounded-full bg-blue-50/40" /><span className="absolute right-2 bottom-1 h-7 w-7 rounded-full bg-blue-50/30" /></div>}
+      {rainy && <div className="absolute inset-x-9 bottom-2 flex justify-between opacity-70">{Array.from({ length: 6 }).map((_, i) => <span key={i} className="weather-rain h-6 w-px rotate-[18deg] bg-cyan-200/55" style={{ animationDelay: `${i * 180}ms` }} />)}</div>}
+      {storm && <div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-3xl text-amber-200/80">ϟ</div>}
+      <div className="absolute inset-x-5 bottom-4 flex items-center justify-between text-[8px] font-black uppercase tracking-[.16em] text-cyan-100/45"><span>{isDay ? "DAYLIGHT" : "NIGHT"}</span><span>{rainy ? "RAIN" : storm ? "STORM" : cloudy ? "CLOUD" : "CLEAR"}</span></div>
+    </div>
+  );
+}
+
+function MapExplorer() {
+  const mapEmbedUrl = `https://www.google.com/maps?q=${VIDYAGYAN_LAT},${VIDYAGYAN_LON}&z=17&output=embed`;
+  return (
+    <div className="relative h-full min-h-[520px] overflow-hidden rounded-[1.25rem] border border-slate-200 bg-[#dfe7ee] text-white shadow-[0_30px_90px_-60px_rgba(37,99,235,.45)] sm:min-h-[560px] lg:min-h-0">
       <iframe
-        title="VidyaGyan campus location on Google Maps"
+        title="Interactive VidyaGyan campus map"
         src={mapEmbedUrl}
         className="absolute inset-0 h-full w-full border-0"
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
         allowFullScreen
       />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between bg-gradient-to-t from-[#06142f]/90 via-[#06142f]/35 to-transparent px-5 pb-5 pt-16">
-        <div>
-          <p className="text-sm font-semibold text-white">Map Explorer</p>
-          <p className="mt-1 text-[9px] font-bold uppercase tracking-[.14em] text-blue-100/65">28.3835° N · 77.7049° E</p>
-        </div>
-        <span className="text-[8px] font-black uppercase tracking-[.14em] text-cyan-200">Interactive · Google Maps</span>
+      <div className="pointer-events-none absolute left-4 top-4 z-10 rounded-2xl border border-white/30 bg-[#06142f]/80 px-4 py-3 shadow-lg backdrop-blur-md">
+        <p className="text-[8px] font-black uppercase tracking-[.18em] text-cyan-200">Campus location</p>
+        <p className="mt-1 text-sm font-semibold text-white">VidyaGyan · Bulandshahr</p>
+      </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between bg-gradient-to-t from-[#06142f]/80 via-[#06142f]/25 to-transparent px-5 pb-5 pt-20">
+        <div><p className="text-[8px] font-black uppercase tracking-[.16em] text-white/55">Interactive map</p><p className="mt-1 text-[9px] font-bold uppercase tracking-[.14em] text-white/75">28.3835° N · 77.7049° E</p></div>
+        <span className="text-[8px] font-black uppercase tracking-[.14em] text-cyan-200">Google Maps · Pan · Zoom · Directions</span>
       </div>
     </div>
   );
@@ -707,7 +729,7 @@ export default function Home() {
       <style jsx global>{`
         @keyframes heroOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes heroPulse { 0%,100% { opacity:.25; transform:scale(.8); } 50% { opacity:1; transform:scale(1.08); } }
-        @keyframes clockDigitRoll { from { transform:translateY(0); } to { transform:translateY(-50%); } }
+        @keyframes clockDigitRoll { from { transform:translate3d(0,0,0); } to { transform:translate3d(0,-1em,0); } }
         @keyframes weatherRain { 0% { transform:translateY(-60px); opacity:0; } 20% { opacity:.65; } 100% { transform:translateY(300px); opacity:0; } }
         @keyframes subjectFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
         .hero-orbit { animation:heroOrbit 48s linear infinite; }
@@ -778,7 +800,7 @@ export default function Home() {
         <section className="mx-auto max-w-[1500px] px-6 py-16 sm:px-10 lg:px-16 lg:py-20 xl:px-20">
           <SectionHeader eyebrow="VidyaGyan weather" title="The campus atmosphere, now and next." description="Forecast data for the VidyaGyan campus coordinates, with a detailed view of today and a compact three-day horizon." />
           {weatherLoading && !weather ? <div className="mt-8 h-[620px] animate-pulse bg-slate-200" /> : weather ? <div className="mt-8 overflow-hidden border border-slate-200 bg-white">
-            <div className="grid lg:grid-cols-[.82fr_1.18fr]">
+            <div className="grid items-stretch lg:min-h-[560px] lg:grid-cols-[.82fr_1.18fr]">
               <div className="relative overflow-hidden bg-[radial-gradient(circle_at_12%_18%,rgba(56,189,248,.24),transparent_28%),radial-gradient(circle_at_82%_88%,rgba(37,99,235,.24),transparent_34%),linear-gradient(145deg,#06142f,#0a2854)] p-7 text-white sm:p-10 lg:p-12">
                 <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-300/10 blur-3xl" />
                 <div className="absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-blue-500/15 blur-3xl" />
@@ -800,7 +822,7 @@ export default function Home() {
                   <div className="rounded-xl border border-white/10 bg-white/[.04] p-3"><p className="text-[8px] font-black uppercase tracking-[.15em] text-blue-100/40">Sunset</p><p className="mt-1 text-xs font-semibold text-white/80">{formatForecastTime(weather.daily.sunset[0])}</p></div>
                 </div>
               </div>
-              <div className="border-t border-slate-200 bg-slate-50 p-3 sm:p-4 lg:border-t-0 lg:border-l">
+              <div className="min-h-[520px] border-t border-slate-200 bg-slate-50 p-3 sm:p-4 lg:min-h-0 lg:border-t-0 lg:border-l">
                 <MapExplorer />
               </div>
             </div>
