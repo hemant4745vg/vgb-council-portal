@@ -323,33 +323,14 @@ function ClockDisplay({ time, date }: { time: string; date: string }) {
 }
 
 function HeroField() {
-  const nodes = [
-    { x: 9, y: 30 }, { x: 27, y: 67 }, { x: 45, y: 28 },
-    { x: 63, y: 70 }, { x: 80, y: 30 }, { x: 90, y: 62 },
-  ];
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(147,197,253,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.05)_1px,transparent_1px)] [background-size:68px_68px] [transform:perspective(900px)_rotateX(62deg)_scale(1.35)] [transform-origin:center_bottom]" />
-      <div className="absolute right-[-8%] top-[-20%] h-[700px] w-[700px] rounded-full bg-blue-500/[.07] blur-3xl" />
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full opacity-80">
-        <defs>
-          <linearGradient id="heroContour" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3b82f6" stopOpacity="0" /><stop offset=".5" stopColor="#60a5fa" stopOpacity=".48" /><stop offset="1" stopColor="#67e8f9" stopOpacity="0" /></linearGradient>
-          <radialGradient id="heroGlow"><stop offset="0" stopColor="#60a5fa" stopOpacity=".18" /><stop offset="1" stopColor="#60a5fa" stopOpacity="0" /></radialGradient>
-        </defs>
-        <ellipse cx="72" cy="48" rx="28" ry="34" fill="url(#heroGlow)" />
-        <g fill="none" stroke="url(#heroContour)" strokeWidth=".17" className="hero-contours">
-          <path d="M-5 76 C15 60 31 86 50 67 S82 44 105 59" /><path d="M-5 82 C16 66 33 92 52 73 S84 50 105 65" /><path d="M-5 88 C18 72 35 98 54 79 S86 56 105 71" /><path d="M-5 94 C20 78 38 104 56 85 S88 62 105 77" />
-          <path d="M5 12 C24 28 37 5 55 22 S82 45 102 28" /><path d="M5 18 C25 34 39 11 57 28 S84 51 102 34" /><path d="M5 24 C26 40 41 17 59 34 S86 57 102 40" />
-        </g>
-        <g stroke="#93c5fd" strokeOpacity=".16" strokeWidth=".12">
-          {nodes.map((node, i) => i < nodes.length - 1 ? <line key={`${node.x}-${node.y}`} x1={node.x} y1={node.y} x2={nodes[i + 1].x} y2={nodes[i + 1].y} /> : null)}
-          <line x1="9" y1="30" x2="45" y2="28" /><line x1="45" y1="28" x2="80" y2="30" /><line x1="63" y1="70" x2="90" y2="62" />
-        </g>
-        {nodes.map((node, index) => <g key={`${node.x}-${node.y}`} className={index % 2 === 0 ? "hero-node" : "hero-node-slow"}><circle cx={node.x} cy={node.y} r="3.2" fill="#60a5fa" fillOpacity=".07" /><circle cx={node.x} cy={node.y} r="1" fill="#bae6fd" fillOpacity=".9" /></g>)}
-      </svg>
-      <div className="absolute right-[7%] top-[21%] h-3 w-3 rounded-full bg-cyan-200/80 shadow-[0_0_34px_9px_rgba(103,232,249,.12)] hero-pulse" />
-      <div className="absolute bottom-[17%] left-[8%] h-2 w-2 rounded-full bg-blue-300/70 hero-pulse" />
-      <div className="absolute right-[20%] top-[50%] h-[520px] w-[520px] -translate-y-1/2 rounded-full border border-blue-200/[.045] hero-orbit" />
+      <div className="absolute inset-0 opacity-45 [background-image:linear-gradient(rgba(147,197,253,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.045)_1px,transparent_1px)] [background-size:72px_72px] [transform:perspective(900px)_rotateX(62deg)_scale(1.35)] [transform-origin:center_bottom]" />
+      <div className="absolute right-[-8%] top-[-20%] h-[700px] w-[700px] rounded-full bg-blue-500/[.08] blur-3xl" />
+      <div className="absolute left-[-12%] bottom-[-34%] h-[560px] w-[900px] rounded-full bg-blue-900/[.22] blur-3xl" />
+      <div className="absolute right-[18%] top-[16%] h-[3px] w-[3px] rounded-full bg-cyan-200/70 shadow-[0_0_28px_8px_rgba(103,232,249,.1)] hero-pulse" />
+      <div className="absolute left-[8%] bottom-[17%] h-[2px] w-[2px] rounded-full bg-blue-300/60 hero-pulse" />
+      <div className="absolute right-[20%] top-[50%] h-[520px] w-[520px] -translate-y-1/2 rounded-full border border-blue-200/[.04] hero-orbit" />
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#06142f] to-transparent" />
     </div>
   );
@@ -368,24 +349,80 @@ function SectionHeader({ eyebrow, title, description, href, label }: { eyebrow: 
   );
 }
 
+function TimelineGraphic() {
+  return (
+    <svg viewBox="0 0 220 180" className="h-full w-full" aria-hidden="true">
+      <circle cx="112" cy="88" r="57" fill="none" stroke="currentColor" strokeWidth="2" opacity=".14" />
+      <circle cx="112" cy="88" r="45" fill="currentColor" opacity=".035" />
+      <circle cx="112" cy="88" r="39" fill="none" stroke="currentColor" strokeWidth="2" opacity=".32" />
+      <path d="M112 88V61M112 88L134 100" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity=".7" />
+      <circle cx="112" cy="88" r="4" fill="currentColor" opacity=".9" />
+      <path d="M112 28v10M112 138v10M52 88h10M162 88h10" stroke="currentColor" strokeWidth="2" opacity=".22" />
+      <circle cx="112" cy="88" r="67" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="2 8" opacity=".2" />
+    </svg>
+  );
+}
+
+function CalendarGraphic() {
+  return (
+    <svg viewBox="0 0 220 180" className="h-full w-full" aria-hidden="true">
+      <rect x="42" y="40" width="136" height="106" rx="10" fill="currentColor" opacity=".035" stroke="currentColor" strokeWidth="2" />
+      <path d="M42 70H178" stroke="currentColor" strokeWidth="2" opacity=".3" />
+      <path d="M72 30v25M148 30v25" stroke="currentColor" strokeWidth="6" strokeLinecap="round" opacity=".55" />
+      {Array.from({ length: 12 }).map((_, i) => {
+        const x = 65 + (i % 4) * 30;
+        const y = 88 + Math.floor(i / 4) * 22;
+        return <circle key={i} cx={x} cy={y} r={i === 5 ? 7 : 3} fill="currentColor" opacity={i === 5 ? ".45" : ".16"} />;
+      })}
+      <path d="M143 119l8 8 17-20" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity=".6" />
+    </svg>
+  );
+}
+
+function CafeteriaGraphic() {
+  return (
+    <svg viewBox="0 0 220 180" className="h-full w-full" aria-hidden="true">
+      <ellipse cx="112" cy="137" rx="69" ry="13" fill="currentColor" opacity=".08" />
+      <ellipse cx="112" cy="125" rx="58" ry="25" fill="currentColor" opacity=".07" stroke="currentColor" strokeWidth="2" />
+      <ellipse cx="112" cy="116" rx="45" ry="18" fill="currentColor" opacity=".12" />
+      <path d="M72 105c5-22 22-34 40-34s35 12 40 34" fill="none" stroke="currentColor" strokeWidth="3" opacity=".45" />
+      <path d="M83 81c-4-13 6-24 17-28M112 76V45M141 81c4-13-6-24-17-28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".22" />
+      <circle cx="96" cy="108" r="5" fill="currentColor" opacity=".3" /><circle cx="112" cy="103" r="7" fill="currentColor" opacity=".2" /><circle cx="129" cy="109" r="5" fill="currentColor" opacity=".3" />
+    </svg>
+  );
+}
+
+function PanelGraphic({ kind }: { kind: "timeline" | "calendar" | "cafeteria" }) {
+  const common = "pointer-events-none absolute -right-1 -top-2 h-44 w-48 opacity-[.18] transition duration-700 group-hover:scale-105 group-hover:opacity-[.28]";
+  if (kind === "timeline") return <div className={`${common} text-blue-600`}><TimelineGraphic /></div>;
+  if (kind === "calendar") return <div className={`${common} text-violet-600`}><CalendarGraphic /></div>;
+  return <div className={`${common} text-amber-600`}><CafeteriaGraphic /></div>;
+}
+
 function TimelinePanel({ current, next }: { current?: TimelineEntry; next?: TimelineEntry }) {
   return (
-    <Link href="/timetable" className="group block border border-slate-200 bg-white p-7 transition duration-500 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_24px_70px_-50px_rgba(23,70,199,.7)] sm:p-8">
-      <div className="flex items-start justify-between"><span className="text-[9px] font-black uppercase tracking-[.2em] text-blue-700">Timeline · now</span><span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-700">↗</span></div>
-      <p className="mt-10 text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">Current event</p>
-      <h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{current?.title ?? "Between scheduled activities"}</h3>
-      <p className="mt-2 text-sm text-slate-500">{current?.end ? `Until ${formatTime12(current.end)}` : current ? `From ${formatTime12(current.start)}` : "No published activity at this moment."}</p>
-      <div className="mt-8 border-t border-slate-100 pt-4"><span className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Up next</span><p className="mt-2 text-sm font-semibold text-slate-800">{next?.title ?? "No later activity today"}{next?.start ? ` · ${formatTime12(next.start)}` : ""}</p></div>
+    <Link href="/timetable" className="group relative block min-h-[270px] overflow-hidden border border-slate-200 bg-white p-7 transition duration-500 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_24px_70px_-50px_rgba(23,70,199,.7)] sm:p-8">
+      <PanelGraphic kind="timeline" />
+      <div className="relative z-10 flex items-start justify-between"><span className="text-[9px] font-black uppercase tracking-[.2em] text-blue-700">Timeline · now</span><span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-700">↗</span></div>
+      <div className="relative z-10 mt-10 max-w-[72%]">
+        <p className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">Current event</p>
+        <h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{current?.title ?? "Between scheduled activities"}</h3>
+        <p className="mt-2 text-sm text-slate-500">{current?.end ? `Until ${formatTime12(current.end)}` : current ? `From ${formatTime12(current.start)}` : "No published activity at this moment."}</p>
+      </div>
+      <div className="relative z-10 mt-8 border-t border-slate-100 pt-4"><span className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Up next</span><p className="mt-2 text-sm font-semibold text-slate-800">{next?.title ?? "No later activity today"}{next?.start ? ` · ${formatTime12(next.start)}` : ""}</p></div>
     </Link>
   );
 }
 
 function CalendarPanel({ current, next, today }: { current?: CalendarEvent; next?: CalendarEvent; today: string }) {
   return (
-    <Link href="/calendar" className="group block border border-slate-200 bg-white p-7 transition duration-500 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_24px_70px_-50px_rgba(23,70,199,.7)] sm:p-8">
-      <div className="flex items-start justify-between"><span className="text-[9px] font-black uppercase tracking-[.2em] text-blue-700">Calendar · campus</span><span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-700">↗</span></div>
-      {current ? <><p className="mt-10 text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">Current event</p><h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{current.title}</h3><p className="mt-2 text-sm text-slate-500">Today{current.event_time ? ` · ${current.event_time}` : ""}</p></> : <><p className="mt-10 text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">Next event</p><h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{next?.title ?? "No upcoming event"}</h3><p className="mt-2 text-sm text-slate-500">{next ? `${next.event_date === today ? "Today" : formatEventDate(next.event_date)}${next.event_time ? ` · ${next.event_time}` : ""}` : "The calendar is clear."}</p></>}
-      {current && next && current.id !== next.id && <div className="mt-8 border-t border-slate-100 pt-4"><span className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Next</span><p className="mt-2 text-sm font-semibold text-slate-800">{next.title} · {next.event_date === today ? "Today" : formatEventDate(next.event_date)}</p></div>}
+    <Link href="/calendar" className="group relative block min-h-[270px] overflow-hidden border border-slate-200 bg-white p-7 transition duration-500 hover:-translate-y-1 hover:border-violet-200 hover:shadow-[0_24px_70px_-50px_rgba(109,40,217,.45)] sm:p-8">
+      <PanelGraphic kind="calendar" />
+      <div className="relative z-10 flex items-start justify-between"><span className="text-[9px] font-black uppercase tracking-[.2em] text-blue-700">Calendar · campus</span><span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-700">↗</span></div>
+      <div className="relative z-10 mt-10 max-w-[72%]">
+        {current ? <><p className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">Current event</p><h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{current.title}</h3><p className="mt-2 text-sm text-slate-500">Today{current.event_time ? ` · ${current.event_time}` : ""}</p></> : <><p className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">Next event</p><h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{next?.title ?? "No upcoming event"}</h3><p className="mt-2 text-sm text-slate-500">{next ? `${next.event_date === today ? "Today" : formatEventDate(next.event_date)}${next.event_time ? ` · ${next.event_time}` : ""}` : "The calendar is clear."}</p></>}
+      </div>
+      {current && next && current.id !== next.id && <div className="relative z-10 mt-8 border-t border-slate-100 pt-4"><span className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Next</span><p className="mt-2 text-sm font-semibold text-slate-800">{next.title} · {next.event_date === today ? "Today" : formatEventDate(next.event_date)}</p></div>}
     </Link>
   );
 }
@@ -396,12 +433,35 @@ function CafeteriaPanel({ hour }: { hour: number }) {
   const active = current ?? next;
   const isNext = !current;
   return (
-    <Link href="/cafeteria" className="group block border border-slate-200 bg-[#fbfaf7] p-7 transition duration-500 hover:-translate-y-1 hover:border-amber-200 hover:shadow-[0_24px_70px_-50px_rgba(146,104,24,.35)] sm:p-8">
-      <div className="flex items-start justify-between"><span className="text-[9px] font-black uppercase tracking-[.2em] text-amber-700">Cafeteria · {isNext ? "next" : "now"}</span><span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-amber-700">↗</span></div>
-      <p className="mt-10 text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">{isNext ? "Next meal" : "Current meal"}</p>
-      <h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{active?.label ?? "Campus meals"}</h3>
-      <p className="mt-2 text-sm text-slate-500">{active ? `${String(active.startHour).padStart(2, "0")}:00 – ${String(active.endHour).padStart(2, "0")}:00` : "Daily cafeteria schedule"}</p>
-      <div className="mt-8 flex items-center gap-2 text-[9px] font-black uppercase tracking-[.16em] text-amber-700"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Campus dining</div>
+    <Link href="/cafeteria" className="group relative block min-h-[270px] overflow-hidden border border-slate-200 bg-[#fbfaf7] p-7 transition duration-500 hover:-translate-y-1 hover:border-amber-200 hover:shadow-[0_24px_70px_-50px_rgba(146,104,24,.35)] sm:p-8">
+      <PanelGraphic kind="cafeteria" />
+      <div className="relative z-10 flex items-start justify-between"><span className="text-[9px] font-black uppercase tracking-[.2em] text-amber-700">Cafeteria · {isNext ? "next" : "now"}</span><span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-amber-700">↗</span></div>
+      <div className="relative z-10 mt-10 max-w-[72%]">
+        <p className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">{isNext ? "Next meal" : "Current meal"}</p>
+        <h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{active?.label ?? "Campus meals"}</h3>
+        <p className="mt-2 text-sm text-slate-500">{active ? `${String(active.startHour).padStart(2, "0")}:00 – ${String(active.endHour).padStart(2, "0")}:00` : "Daily cafeteria schedule"}</p>
+      </div>
+      <div className="relative z-10 mt-8 flex items-center gap-2 text-[9px] font-black uppercase tracking-[.16em] text-amber-700"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Campus dining</div>
+    </Link>
+  );
+}
+
+function MapExplorer() {
+  return (
+    <Link href="/tools/geography" className="group relative min-h-[360px] overflow-hidden border border-blue-100 bg-[#071b3c] text-white transition duration-500 hover:border-blue-300/40">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_60%_45%,rgba(59,130,246,.18),transparent_36%),linear-gradient(145deg,#071b3c,#06142f)]" />
+      <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(147,197,253,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(147,197,253,.12)_1px,transparent_1px)] [background-size:34px_34px]" />
+      <svg viewBox="0 0 360 360" className="absolute inset-0 h-full w-full text-blue-200/80" aria-hidden="true">
+        <path d="M157 48l30 18 15 34 28 18-7 31 25 25-17 25 8 31-25 23-15 35-25-13-19 23-20-25-29-10 4-31-18-23 20-28-6-29 24-21 4-34z" fill="currentColor" opacity=".08" stroke="currentColor" strokeWidth="2" />
+        <path d="M166 67c16 26 25 44 19 67-7 27 10 43 20 57M147 108c23 7 38 19 56 38M119 163c25-9 49-7 75 8M135 211c22-12 46-10 67 4" fill="none" stroke="currentColor" strokeWidth="1.5" opacity=".35" />
+        <circle cx="180" cy="126" r="7" fill="currentColor" opacity=".8" />
+        <circle cx="180" cy="126" r="18" fill="none" stroke="currentColor" opacity=".22" />
+        <path d="M180 109l-6 10h12z" fill="currentColor" opacity=".9" />
+      </svg>
+      <div className="relative flex h-full flex-col justify-between p-7 sm:p-8">
+        <div className="flex items-start justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-blue-200/70">Explore geography</p><h3 className="mt-3 text-2xl font-semibold tracking-[-.045em]">Map Explorer</h3></div><span className="text-blue-200/45 transition group-hover:translate-x-1 group-hover:text-blue-100">↗</span></div>
+        <div><p className="max-w-[240px] text-sm leading-6 text-blue-100/60">Explore India and the world through political, physical, river, climate and resource maps.</p><div className="mt-5 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[.16em] text-blue-200">Open Geography Tool <span className="transition group-hover:translate-x-1">→</span></div></div>
+      </div>
     </Link>
   );
 }
@@ -625,20 +685,16 @@ export default function Home() {
       <style jsx global>{`
         @keyframes heroOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes heroPulse { 0%,100% { opacity:.25; transform:scale(.8); } 50% { opacity:1; transform:scale(1.08); } }
-        @keyframes heroFloat { 0%,100% { transform:translate3d(0,0,0); } 50% { transform:translate3d(0,-7px,0); } }
-        @keyframes heroContour { 0% { transform:translate3d(-1%,0,0); } 50% { transform:translate3d(1%,1%,0); } 100% { transform:translate3d(-1%,0,0); } }
         @keyframes weatherRain { 0% { transform:translateY(-60px); opacity:0; } 20% { opacity:.65; } 100% { transform:translateY(300px); opacity:0; } }
         @keyframes subjectFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
         .hero-orbit { animation:heroOrbit 48s linear infinite; }
-        .hero-node { animation:heroFloat 7s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
-        .hero-node-slow { animation:heroFloat 10s ease-in-out infinite reverse; transform-box:fill-box; transform-origin:center; }
         .hero-pulse { animation:heroPulse 4s ease-in-out infinite; }
         .hero-contours { animation:heroContour 14s ease-in-out infinite; transform-box:fill-box; }
         .weather-rain { animation:weatherRain 1.7s linear infinite; }
         .weather-pulse { animation:heroPulse 2s ease-in-out infinite; }
         .subject-dot { animation:subjectFloat 4s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
         @media (prefers-reduced-motion: reduce) {
-          .hero-orbit,.hero-node,.hero-node-slow,.hero-pulse,.hero-contours,.weather-rain,.weather-pulse,.subject-dot { animation:none !important; }
+          .hero-orbit,.hero-pulse,.weather-rain,.weather-pulse,.subject-dot { animation:none !important; }
           * { scroll-behavior:auto !important; }
         }
       `}</style>
@@ -709,7 +765,10 @@ export default function Home() {
                 </div>
                 <div className="mt-10 grid grid-cols-2 gap-6 border-t border-slate-100 pt-6"><div><p className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Sunrise</p><p className="mt-1 text-sm font-semibold">{formatForecastTime(weather.daily.sunrise[0])}</p></div><div><p className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Sunset</p><p className="mt-1 text-sm font-semibold">{formatForecastTime(weather.daily.sunset[0])}</p></div></div>
               </div>
-              <WeatherScene code={weather.current.weatherCode} isDay={weather.current.isDay} />
+              <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-3 sm:p-4 lg:grid-cols-[1.05fr_.95fr] lg:border-t-0 lg:border-l">
+                <WeatherScene code={weather.current.weatherCode} isDay={weather.current.isDay} />
+                <MapExplorer />
+              </div>
             </div>
             <div className="border-t border-slate-200 p-7 sm:p-10">
               <div className="flex items-end justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-blue-700">Today · hourly</p><h3 className="mt-2 text-xl font-semibold tracking-[-.035em]">How the day is expected to move.</h3></div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-slate-400">24-hour window</span></div>
