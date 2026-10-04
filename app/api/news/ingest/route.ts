@@ -302,7 +302,9 @@ function extractTagVariants(
 }
 
 function extractItems(xml: string): string[] {
-  const rssItems = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi);
+  const rssItems = xml.match(
+    /<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi
+  );
 
   if (rssItems?.length) {
     return rssItems;
@@ -420,6 +422,7 @@ function parseFeed(
   feed: FeedConfig
 ): ParsedItem[] {
   const items = extractItems(xml);
+
   const cutoff =
     Date.now() - MAX_AGE_HOURS * 60 * 60 * 1000;
 
@@ -454,18 +457,24 @@ function parseFeed(
     }
 
     const title = cleanText(rawTitle);
+
     const summary = rawSummary
       ? cleanText(rawSummary).slice(0, 800)
       : null;
 
-    const sourceUrl = normalizeUrl(decodeHtml(rawLink));
+    const sourceUrl = normalizeUrl(
+      decodeHtml(rawLink)
+    );
+
     const publishedAt = parseDate(rawDate);
 
     if (!publishedAt) {
       continue;
     }
 
-    if (new Date(publishedAt).getTime() < cutoff) {
+    if (
+      new Date(publishedAt).getTime() < cutoff
+    ) {
       continue;
     }
 
@@ -494,25 +503,75 @@ function parseFeed(
   return parsed;
 }
 
+/**
+ * Deduplicate articles in two stages:
+ *
+ * 1. category + source_url
+ *    Prevents the same article appearing through multiple
+ *    category feeds from the same publisher.
+ *
+ * 2. external_id
+ *    This is the actual UNIQUE key in Supabase and therefore
+ *    MUST be unique within a single upsert batch.
+ *
+ * When duplicates exist, retain the highest-priority version.
+ * If priority is equal, retain the newer publication timestamp.
+ */
 function deduplicate(items: ParsedItem[]): ParsedItem[] {
-  const byIdentity = new Map<string, ParsedItem>();
+  const bySourceUrl = new Map<string, ParsedItem>();
 
   for (const item of items) {
-    const identity = `${item.category}:${item.source_url}`;
+    const identity =
+      `${item.category}:${item.source_url}`;
 
-    const existing = byIdentity.get(identity);
+    const existing = bySourceUrl.get(identity);
 
     if (!existing) {
-      byIdentity.set(identity, item);
+      bySourceUrl.set(identity, item);
       continue;
     }
 
-    if (item.priority > existing.priority) {
-      byIdentity.set(identity, item);
+    const itemIsBetter =
+      item.priority > existing.priority ||
+      (item.priority === existing.priority &&
+        new Date(item.published_at).getTime() >
+          new Date(existing.published_at).getTime());
+
+    if (itemIsBetter) {
+      bySourceUrl.set(identity, item);
     }
   }
 
-  return Array.from(byIdentity.values());
+  const byExternalId = new Map<string, ParsedItem>();
+
+  for (const item of bySourceUrl.values()) {
+    const existing = byExternalId.get(
+      item.external_id
+    );
+
+    if (!existing) {
+      byExternalId.set(
+        item.external_id,
+        item
+      );
+      continue;
+    }
+
+    const itemIsBetter =
+      item.priority > existing.priority ||
+      (item.priority === existing.priority &&
+        new Date(item.published_at).getTime() >
+          new Date(existing.published_at).getTime());
+
+    if (itemIsBetter) {
+      byExternalId.set(
+        item.external_id,
+        item
+      );
+    }
+  }
+
+  return Array.from(byExternalId.values());
 }
 
 function sortItems(items: ParsedItem[]): ParsedItem[] {
@@ -529,7 +588,9 @@ function sortItems(items: ParsedItem[]): ParsedItem[] {
   });
 }
 
-async function fetchFeed(feed: FeedConfig): Promise<ParsedItem[]> {
+async function fetchFeed(
+  feed: FeedConfig
+): Promise<ParsedItem[]> {
   const response = await fetch(feed.url, {
     headers: {
       Accept:
@@ -549,7 +610,9 @@ async function fetchFeed(feed: FeedConfig): Promise<ParsedItem[]> {
   const xml = await response.text();
 
   if (!xml.trim()) {
-    throw new Error(`${feed.source} returned an empty feed`);
+    throw new Error(
+      `${feed.source} returned an empty feed`
+    );
   }
 
   return parseFeed(xml, feed);
@@ -567,7 +630,10 @@ async function ingest(request: Request) {
   const cronSecret = getEnv("CRON_SECRET");
 
   if (!cronSecret) {
-    console.error("CRON_SECRET is not configured.");
+    console.error(
+      "CRON_SECRET is not configured."
+    );
+
     return NextResponse.json(
       {
         success: false,
@@ -580,9 +646,12 @@ async function ingest(request: Request) {
   const authorization =
     request.headers.get("authorization") ?? "";
 
-  const expectedAuthorization = `Bearer ${cronSecret}`;
+  const expectedAuthorization =
+    `Bearer ${cronSecret}`;
 
-  if (authorization !== expectedAuthorization) {
+  if (
+    authorization !== expectedAuthorization
+  ) {
     return NextResponse.json(
       {
         success: false,
@@ -626,50 +695,56 @@ async function ingest(request: Request) {
     }
   );
 
-  const feedResults = await Promise.allSettled(
-    FEEDS.map((feed) => fetchFeed(feed))
-  );
+  const feedResults =
+    await Promise.allSettled(
+      FEEDS.map((feed) => fetchFeed(feed))
+    );
 
   const allItems: ParsedItem[] = [];
 
-  const feedStatus = FEEDS.map((feed, index) => {
-    const result = feedResults[index];
+  const feedStatus = FEEDS.map(
+    (feed, index) => {
+      const result = feedResults[index];
 
-    if (result.status === "fulfilled") {
-      allItems.push(...result.value);
+      if (result.status === "fulfilled") {
+        allItems.push(...result.value);
+
+        return {
+          id: feed.id,
+          source: feed.source,
+          category: feed.category,
+          items: result.value.length,
+          success: true,
+        };
+      }
+
+      console.error(
+        `News feed failed: ${feed.id}`,
+        result.reason
+      );
 
       return {
         id: feed.id,
         source: feed.source,
         category: feed.category,
-        items: result.value.length,
-        success: true,
+        items: 0,
+        success: false,
+        error:
+          result.reason instanceof Error
+            ? result.reason.message
+            : "Unknown feed error",
       };
     }
-
-    console.error(
-      `News feed failed: ${feed.id}`,
-      result.reason
-    );
-
-    return {
-      id: feed.id,
-      source: feed.source,
-      category: feed.category,
-      items: 0,
-      success: false,
-      error:
-        result.reason instanceof Error
-          ? result.reason.message
-          : "Unknown feed error",
-    };
-  });
-
-  const dedupedItems = deduplicate(allItems);
-  const sortedItems = sortItems(dedupedItems).slice(
-    0,
-    MAX_TOTAL_ITEMS
   );
+
+  const dedupedItems =
+    deduplicate(allItems);
+
+  const sortedItems =
+    sortItems(dedupedItems).slice(
+      0,
+      MAX_TOTAL_ITEMS
+    );
 
   let upserted = 0;
 
@@ -708,14 +783,21 @@ async function ingest(request: Request) {
   }
 
   // Keep the public news database intentionally small.
-  const retentionCutoff = new Date(
-    Date.now() - 14 * 24 * 60 * 60 * 1000
-  ).toISOString();
+  const retentionCutoff =
+    new Date(
+      Date.now() -
+        14 * 24 * 60 * 60 * 1000
+    ).toISOString();
 
-  const { error: cleanupError } = await supabase
+  const {
+    error: cleanupError,
+  } = await supabase
     .from("news_items")
     .delete()
-    .lt("published_at", retentionCutoff);
+    .lt(
+      "published_at",
+      retentionCutoff
+    );
 
   if (cleanupError) {
     console.error(
@@ -724,11 +806,14 @@ async function ingest(request: Request) {
     );
   }
 
-  const successfulFeeds = feedStatus.filter(
-    (feed) => feed.success
-  ).length;
+  const successfulFeeds =
+    feedStatus.filter(
+      (feed) => feed.success
+    ).length;
 
-  const failedFeeds = feedStatus.length - successfulFeeds;
+  const failedFeeds =
+    feedStatus.length -
+    successfulFeeds;
 
   return NextResponse.json({
     success: successfulFeeds > 0,
@@ -738,6 +823,7 @@ async function ingest(request: Request) {
     feeds: feedStatus.length,
     successful_feeds: successfulFeeds,
     failed_feeds: failedFeeds,
-    updated_at: new Date().toISOString(),
+    updated_at:
+      new Date().toISOString(),
   });
 }
