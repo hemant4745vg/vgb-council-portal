@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 type Category = "All" | "India" | "World" | "Economy" | "Science & Tech";
 
@@ -731,6 +731,7 @@ function FeedStatus({ lastUpdated }: { lastUpdated: Date | null }) {
 }
 
 export default function NewsPage() {
+  const supabase = createClient();
   const [stories, setStories] = useState<NewsItem[]>([]);
   const [selectedCategory, setSelectedCategory] =
     useState<Category>("All");

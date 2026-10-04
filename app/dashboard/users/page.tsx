@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 type AdminStatus = "yes" | "no";
 
@@ -37,6 +37,7 @@ function normalize(row: any): User {
 }
 
 export default function DashboardUsersPage() {
+  const supabase = createClient();
   const [checking, setChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentEmail, setCurrentEmail] = useState("");

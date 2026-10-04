@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 type Category =
   | "Academic"
   | "Examinations"
@@ -563,6 +563,7 @@ return (
 /* PAGE                                                                        */
 /* -------------------------------------------------------------------------- */
 export default function CalendarPage() {
+  const supabase = createClient();
 const todayKey = useMemo(
 () => toDateKey(new Date()),
 []

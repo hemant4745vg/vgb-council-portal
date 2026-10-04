@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 type MaterialType =
   | "Notes/Reading Material"
@@ -384,6 +384,7 @@ function formatLevel(level: string) {
 }
 
 export default function StudyMaterialPage() {
+  const supabase = createClient();
   const [materials, setMaterials] = useState<
     StudyMaterial[]
   >([]);

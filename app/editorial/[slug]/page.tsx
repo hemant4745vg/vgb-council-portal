@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 type CalendarEvent = {
   title: string;
@@ -40,6 +40,7 @@ function formatDate(value: string | null) {
 }
 
 export default function EditorialStoryPage() {
+  const supabase = createClient();
   const params = useParams<{ slug: string }>();
 
   const [post, setPost] = useState<Post | null>(null);

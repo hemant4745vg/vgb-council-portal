@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 const CATEGORIES = [
   "All",
@@ -58,6 +58,7 @@ function formatShortDate(value: string | null) {
 }
 
 export default function EditorialPage() {
+  const supabase = createClient();
   const [posts, setPosts] = useState<Post[]>([]);
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
