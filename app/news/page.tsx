@@ -16,6 +16,21 @@ type NewsItem = {
   image_url: string | null;
 };
 
+type CuratedNewsItem = {
+  id: string;
+  external_id: string;
+  title: string;
+  summary: string | null;
+  source: string;
+  source_url: string;
+  image_url: string | null;
+  category: Exclude<Category, "All">;
+  published_at: string;
+  briefing_date: string;
+  rank: number;
+  featured: boolean;
+};
+
 const CATEGORIES: Category[] = [
   "All",
   "India",
@@ -672,6 +687,158 @@ function EditorialStory({ item }: { item: NewsItem }) {
   );
 }
 
+function CuratedImage({
+  item,
+  className = "",
+}: {
+  item: CuratedNewsItem;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  if (!item.image_url || failed) {
+    return (
+      <div
+        className={`relative overflow-hidden bg-gradient-to-br ${getImageGradient(
+          item.category
+        )} ${className}`}
+      >
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full border border-white/25" />
+          <div className="absolute -bottom-20 -left-10 h-56 w-56 rounded-full border border-white/20" />
+          <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
+        </div>
+        <div className="relative flex h-full items-center justify-center">
+          <div className="rounded-full border border-white/20 bg-white/10 p-4 text-white backdrop-blur-sm">
+            <NewsIcon className="h-8 w-8" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative overflow-hidden bg-slate-100 ${className}`}>
+      <img
+        src={item.image_url}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.035]"
+        onError={() => setFailed(true)}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-black/5 to-transparent" />
+    </div>
+  );
+}
+
+function BriefingStory({ item, lead = false }: { item: CuratedNewsItem; lead?: boolean }) {
+  return (
+    <article
+      className={`group overflow-hidden rounded-[24px] border border-slate-800/80 bg-[#101722] text-white shadow-[0_18px_60px_-32px_rgba(2,8,23,0.75)] transition duration-300 hover:-translate-y-0.5 hover:border-slate-700 hover:shadow-[0_24px_70px_-34px_rgba(2,8,23,0.9)] ${
+        lead ? "lg:grid lg:grid-cols-[1.08fr_0.92fr]" : ""
+      }`}
+    >
+      <a
+        href={item.source_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Read ${item.title} from ${item.source}`}
+        className={`relative block overflow-hidden ${lead ? "min-h-[250px] lg:min-h-[390px]" : "h-48"}`}
+      >
+        <CuratedImage item={item} className="h-full w-full" />
+        <div className="absolute left-4 top-4 flex items-center gap-2">
+          {item.featured && (
+            <span className="rounded-full border border-white/15 bg-black/35 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-white backdrop-blur-md">
+              Featured
+            </span>
+          )}
+          <CategoryBadge category={item.category} inverted />
+        </div>
+        <div className="absolute bottom-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-lg">
+          <ArrowRightIcon />
+        </div>
+      </a>
+
+      <div className={`flex flex-col ${lead ? "justify-center p-6 sm:p-8 lg:p-9" : "p-5"}`}>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-400">
+          <span>{item.source}</span>
+          <span className="text-slate-600">·</span>
+          <span>{formatRelativeTime(item.published_at)}</span>
+        </div>
+        <h3
+          className={`mt-3 font-bold tracking-[-0.025em] text-white ${
+            lead ? "text-2xl leading-[1.12] sm:text-3xl lg:text-[34px]" : "text-lg leading-6"
+          }`}
+        >
+          <a href={item.source_url} target="_blank" rel="noopener noreferrer" className="transition hover:text-cyan-300">
+            {item.title}
+          </a>
+        </h3>
+        {item.summary && (
+          <p className={`mt-3 leading-6 text-slate-400 ${lead ? "text-sm sm:text-[15px]" : "line-clamp-3 text-sm"}`}>
+            {truncateText(item.summary, lead ? 430 : 220)}
+          </p>
+        )}
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            VGB Daily Briefing
+          </span>
+          <a
+            href={item.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-white transition hover:text-cyan-300"
+          >
+            Read source <ExternalLinkIcon />
+          </a>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function BriefingSection({ items }: { items: CuratedNewsItem[] }) {
+  const lead = items.find((item) => item.featured) ?? items[0] ?? null;
+  const rest = lead ? items.filter((item) => item.id !== lead.id).slice(0, 4) : [];
+
+  if (!lead) return null;
+
+  return (
+    <section aria-labelledby="daily-briefing-heading" className="overflow-hidden rounded-[30px] border border-slate-800 bg-[#0a1019] p-4 shadow-[0_24px_80px_-42px_rgba(2,8,23,0.8)] sm:p-5 lg:p-6">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.75)]" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">
+              Editorial intelligence
+            </span>
+          </div>
+          <h2 id="daily-briefing-heading" className="mt-2 text-2xl font-bold tracking-[-0.035em] text-white sm:text-3xl">
+            VGB Daily Briefing
+          </h2>
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-400">
+            A selective daily layer for the stories that matter most, curated separately from the automated live feed.
+          </p>
+        </div>
+        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+          {items.length} briefing {items.length === 1 ? "story" : "stories"}
+        </div>
+      </div>
+
+      <BriefingStory item={lead} lead />
+
+      {rest.length > 0 && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {rest.map((item) => (
+            <BriefingStory key={item.id} item={item} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function CoverageStrip({
   stories,
   counts,
@@ -716,7 +883,7 @@ function FeedStatus({ lastUpdated }: { lastUpdated: Date | null }) {
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-emerald-500" />
           <span className="font-semibold text-slate-600">
-            Automated news feed
+            Automated publisher feed
           </span>
           <span className="hidden text-slate-300 sm:inline">·</span>
           <span>Stories link to their original publishers.</span>
@@ -733,50 +900,56 @@ function FeedStatus({ lastUpdated }: { lastUpdated: Date | null }) {
 export default function NewsPage() {
   const supabase = createClient();
   const [stories, setStories] = useState<NewsItem[]>([]);
-  const [selectedCategory, setSelectedCategory] =
-    useState<Category>("All");
+  const [curatedStories, setCuratedStories] = useState<CuratedNewsItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<Category>("All");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const loadNews = useCallback(async (manual = false) => {
-    if (manual) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
+    if (manual) setRefreshing(true);
+    else setLoading(true);
 
     setError(null);
 
     try {
-      const { data, error: queryError } = await supabase
-        .from("news_items")
-        .select(
-          "id, title, summary, source, source_url, published_at, category, image_url"
-        )
-        .order("published_at", { ascending: false })
-        .limit(120);
+      const [newsResult, curatedResult] = await Promise.all([
+        supabase
+          .from("news_items")
+          .select("id, title, summary, source, source_url, published_at, category, image_url")
+          .order("published_at", { ascending: false })
+          .limit(120),
+        supabase
+          .from("curated_news")
+          .select(
+            "id, external_id, title, summary, source, source_url, image_url, category, published_at, briefing_date, rank, featured"
+          )
+          .order("briefing_date", { ascending: false })
+          .order("rank", { ascending: true })
+          .order("published_at", { ascending: false })
+          .limit(12),
+      ]);
 
-      if (queryError) throw queryError;
+      if (newsResult.error) throw newsResult.error;
+      if (curatedResult.error) throw curatedResult.error;
 
-      const cleaned = (data ?? []) as NewsItem[];
+      const cleaned = (newsResult.data ?? []) as NewsItem[];
+      const curated = (curatedResult.data ?? []) as CuratedNewsItem[];
 
       setStories(sortStories(deduplicateStories(cleaned)));
+      setCuratedStories(curated);
       setLastUpdated(new Date());
     } catch (queryError) {
       console.error("Failed to load news:", queryError);
-
       setError(
-        queryError instanceof Error
-          ? queryError.message
-          : "Unable to load news."
+        queryError instanceof Error ? queryError.message : "Unable to load news."
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     void loadNews();
@@ -787,6 +960,11 @@ export default function NewsPage() {
 
     return stories.filter((story) => story.category === selectedCategory);
   }, [selectedCategory, stories]);
+
+  const filteredCuratedStories = useMemo(() => {
+    if (selectedCategory === "All") return curatedStories;
+    return curatedStories.filter((story) => story.category === selectedCategory);
+  }, [curatedStories, selectedCategory]);
 
   const featuredStory = filteredStories[0] ?? null;
   const secondaryStories = filteredStories.slice(1, 5);
@@ -809,7 +987,7 @@ export default function NewsPage() {
 
   const pageDescription =
     selectedCategory === "All"
-      ? "India, world, economy, science and technology, gathered automatically."
+      ? "A selective daily briefing on top, followed by the continuously refreshed VGB news feed."
       : CATEGORY_META[selectedCategory].description;
 
   return (
@@ -914,6 +1092,12 @@ export default function NewsPage() {
       </nav>
 
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
+        {!loading && !error && filteredCuratedStories.length > 0 && (
+          <div className="mb-10">
+            <BriefingSection items={filteredCuratedStories} />
+          </div>
+        )}
+
         {/* Coverage strip */}
         {!loading && !error && (
           <div className="mb-8">
@@ -1002,16 +1186,16 @@ export default function NewsPage() {
                 <div className="mb-5 flex items-end justify-between gap-4 border-b border-slate-200 pb-4">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                      The feed
+                      Automated feed
                     </p>
                     <h2
                       id="latest-heading"
                       className="mt-1 text-2xl font-bold tracking-[-0.025em] text-slate-950"
                     >
-                      Latest
+                      Latest News
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Recent stories across the selected coverage.
+                      Continuously refreshed stories from the automated publisher feed.
                     </p>
                   </div>
 
