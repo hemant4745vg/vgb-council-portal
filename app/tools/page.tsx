@@ -129,7 +129,7 @@ function TypingGame({ close }: { close: () => void }) {
   const [seconds, setSeconds] = useState(0);
   const [mode, setMode] = useState<30 | 60>(30);
   useEffect(() => { if (!started || done) return; const id = window.setInterval(() => setSeconds((s) => { if (s + 1 >= mode) { setDone(true); return mode; } return s + 1; }), 1000); return () => clearInterval(id); }, [started, done, mode]);
-  const correct = [...text].filter((c, i) => c === passage[i]).length;
+  const correct = text.split("").filter((c, i) => c === passage[i]).length;
   const accuracy = text.length ? Math.round((correct / text.length) * 100) : 100;
   const wpm = seconds ? Math.round((correct / 5) / (seconds / 60)) : 0;
   const reset = () => { setPassage(passages[Math.floor(Math.random() * passages.length)]); setText(""); setStarted(false); setDone(false); setSeconds(0); };
