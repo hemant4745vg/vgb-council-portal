@@ -7,7 +7,9 @@ import {
   formatMealWindow,
   getCurrentMealWindow,
   getNextMealWindow,
-} from "@/lib/schedule/meals";
+  getTimelineForDate,
+  type TimelineEntry,
+} from "@/lib/schedule";
 
 type Category = "Flagship" | "Academic" | "Cultural" | "Exams" | "Sports" | "Excursion";
 
@@ -86,82 +88,10 @@ type WeatherData = {
   };
 };
 
-type TimelineEntry = {
-  id: string;
-  title: string;
-  start: string;
-  end?: string;
-  category: "Classes" | "Meals" | "Activities" | "Rest/Admin";
-  note?: string;
-  days?: number[];
-};
+
 
 const VIDYAGYAN_LAT = "28.3835";
 const VIDYAGYAN_LON = "77.7049";
-
-const WEEKDAY_TIMELINE: TimelineEntry[] = [
-  { id: "wake", title: "Wake Up Call", start: "05:00", category: "Rest/Admin" },
-  { id: "morning", title: "Morning Yoga & Exercise", start: "05:30", end: "06:15", category: "Activities" },
-  { id: "breakfast", title: "Getting Ready for School & Breakfast", start: "06:15", end: "07:30", category: "Meals" },
-  { id: "reporting", title: "Reporting Time", start: "07:35", category: "Classes" },
-  { id: "huddle", title: "Huddle Time", start: "07:35", end: "07:40", category: "Activities" },
-  { id: "zero", title: "Class Teacher's Lesson / Zero Lesson", start: "07:40", end: "08:00", category: "Classes" },
-  { id: "p1", title: "First Period", start: "08:00", end: "08:50", category: "Classes" },
-  { id: "p2", title: "Second Period", start: "08:50", end: "09:40", category: "Classes" },
-  { id: "p3", title: "Third Period", start: "09:40", end: "10:30", category: "Classes" },
-  { id: "snack1", title: "Break for Morning Snacks", start: "10:30", end: "10:45", category: "Meals" },
-  { id: "p4", title: "Fourth Period", start: "10:45", end: "11:35", category: "Classes" },
-  { id: "p5", title: "Fifth Period", start: "11:35", end: "12:25", category: "Classes" },
-  { id: "p6", title: "Sixth Period", start: "12:25", end: "13:15", category: "Classes" },
-  { id: "p7", title: "Seventh Period", start: "13:15", end: "14:00", category: "Classes" },
-  { id: "lunch", title: "Lunch", start: "14:00", end: "14:45", category: "Meals" },
-  { id: "rest", title: "Rest Time", start: "14:45", end: "15:45", category: "Rest/Admin" },
-  { id: "evening", title: "Evening Activity / Clubs", start: "16:00", end: "17:15", category: "Activities", days: [3] },
-  { id: "snack2", title: "Evening Snacks", start: "17:15", end: "17:35", category: "Meals" },
-  { id: "games", title: "Evening Games / Clubs", start: "17:40", end: "19:10", category: "Activities", days: [3] },
-  { id: "hostel", title: "Return to Hostels, Dinner & Hostel Routine", start: "19:10", end: "20:10", category: "Meals" },
-  { id: "prep", title: "Supervised Prep in the Academic Block", start: "20:15", end: "21:30", category: "Classes" },
-  { id: "clean", title: "Clean Your Spaces & Organize for the Next Day", start: "21:35", end: "22:05", category: "Rest/Admin" },
-  { id: "night", title: "Hostel Routine", start: "22:05", category: "Rest/Admin" },
-];
-
-const SATURDAY_TIMELINE: TimelineEntry[] = [
-  { id: "sat-morning", title: "Morning Routine & Breakfast", start: "05:30", end: "07:30", category: "Meals" },
-  { id: "sat-report", title: "Reporting Time", start: "07:35", category: "Classes" },
-  { id: "sat-huddle", title: "Huddle Time", start: "07:35", end: "07:40", category: "Activities" },
-  { id: "sat-p1", title: "First Period", start: "07:40", end: "08:25", category: "Classes" },
-  { id: "sat-p2", title: "Second Period", start: "08:25", end: "09:10", category: "Classes" },
-  { id: "sat-p3", title: "Third Period", start: "09:10", end: "09:55", category: "Classes" },
-  { id: "sat-p4", title: "Fourth Period", start: "09:55", end: "10:40", category: "Classes" },
-  { id: "sat-snack", title: "Break for Morning Snacks", start: "10:40", end: "11:00", category: "Meals" },
-  { id: "sat-p5", title: "Fifth Period", start: "11:00", end: "11:45", category: "Classes" },
-  { id: "sat-mentor", title: "House Meeting / Mentor–Mentee Meeting", start: "11:45", end: "12:30", category: "Activities" },
-  { id: "sat-clubs", title: "Club Activities", start: "12:30", end: "13:30", category: "Activities" },
-  { id: "sat-lunch", title: "Lunch", start: "14:00", end: "15:00", category: "Meals" },
-  { id: "sat-rest", title: "Rest Time", start: "15:00", end: "16:00", category: "Rest/Admin" },
-  { id: "sat-study", title: "Freshen Up / Self-Study", start: "16:00", end: "17:30", category: "Rest/Admin" },
-  { id: "sat-snack2", title: "Evening Snacks", start: "17:30", end: "18:00", category: "Meals" },
-  { id: "sat-games", title: "Games / Me Time", start: "18:00", end: "19:30", category: "Activities" },
-  { id: "sat-dinner", title: "Dinner", start: "19:30", end: "20:30", category: "Meals" },
-  { id: "sat-hostel", title: "Hostel Routine", start: "20:30", category: "Rest/Admin" },
-];
-
-const ACADEMIC_TOOLS = [
-  { title: "Mathematics", kind: "math", mark: "∑", description: "Graphs, functions, calculations and mathematical workspaces.", href: "/tools/mathematics" },
-  { title: "Physics", kind: "physics", mark: "◌", description: "Physical systems, formulas, motion and interactive models.", href: "/tools/physics" },
-  { title: "Chemistry", kind: "chemistry", mark: "⌬", description: "Molecular structures, reactions and chemistry workspaces.", href: "/tools/chemistry" },
-  { title: "Biology", kind: "biology", mark: "◈", description: "Systems, cells, membranes and biological simulations.", href: "/tools/biology" },
-  { title: "Economics", kind: "economics", mark: "↗", description: "Economic models, curves and analytical tools.", href: "/tools/economics" },
-  { title: "Geography", kind: "geography", mark: "⌁", description: "Maps, spatial systems and geographic exploration.", href: "/tools/geography" },
-  { title: "History", kind: "history", mark: "│", description: "Chronology, historical context and visual study tools.", href: "/tools/history" },
-  { title: "Political Science", kind: "politics", mark: "◎", description: "Institutions, ideas, constitutions and political systems.", href: "/tools/political-science" },
-];
-
-const FOOTER_LINKS = [
-  { group: "Portal", links: [{ title: "News", href: "/news" }, { title: "Calendar", href: "/calendar" }, { title: "Daily Timeline", href: "/timetable" }, { title: "Tools", href: "/tools" }] },
-  { group: "Campus", links: [{ title: "Cafeteria", href: "/cafeteria" }, { title: "Study Materials", href: "/study-material" }, { title: "Activities", href: "/activities" }] },
-  { group: "Community", links: [{ title: "Council", href: "/council" }, { title: "Leadership", href: "/leadership" }, { title: "Editorial", href: "/editorial" }] },
-];
 
 function indiaDateKey(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(date);
@@ -208,8 +138,25 @@ function indiaWeekdayNumber(date = new Date()) {
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(label);
 }
 
+const ACADEMIC_TOOLS = [
+  { title: "Mathematics", kind: "math", mark: "∑", description: "Graphs, functions, calculations and mathematical workspaces.", href: "/tools/mathematics" },
+  { title: "Physics", kind: "physics", mark: "◌", description: "Physical systems, formulas, motion and interactive models.", href: "/tools/physics" },
+  { title: "Chemistry", kind: "chemistry", mark: "⌬", description: "Molecular structures, reactions and chemistry workspaces.", href: "/tools/chemistry" },
+  { title: "Biology", kind: "biology", mark: "◈", description: "Systems, cells, membranes and biological simulations.", href: "/tools/biology" },
+  { title: "Economics", kind: "economics", mark: "↗", description: "Economic models, curves and analytical tools.", href: "/tools/economics" },
+  { title: "Geography", kind: "geography", mark: "⌁", description: "Maps, spatial systems and geographic exploration.", href: "/tools/geography" },
+  { title: "History", kind: "history", mark: "│", description: "Chronology, historical context and visual study tools.", href: "/tools/history" },
+  { title: "Political Science", kind: "politics", mark: "◎", description: "Institutions, ideas, constitutions and political systems.", href: "/tools/political-science" },
+];
+
+const FOOTER_LINKS = [
+  { group: "Portal", links: [{ title: "News", href: "/news" }, { title: "Calendar", href: "/calendar" }, { title: "Daily Timeline", href: "/timetable" }, { title: "Tools", href: "/tools" }] },
+  { group: "Campus", links: [{ title: "Cafeteria", href: "/cafeteria" }, { title: "Study Materials", href: "/study-material" }, { title: "Activities", href: "/activities" }] },
+  { group: "Community", links: [{ title: "Council", href: "/council" }, { title: "Leadership", href: "/leadership" }, { title: "Editorial", href: "/editorial" }] },
+];
+
 function getTimelineForToday() {
-  return indiaWeekdayNumber() === 6 ? SATURDAY_TIMELINE : WEEKDAY_TIMELINE;
+  return getTimelineForDate();
 }
 
 function eventStartMinutes(value?: string | null) {

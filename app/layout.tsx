@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "VidyaGyan Council Portal",
@@ -14,9 +15,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <script src="https://cdn.tailwindcss.com"></script>
-      </head>
       <body>
         <Navbar />
         {children}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isAdmin, isSchoolEmail, useAdminGuard } from "@/lib/auth";
 
 type MaterialType =
   | "Notes/Reading Material"
@@ -241,6 +242,7 @@ function EditField({
 
 export default function DashboardStudyMaterialPage() {
   const supabase = createClient();
+  useAdminGuard();
   const [profile, setProfile] = useState<PortalProfile | null>(null);
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);

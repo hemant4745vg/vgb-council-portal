@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isAdmin as isPortalAdmin, isSchoolEmail, useAdminGuard } from "@/lib/auth";
 type Category =
   | "Academic"
   | "Examinations"
@@ -644,6 +645,7 @@ function validateForm(form: FormState) {
 
 export default function DashboardCalendarPage() {
   const supabase = createClient();
+  useAdminGuard();
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const today = useMemo(() => fromDateKey(todayKey), [todayKey]);
 

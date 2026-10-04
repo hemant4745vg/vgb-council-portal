@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { type Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { isAdmin, isSchoolEmail, useAdminGuard } from "@/lib/auth";
 
 type UserProfile = {
   id: number;
@@ -330,6 +331,7 @@ function LoadingEventRows() {
 
 export default function Dashboard() {
   const supabase = createClient();
+  useAdminGuard();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
@@ -468,19 +470,19 @@ export default function Dashboard() {
 
     async function initialize() {
       const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
+        data: { user },
+      } = await supabase.auth.getUser();
 
       if (!mounted) return;
 
-      setSession(currentSession);
-
-      if (currentSession?.user?.email) {
-        await loadProfile(currentSession.user.email);
+      if (user?.email) {
+        await loadProfile(user.email);
       } else {
+        setSession(null);
         setProfile(null);
         setProfileError(false);
         setProfileLoading(false);
+        return;
       }
 
       if (mounted) {
@@ -493,8 +495,14 @@ export default function Dashboard() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
+      (event, nextSession) => {
         if (!mounted) return;
+
+        if (event === "SIGNED_OUT" || !nextSession) {
+          setSession(null);
+          setProfile(null);
+          return;
+        }
 
         setSession(nextSession);
 
@@ -524,7 +532,7 @@ export default function Dashboard() {
     loadCalendar();
   }, [session]);
 
-  const isAdmin = profile?.admin_status === "yes";
+  const admin = isAdmin(profile);
 
   const displayName = profileLoading
     ? "there"
@@ -682,7 +690,7 @@ export default function Dashboard() {
                     : "events scheduled today"}
                 </p>
 
-                {isAdmin && (
+                {admin && (
                   <Link
                     href="/dashboard/calendar"
                     className="mt-4 inline-flex text-[10px] font-bold uppercase tracking-wide text-blue-300 transition hover:text-blue-200"
@@ -998,7 +1006,7 @@ export default function Dashboard() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              {isAdmin && (
+              {admin && (
                 <span className="rounded-full bg-blue-50 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wide text-blue-700">
                   Administrator
                 </span>
@@ -1016,7 +1024,7 @@ export default function Dashboard() {
         </section>
 
         {/* Administration */}
-        {isAdmin && (
+        {admin && (
           <section className="mt-8 rounded-2xl border border-blue-100 bg-white shadow-sm">
             <div className="border-b border-blue-50 px-6 py-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">

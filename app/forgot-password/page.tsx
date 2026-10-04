@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isSchoolEmail } from "@/lib/auth";
 
 export default function ForgotPasswordPage() {
   const supabase = createClient();
@@ -60,7 +61,7 @@ export default function ForgotPasswordPage() {
     const formattedEmail =
       email.trim().toLowerCase();
 
-    if (!formattedEmail.endsWith("@vidyagyan.in")) {
+    if (!isSchoolEmail(formattedEmail)) {
       setMessage(
         "Use your official @vidyagyan.in school email."
       );
@@ -93,17 +94,11 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    console.log(
-      "Password reset requested for canonical email:",
-      canonicalEmail
-    );
-
     const { error } =
       await supabase.auth.resetPasswordForEmail(
         canonicalEmail,
         {
-          redirectTo:
-            "https://vgb-student-council-portal.vercel.app/update-password",
+          redirectTo: `${window.location.origin}/update-password`,
         }
       );
 

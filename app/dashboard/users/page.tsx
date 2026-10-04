@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { isAdmin as isPortalAdmin, isSchoolEmail, useAdminGuard } from "@/lib/auth";
 
 type AdminStatus = "yes" | "no";
 
@@ -38,6 +39,7 @@ function normalize(row: any): User {
 
 export default function DashboardUsersPage() {
   const supabase = createClient();
+  useAdminGuard();
   const [checking, setChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentEmail, setCurrentEmail] = useState("");
@@ -109,7 +111,7 @@ export default function DashboardUsersPage() {
 
       const profile = Array.isArray(data) ? data[0] : data;
 
-      if (error || profile?.admin_status !== "yes") {
+      if (error || !isPortalAdmin(profile)) {
         setIsAdmin(false);
         setChecking(false);
 
@@ -241,10 +243,7 @@ export default function DashboardUsersPage() {
       return;
     }
 
-    if (
-      alt &&
-      !alt.endsWith("@vidyagyan.in")
-    ) {
+    if (alt && !isSchoolEmail(alt)) {
       setNotice({
         type: "error",
         text: "Alternate email must be a @vidyagyan.in address.",
@@ -358,7 +357,7 @@ export default function DashboardUsersPage() {
       return;
     }
 
-    if (!email.endsWith("@vidyagyan.in")) {
+    if (!isSchoolEmail(email)) {
       setNotice({
         type: "error",
         text: "Only @vidyagyan.in email addresses can be added.",
@@ -366,10 +365,7 @@ export default function DashboardUsersPage() {
       return;
     }
 
-    if (
-      alternateEmail &&
-      !alternateEmail.endsWith("@vidyagyan.in")
-    ) {
+    if (alternateEmail && !isSchoolEmail(alternateEmail)) {
       setNotice({
         type: "error",
         text: "Alternate email must be a @vidyagyan.in address.",
@@ -475,7 +471,7 @@ export default function DashboardUsersPage() {
       return;
     }
 
-    if (!email.endsWith("@vidyagyan.in")) {
+    if (!isSchoolEmail(email)) {
       setNotice({
         type: "error",
         text: "Only @vidyagyan.in email addresses can be provisioned.",
@@ -495,10 +491,10 @@ export default function DashboardUsersPage() {
 
     try {
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
 
-      if (!session?.access_token) {
+      if (!currentUser) {
         throw new Error(
           "Your session has expired. Please sign in again."
         );

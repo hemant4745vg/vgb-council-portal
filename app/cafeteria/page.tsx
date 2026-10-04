@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCurrentMealIndex as getMealWindowIndex } from "@/lib/schedule/meals";
+import { getCurrentMealIndex as getMealWindowIndex } from "@/lib/schedule";
 
 type Meal = {
   title: string;

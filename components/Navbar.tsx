@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { type Session } from "@supabase/supabase-js";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { isAdmin, isSchoolEmail } from "@/lib/auth";
 
 type UserProfile = {
   id: number;
@@ -219,7 +220,7 @@ function AccountMenu({
               {profile.role}
             </span>
 
-            {profile.admin_status === "yes" && (
+            {isAdmin(profile) && (
               <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-emerald-800">
                 Admin
               </span>
@@ -263,7 +264,7 @@ function AccountMenu({
           </span>
         </Link>
 
-        {profile?.admin_status === "yes" && (
+        {isAdmin(profile) && (
           <Link
             href="/dashboard"
             role="menuitem"
@@ -390,11 +391,6 @@ export default function Navbar() {
         );
       }
 
-      console.log(
-        "NAV: Initial session:",
-        currentSession?.user?.email ?? "none"
-      );
-
       setSession(currentSession);
 
       if (!currentSession) {
@@ -411,11 +407,6 @@ export default function Navbar() {
     } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
         if (!mounted) return;
-
-        console.log(
-          "NAV: Auth state changed:",
-          nextSession?.user?.email ?? "none"
-        );
 
         setSession(nextSession);
 
@@ -453,11 +444,6 @@ export default function Navbar() {
 
       const userEmail = session.user.email;
 
-      console.log(
-        "NAV: Fetching profile for session:",
-        userEmail
-      );
-
       try {
         const { data, error } =
           await supabase.rpc(
@@ -465,11 +451,6 @@ export default function Navbar() {
           );
 
         if (cancelled) return;
-
-        console.log("NAV: Profile result:", {
-          data,
-          error,
-        });
 
         if (error) {
           console.error(
@@ -526,11 +507,6 @@ export default function Navbar() {
               ? "yes"
               : "no",
         };
-
-        console.log(
-          "NAV: Profile successfully loaded:",
-          normalizedProfile
-        );
 
         setProfile(normalizedProfile);
         setProfileError(false);
@@ -681,11 +657,7 @@ export default function Navbar() {
 
     const formattedPassword = password;
 
-    if (
-      !formattedEmail.endsWith(
-        "@vidyagyan.in"
-      )
-    ) {
+    if (!isSchoolEmail(formattedEmail)) {
       setMessage(
         "Access denied. Use an official @vidyagyan.in school email."
       );
@@ -713,11 +685,6 @@ export default function Navbar() {
       setLoading(false);
       return;
     }
-
-    console.log(
-      "NAV: Signing in with canonical email:",
-      canonicalEmail
-    );
 
     const { error } =
       await supabase.auth.signInWithPassword({

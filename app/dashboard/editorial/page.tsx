@@ -11,6 +11,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { createClient } from "@/lib/supabase/client";
+import { isAdmin, isSchoolEmail, useAdminGuard } from "@/lib/auth";
 
 const CATEGORIES = [
   "Events & Activities",
@@ -677,6 +678,7 @@ function sanitizeEditorHtml(html: string) {
 
 export default function EditorialAdminPage() {
   const supabase = createClient();
+  useAdminGuard();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const editorReadyRef = useRef(false);
 
