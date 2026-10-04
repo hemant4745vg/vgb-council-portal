@@ -470,7 +470,7 @@ export async function POST(request: Request) {
 
     const parsed = await parsePayload(request);
 
-    if (!parsed.ok) {
+    if (parsed.ok === false) {
       return parsed.response;
     }
 
