@@ -616,8 +616,13 @@ export default function ChessPage() {
     resetBoard("computer");
   };
 
-  const boardRows = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
-  const boardCols = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
+  const boardRows = flipped
+  ? Array.from({ length: 8 }, (_, i) => 7 - i)
+  : Array.from({ length: 8 }, (_, i) => i);
+
+  const boardCols = flipped
+  ? Array.from({ length: 8 }, (_, i) => 7 - i)
+  : Array.from({ length: 8 }, (_, i) => i);
 
   const currentOnlineTurn =
     onlineGame && profile
