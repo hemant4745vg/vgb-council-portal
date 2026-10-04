@@ -62,11 +62,16 @@ function jsonError(
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
 }
 
 function isValidDateString(value: string): boolean {
   const parsed = new Date(value);
+
   return !Number.isNaN(parsed.getTime());
 }
 
@@ -78,7 +83,10 @@ function isValidUrl(value: string): boolean {
   try {
     const url = new URL(value);
 
-    return url.protocol === "http:" || url.protocol === "https:";
+    return (
+      url.protocol === "http:" ||
+      url.protocol === "https:"
+    );
   } catch {
     return false;
   }
@@ -112,7 +120,10 @@ function constantTimeEqual(
     return false;
   }
 
-  return timingSafeEqual(providedBuffer, expectedBuffer);
+  return timingSafeEqual(
+    providedBuffer,
+    expectedBuffer,
+  );
 }
 
 function makeExternalId(
@@ -124,14 +135,19 @@ function makeExternalId(
     .digest("hex");
 }
 
-function getBearerToken(request: Request): string | null {
-  const authorization = request.headers.get("authorization");
+function getBearerToken(
+  request: Request,
+): string | null {
+  const authorization =
+    request.headers.get("authorization");
 
   if (!authorization) {
     return null;
   }
 
-  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  const match = authorization.match(
+    /^Bearer\s+(.+)$/i,
+  );
 
   if (!match) {
     return null;
@@ -141,8 +157,11 @@ function getBearerToken(request: Request): string | null {
 }
 
 function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  const serviceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRoleKey) {
     throw new Error(
@@ -150,27 +169,43 @@ function getSupabaseAdmin() {
     );
   }
 
-  return createClient(url, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
+  return createClient(
+    url,
+    serviceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     },
-  });
+  );
 }
 
-function getDateDaysAgo(days: number): string {
+function getDateDaysAgo(
+  days: number,
+): string {
   const date = new Date();
 
-  date.setUTCDate(date.getUTCDate() - days);
+  date.setUTCDate(
+    date.getUTCDate() - days,
+  );
 
-  return date.toISOString().slice(0, 10);
+  return date
+    .toISOString()
+    .slice(0, 10);
 }
 
 async function parsePayload(
   request: Request,
 ): Promise<
-  | { ok: true; payload: CuratedPayload }
-  | { ok: false; response: NextResponse }
+  | {
+      ok: true;
+      payload: CuratedPayload;
+    }
+  | {
+      ok: false;
+      response: NextResponse;
+    }
 > {
   let body: unknown;
 
@@ -179,14 +214,20 @@ async function parsePayload(
   } catch {
     return {
       ok: false,
-      response: jsonError("Request body must be valid JSON.", 400),
+      response: jsonError(
+        "Request body must be valid JSON.",
+        400,
+      ),
     };
   }
 
   if (!isObject(body)) {
     return {
       ok: false,
-      response: jsonError("Request body must be an object.", 400),
+      response: jsonError(
+        "Request body must be an object.",
+        400,
+      ),
     };
   }
 
@@ -200,8 +241,14 @@ function validateAndNormalizeStories(
   stories: unknown[],
   briefingDate: string,
 ):
-  | { ok: true; rows: CuratedStoryRow[] }
-  | { ok: false; response: NextResponse } {
+  | {
+      ok: true;
+      rows: CuratedStoryRow[];
+    }
+  | {
+      ok: false;
+      response: NextResponse;
+    } {
   if (stories.length === 0) {
     return {
       ok: false,
@@ -223,10 +270,18 @@ function validateAndNormalizeStories(
   }
 
   const rows: CuratedStoryRow[] = [];
-  const seenExternalIds = new Set<string>();
-  const seenUrls = new Set<string>();
 
-  for (let index = 0; index < stories.length; index += 1) {
+  const seenExternalIds =
+    new Set<string>();
+
+  const seenUrls =
+    new Set<string>();
+
+  for (
+    let index = 0;
+    index < stories.length;
+    index += 1
+  ) {
     const rawStory = stories[index];
 
     if (!isObject(rawStory)) {
@@ -239,9 +294,14 @@ function validateAndNormalizeStories(
       };
     }
 
-    const story = rawStory as CuratedStoryInput;
+    const story =
+      rawStory as CuratedStoryInput;
 
-    const title = normalizeString(story.title, 300);
+    const title =
+      normalizeString(
+        story.title,
+        300,
+      );
 
     if (!title) {
       return {
@@ -253,7 +313,11 @@ function validateAndNormalizeStories(
       };
     }
 
-    const source = normalizeString(story.source, 150);
+    const source =
+      normalizeString(
+        story.source,
+        150,
+      );
 
     if (!source) {
       return {
@@ -265,9 +329,16 @@ function validateAndNormalizeStories(
       };
     }
 
-    const sourceUrl = normalizeString(story.source_url, 2000);
+    const sourceUrl =
+      normalizeString(
+        story.source_url,
+        2000,
+      );
 
-    if (!sourceUrl || !isValidUrl(sourceUrl)) {
+    if (
+      !sourceUrl ||
+      !isValidUrl(sourceUrl)
+    ) {
       return {
         ok: false,
         response: jsonError(
@@ -277,9 +348,16 @@ function validateAndNormalizeStories(
       };
     }
 
-    const imageUrl = normalizeString(story.image_url, 2000);
+    const imageUrl =
+      normalizeString(
+        story.image_url,
+        2000,
+      );
 
-    if (imageUrl && !isValidUrl(imageUrl)) {
+    if (
+      imageUrl &&
+      !isValidUrl(imageUrl)
+    ) {
       return {
         ok: false,
         response: jsonError(
@@ -290,9 +368,13 @@ function validateAndNormalizeStories(
     }
 
     const summary =
-      story.summary === null || story.summary === undefined
+      story.summary === null ||
+      story.summary === undefined
         ? null
-        : normalizeString(story.summary, 1200);
+        : normalizeString(
+            story.summary,
+            1200,
+          );
 
     if (
       story.summary !== null &&
@@ -308,11 +390,17 @@ function validateAndNormalizeStories(
       };
     }
 
-    const category = normalizeString(story.category, 50);
+    const category =
+      normalizeString(
+        story.category,
+        50,
+      );
 
     if (
       !category ||
-      !ALLOWED_CATEGORIES.includes(category as Category)
+      !ALLOWED_CATEGORIES.includes(
+        category as Category,
+      )
     ) {
       return {
         ok: false,
@@ -325,12 +413,16 @@ function validateAndNormalizeStories(
       };
     }
 
-    const publishedAt = normalizeString(
-      story.published_at,
-      100,
-    );
+    const publishedAt =
+      normalizeString(
+        story.published_at,
+        100,
+      );
 
-    if (!publishedAt || !isValidDateString(publishedAt)) {
+    if (
+      !publishedAt ||
+      !isValidDateString(publishedAt)
+    ) {
       return {
         ok: false,
         response: jsonError(
@@ -368,13 +460,23 @@ function validateAndNormalizeStories(
         : false;
 
     const suppliedExternalId =
-      normalizeString(story.external_id, 300);
+      normalizeString(
+        story.external_id,
+        300,
+      );
 
     const externalId =
       suppliedExternalId ??
-      makeExternalId(briefingDate, sourceUrl);
+      makeExternalId(
+        briefingDate,
+        sourceUrl,
+      );
 
-    if (seenExternalIds.has(externalId)) {
+    if (
+      seenExternalIds.has(
+        externalId,
+      )
+    ) {
       return {
         ok: false,
         response: jsonError(
@@ -384,7 +486,9 @@ function validateAndNormalizeStories(
       };
     }
 
-    if (seenUrls.has(sourceUrl)) {
+    if (
+      seenUrls.has(sourceUrl)
+    ) {
       return {
         ok: false,
         response: jsonError(
@@ -394,7 +498,10 @@ function validateAndNormalizeStories(
       };
     }
 
-    seenExternalIds.add(externalId);
+    seenExternalIds.add(
+      externalId,
+    );
+
     seenUrls.add(sourceUrl);
 
     rows.push({
@@ -404,17 +511,24 @@ function validateAndNormalizeStories(
       source,
       source_url: sourceUrl,
       image_url: imageUrl,
-      category: category as Category,
-      published_at: new Date(publishedAt).toISOString(),
-      briefing_date: briefingDate,
+      category:
+        category as Category,
+      published_at:
+        new Date(
+          publishedAt,
+        ).toISOString(),
+      briefing_date:
+        briefingDate,
       rank,
       featured,
     });
   }
 
-  const featuredCount = rows.filter(
-    (story) => story.featured,
-  ).length;
+  const featuredCount =
+    rows.filter(
+      (story) =>
+        story.featured,
+    ).length;
 
   if (featuredCount > 1) {
     return {
@@ -432,8 +546,12 @@ function validateAndNormalizeStories(
     }
 
     return (
-      new Date(b.published_at).getTime() -
-      new Date(a.published_at).getTime()
+      new Date(
+        b.published_at,
+      ).getTime() -
+      new Date(
+        a.published_at,
+      ).getTime()
     );
   });
 
@@ -443,10 +561,13 @@ function validateAndNormalizeStories(
   };
 }
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+) {
   try {
     const expectedSecret =
-      process.env.CURATED_NEWS_PUBLISH_SECRET;
+      process.env
+        .CURATED_NEWS_PUBLISH_SECRET;
 
     if (!expectedSecret) {
       console.error(
@@ -459,38 +580,58 @@ export async function POST(request: Request) {
       );
     }
 
-    const providedToken = getBearerToken(request);
+    const providedToken =
+      getBearerToken(request);
 
     if (
       !providedToken ||
-      !constantTimeEqual(providedToken, expectedSecret)
+      !constantTimeEqual(
+        providedToken,
+        expectedSecret,
+      )
     ) {
-      return jsonError("Unauthorized.", 401);
+      return jsonError(
+        "Unauthorized.",
+        401,
+      );
     }
 
-    const parsed = await parsePayload(request);
+    const parsed =
+      await parsePayload(
+        request,
+      );
 
     if (parsed.ok === false) {
       return parsed.response;
     }
 
-    const { payload } = parsed;
+    const { payload } =
+      parsed;
 
-    const briefingDate = normalizeString(
-      payload.briefing_date,
-      10,
-    );
+    const briefingDate =
+      normalizeString(
+        payload.briefing_date,
+        10,
+      );
 
-    if (!briefingDate || !isBriefingDate(briefingDate)) {
+    if (
+      !briefingDate ||
+      !isBriefingDate(
+        briefingDate,
+      )
+    ) {
       return jsonError(
         "briefing_date must use YYYY-MM-DD format.",
         400,
       );
     }
 
-    const stories = Array.isArray(payload.stories)
-      ? payload.stories
-      : null;
+    const stories =
+      Array.isArray(
+        payload.stories,
+      )
+        ? payload.stories
+        : null;
 
     if (!stories) {
       return jsonError(
@@ -499,24 +640,43 @@ export async function POST(request: Request) {
       );
     }
 
-    const validation = validateAndNormalizeStories(
-      stories,
-      briefingDate,
-    );
+    const validation =
+      validateAndNormalizeStories(
+        stories,
+        briefingDate,
+      );
 
-    if (!validation.ok) {
+    /*
+     * Explicit === false narrowing is
+     * intentional. It prevents TypeScript
+     * from losing the discriminated-union
+     * narrowing on NextResponse.
+     */
+    if (
+      validation.ok === false
+    ) {
       return validation.response;
     }
 
-    const rows = validation.rows;
-    const supabase = getSupabaseAdmin();
+    const rows =
+      validation.rows;
 
-    const { error: upsertError } = await supabase
+    const supabase =
+      getSupabaseAdmin();
+
+    const {
+      error: upsertError,
+    } = await supabase
       .from("curated_news")
-      .upsert(rows, {
-        onConflict: "external_id",
-        ignoreDuplicates: false,
-      });
+      .upsert(
+        rows,
+        {
+          onConflict:
+            "external_id",
+          ignoreDuplicates:
+            false,
+        },
+      );
 
     if (upsertError) {
       console.error(
@@ -528,28 +688,41 @@ export async function POST(request: Request) {
         "Failed to publish curated news.",
         500,
         {
-          code: upsertError.code,
-          message: upsertError.message,
+          code:
+            upsertError.code,
+          message:
+            upsertError.message,
         },
       );
     }
 
     /*
-     * Remove older briefings after a successful publish.
-     * Keeping seven days gives us a useful small history while
+     * Remove older briefings after
+     * a successful publish.
+     *
+     * Keeping seven days gives us
+     * a useful small history while
      * preventing indefinite growth.
      */
-    const retentionDate = getDateDaysAgo(7);
+    const retentionDate =
+      getDateDaysAgo(7);
 
-    const { error: cleanupError } = await supabase
+    const {
+      error: cleanupError,
+    } = await supabase
       .from("curated_news")
       .delete()
-      .lt("briefing_date", retentionDate);
+      .lt(
+        "briefing_date",
+        retentionDate,
+      );
 
     if (cleanupError) {
       /*
-       * Publishing succeeded, so cleanup failure should not
-       * turn a successful briefing into a failed response.
+       * Publishing succeeded, so a
+       * cleanup failure should not
+       * turn a successful briefing
+       * into a failed response.
        */
       console.error(
         "Curated news cleanup failed:",
@@ -559,10 +732,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      briefing_date: briefingDate,
-      published: rows.length,
-      featured: rows.filter((story) => story.featured).length,
-      cleanup_before: retentionDate,
+      briefing_date:
+        briefingDate,
+      published:
+        rows.length,
+      featured:
+        rows.filter(
+          (story) =>
+            story.featured,
+        ).length,
+      cleanup_before:
+        retentionDate,
     });
   } catch (error) {
     console.error(
@@ -584,6 +764,8 @@ export async function GET() {
       error:
         "This endpoint only accepts authenticated POST requests.",
     },
-    { status: 405 },
+    {
+      status: 405,
+    },
   );
 }
