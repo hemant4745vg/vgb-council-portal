@@ -3506,7 +3506,7 @@ const tools: {
     icon: "🧠",
     title: "Practice",
     description:
-      "Solve syllabus-aligned questions and check your reasoning.",
+      "Solve questions that match the labs.",
     classes: "XI · XII",
   },
   {
@@ -3514,7 +3514,7 @@ const tools: {
     icon: "📚",
     title: "Formula Book",
     description:
-      "A compact mathematical reference organized by syllabus topic.",
+      "Formulas for the labs on this page.",
     classes: "XI · XII",
   },
 ];
@@ -3623,81 +3623,6 @@ function Overview({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">
-              Class {classLevel} syllabus
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              CBSE Mathematics 041 · 2026–27. This is the syllabus map; only the topics with labs are interactive.
-            </p>
-          </div>
-
-          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-            {syllabus.length} major topics
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {syllabus.map(
-            (topic, index) => (
-              <div
-                key={topic}
-                className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-3"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-xs font-bold text-slate-500">
-                  {index + 1}
-                </span>
-
-                <span className="text-sm">
-                  {topic}
-                </span>
-              </div>
-            )
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-3 md:grid-cols-3">
-        {[
-          [
-            "55%",
-            "Remember + Understand",
-            "Build conceptual fluency.",
-          ],
-          [
-            "25%",
-            "Apply",
-            "Use mathematical ideas in new situations.",
-          ],
-          [
-            "20%",
-            "Analyse + Evaluate + Create",
-            "Reason, connect and construct.",
-          ],
-        ].map(
-          ([percentage, title, description]) => (
-            <div
-              key={title}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <div className="text-2xl font-semibold">
-                {percentage}
-              </div>
-
-              <div className="mt-2 font-semibold">
-                {title}
-              </div>
-
-              <div className="mt-1 text-sm leading-6 text-slate-500">
-                {description}
-              </div>
-            </div>
-          )
-        )}
-      </section>
     </div>
   );
 }
