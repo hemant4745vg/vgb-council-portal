@@ -951,6 +951,40 @@ function CostSystemDiagram({ controls }: { controls: Record<string, number> }) {
   );
 }
 
+
+function RevenueDiagram({ controls }: { controls: Record<string, number> }) {
+  const price = Math.max(20, Math.min(80, controls.price ?? 50));
+  const W = 920;
+  const H = 640;
+  const P = 64;
+  const qMax = 10;
+  const x = (q: number) => P + (q / qMax) * (W - 2 * P);
+  const yTr = (v: number) => 300 - (v / (price * qMax)) * 220;
+  const yPrice = (v: number) => 590 - (v / 100) * 220;
+  const trPath = Array.from({ length: 11 }, (_, q) => `${q ? "L" : "M"} ${x(q).toFixed(1)} ${yTr(price * q).toFixed(1)}`).join(" ");
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Total revenue and average revenue panels">
+        <text x={W / 2} y="28" textAnchor="middle" fontSize="18" fontWeight="800">Total revenue</text>
+        <line x1={P} x2={W - P} y1="300" y2="300" stroke="#334155" strokeWidth="2" />
+        <line x1={P} x2={P} y1="70" y2="300" stroke="#334155" strokeWidth="2" />
+        <path d={trPath} fill="none" stroke="#2563eb" strokeWidth="4" />
+        <text x={x(7)} y={yTr(price * 7) - 12} fontSize="13" fontWeight="700" fill="#2563eb">TR = P × Q</text>
+        <text x={W / 2} y="332" textAnchor="middle" fontSize="13" fontWeight="700">Output (units)</text>
+        <text x="22" y="185" transform="rotate(-90 22 185)" textAnchor="middle" fontSize="13" fontWeight="700">Total revenue (₹)</text>
+        <text x={W / 2} y="378" textAnchor="middle" fontSize="18" fontWeight="800">Average and marginal revenue</text>
+        <line x1={P} x2={W - P} y1="590" y2="590" stroke="#334155" strokeWidth="2" />
+        <line x1={P} x2={P} y1="400" y2="590" stroke="#334155" strokeWidth="2" />
+        <line x1={P} x2={W - P} y1={yPrice(price)} y2={yPrice(price)} stroke="#dc2626" strokeWidth="4" />
+        <line x1={P} x2={W - P} y1={yPrice(price)} y2={yPrice(price)} stroke="#16a34a" strokeWidth="2" strokeDasharray="7 5" />
+        <text x={x(6.5)} y={yPrice(price) - 12} fontSize="13" fontWeight="700" fill="#dc2626">AR = MR = P = {price}</text>
+        <text x={W / 2} y="624" textAnchor="middle" fontSize="13" fontWeight="700">Output (units)</text>
+        <text x="22" y="500" transform="rotate(-90 22 500)" textAnchor="middle" fontSize="13" fontWeight="700">Price (₹)</text>
+      </svg>
+    </div>
+  );
+}
+
 export function EconomicsGraph({
   preset,
   controls,
@@ -1077,6 +1111,8 @@ export function EconomicsGraph({
           ? <CostSystemDiagram controls={effectiveControls} />
           : preset.diagram === "production-system"
             ? <ProductionSystemDiagram controls={effectiveControls} />
+            : preset.diagram === "revenue"
+              ? <RevenueDiagram controls={effectiveControls} />
             : null;
 
   const points = useMemo(() => {

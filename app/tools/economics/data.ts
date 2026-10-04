@@ -41,7 +41,7 @@ export type Preset = {
     value: number;
   }[];
   interpretation: string[];
-  diagram?: "circular-flow" | "mu-tu" | "cost-system" | "production-system";
+  diagram?: "circular-flow" | "mu-tu" | "cost-system" | "production-system" | "revenue";
 };
 
 export const curveColors = [
@@ -74,8 +74,8 @@ export const presets: Preset[] = [
     yLabel: "Price (₹ per unit)",
     xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      { key: "dShift", label: "Demand shift", min: -20, max: 20, step: 1, value: 0 },
-      { key: "sShift", label: "Supply shift", min: -20, max: 20, step: 1, value: 0 },
+      { key: "dShift", label: "Demand increase (+) / decrease (−)", min: -20, max: 20, step: 1, value: 0 },
+      { key: "sShift", label: "Supply increase (+) / decrease (−)", min: -20, max: 20, step: 1, value: 0 },
     ],
     curves: (c) => {
       const d0 = (x: number) => 90 - 0.75 * x;
@@ -343,7 +343,7 @@ export const presets: Preset[] = [
     interpretation: [
       "MU is the additional utility from consuming one more unit. With diminishing MU, successive units add less utility.",
       "TU rises while MU is positive, reaches its maximum when MU becomes zero, and falls when MU becomes negative.",
-      "Consumer equilibrium for one good occurs where MU = 0; for multiple goods the condition also involves MU per rupee spent.",
+      "MU = 0 is satiation, where TU is maximum. Consumer equilibrium is MUx / Px = MUm, not the point where MU becomes zero.",
     ],
     diagram: "mu-tu",
   },
@@ -547,7 +547,7 @@ export const presets: Preset[] = [
     xLabel: "Quantity of Good X (units)",
     yLabel: "Quantity of Good Y (units)",
     xMin: 0, xMax: 100, yMin: 0, yMax: 100,
-    controls: [{ key: "curvature", label: "Opportunity-cost curvature", min: 0.75, max: 1.5, step: 0.05, value: 1 }],
+    controls: [{ key: "curvature", label: "Rising opportunity cost", min: 1, max: 1.6, step: 0.05, value: 1.15 }],
     curves: (c) => [{ id: "ppc", label: "PPC", color: curveColors[0], fn: (x) => 100*Math.pow(Math.max(0,1-x/100),c.curvature) }],
     interpretation: [
       "Points on the PPC are efficient combinations of the two goods given current resources and technology.",
@@ -723,7 +723,7 @@ export const presets: Preset[] = [
     className: "XI",
     unit: "Producer Behaviour",
     description:
-      "Use the competitive-firm revenue identities TR = P × Q and AR = MR = P on a common revenue scale.",
+      "Two aligned panels: total revenue on its own scale, and AR = MR = P on a price scale.",
     xLabel: "Output (units)",
     yLabel: "Revenue / Price (₹)",
     xMin: 0,
@@ -731,17 +731,14 @@ export const presets: Preset[] = [
     yMin: 0,
     yMax: 800,
     controls: [
-      { key: "price", label: "Price", min: 20, max: 80, step: 1, value: 50 },
+      { key: "price", label: "Price (₹)", min: 20, max: 80, step: 1, value: 50 },
     ],
-    curves: (c) => [
-      { id: "tr", label: "TR = P × Q", color: curveColors[0], fn: (x) => c.price * x },
-      { id: "ar", label: "AR = P", color: curveColors[1], fn: () => c.price },
-      { id: "mr", label: "MR = P", color: curveColors[2], fn: () => c.price },
-    ],
+    curves: () => [],
+    diagram: "revenue",
     interpretation: [
       "Under perfect competition, price is constant for the individual firm.",
       "Therefore AR = MR = P.",
-      "TR = P × Q, so with constant price the TR curve is a straight line through the origin and its slope equals price.",
+      "TR = P × Q is a straight line through the origin. Its slope equals price, which is also AR and MR.",
     ],
   },
 
@@ -961,7 +958,7 @@ export const presets: Preset[] = [
         id: "s",
         label: "Supply of FX",
         color: curveColors[1],
-        fn: (x) => 12 + 0.65 * x + c.sShift,
+        fn: (x) => 12 + 0.65 * x - c.sShift,
       },
     ],
     interpretation: [
