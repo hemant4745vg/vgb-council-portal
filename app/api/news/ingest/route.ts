@@ -544,7 +544,7 @@ function deduplicate(items: ParsedItem[]): ParsedItem[] {
 
   const byExternalId = new Map<string, ParsedItem>();
 
-  for (const item of bySourceUrl.values()) {
+  for (const item of Array.from(bySourceUrl.values())) {
     const existing = byExternalId.get(
       item.external_id
     );
