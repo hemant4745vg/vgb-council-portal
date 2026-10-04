@@ -154,10 +154,10 @@ function normalizeExpression(raw: string) {
    *   sqrt x
    *   log x
    */
-  source = source.replace(
-    /\b(sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|sqrt|abs|log|ln)\s+([+-]?(?:\d+(?:\.\d+)?|x))\b/gi,
-    "$1($2)"
-  );
+  source = source
+    .replace(/\b(sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|sqrt|abs|ln)\s*([+-]?\d+(?:\.\d+)?)\s*x\b/gi, "$1($2x)")
+    .replace(/\b(sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|sqrt|abs|ln)\s+([+-]?(?:\d+(?:\.\d+)?|x))\b/gi, "$1($2)")
+    .replace(/\blog\b/gi, "ln");
 
   /*
    * Handle implicit multiplication:
@@ -1125,6 +1125,7 @@ function TrigonometryLab() {
           {[
             ["sin θ", y],
             ["cos θ", x],
+            ["sin²θ + cos²θ", y * y + x * x],
             ["tan θ", Math.tan(radians)],
           ].map(([name, value]) => (
             <div
@@ -1570,20 +1571,17 @@ function ProbabilityLab() {
           </div>
 
           <div className="mt-2 text-3xl font-semibold">
-            {(probability * 100).toFixed(2)}%
+            {total === 0 ? "—" : `${(probability * 100).toFixed(2)}%`}
           </div>
-
-          <div className="mt-4 h-5 overflow-hidden rounded-full bg-slate-100">
+          <p className="mt-2 text-sm text-slate-500">Theoretical probability of heads for a fair coin: 50%.</p>
+          <div className="relative mt-4 h-5 overflow-hidden rounded-full bg-slate-100">
+            <div className="absolute inset-y-0 left-1/2 w-0.5 bg-emerald-500" />
             <div
               className="h-full rounded-full bg-slate-900 transition-all"
-              style={{
-                width: `${Math.min(
-                  probability * 100,
-                  100
-                )}%`,
-              }}
+              style={{ width: `${Math.min(probability * 100, 100)}%` }}
             />
           </div>
+          <p className="mt-2 text-xs text-slate-500">The green mark is the theoretical 50%.</p>
         </div>
 
         <div className="mt-5">
@@ -1629,7 +1627,7 @@ function StatisticsLab() {
 
   const median =
     sorted.length === 0
-      ? 0
+      ? NaN
       : sorted.length % 2
       ? sorted[
           Math.floor(sorted.length / 2)
@@ -1794,6 +1792,16 @@ const practiceQuestions = [
     question:
       "If P(A) = 0.2, find P(A').",
     answer: "0.8",
+  },
+  {
+    topic: "Vectors",
+    question: "Find the magnitude of the vector 3i + 4j.",
+    answer: "5",
+  },
+  {
+    topic: "Integrals",
+    question: "Find the integral of 2x, without the constant.",
+    answer: "x^2",
   },
 ];
 
@@ -2062,7 +2070,7 @@ function CalculusLab() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-semibold">Function controls</h3>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            Use standard mathjs notation such as x^2, sin(x), exp(x) and sqrt(x).
+            Use x^2, sin(x) or sin 2x, exp(x) and sqrt(x). log is treated as the natural logarithm.
           </p>
 
           <label className="mt-5 block">
@@ -2371,6 +2379,28 @@ const referenceGroups = [
     formulas: [
       "\\(P(A')=1-P(A)\\)",
       "\\(P(A\\cup B)=P(A)+P(B)-P(A\\cap B)\\)",
+    ],
+  },
+  {
+    title: "Matrices & Determinants",
+    formulas: [
+      "\\((AB)_{ij}=\\sum_k a_{ik}b_{kj}\\)",
+      "\\(\\det\\begin{pmatrix}a&b\\c&d\\end{pmatrix}=ad-bc\\)",
+    ],
+  },
+  {
+    title: "Calculus",
+    formulas: [
+      "\\(\\frac{d}{dx}x^n=nx^{n-1}\\)",
+      "\\(\\int x^n\\,dx=\\frac{x^{n+1}}{n+1}+C,\\ n\\neq-1\\)",
+      "\\(\\frac{d}{dx}\\ln x=\\frac1x\\)",
+    ],
+  },
+  {
+    title: "Vectors",
+    formulas: [
+      "\\(|\\vec a|=\\sqrt{a_1^2+a_2^2+a_3^2}\\)",
+      "\\(\\vec a\\cdot\\vec b=|\\vec a||\\vec b|\\cos\\theta\\)",
     ],
   },
 ];
@@ -3841,95 +3871,16 @@ export default function MathematicsPage() {
           </button>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setSection("overview")
-              }
-              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                section ===
-                "overview"
-                  ? "bg-slate-950 text-white"
-                  : "border border-slate-200 bg-white"
-              }`}
-            >
-              Home
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setSection("graph")
-              }
-              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                section ===
-                "graph"
-                  ? "bg-slate-950 text-white"
-                  : "border border-slate-200 bg-white"
-              }`}
-            >
-              Graphing
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setSection("trig")
-              }
-              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                section ===
-                "trig"
-                  ? "bg-slate-950 text-white"
-                  : "border border-slate-200 bg-white"
-              }`}
-            >
-              Trigonometry
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setSection("calculus")
-              }
-              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                section ===
-                "calculus"
-                  ? "bg-slate-950 text-white"
-                  : "border border-slate-200 bg-white"
-              }`}
-            >
-              Calculus
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setSection("conics")
-              }
-              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                section ===
-                "conics"
-                  ? "bg-slate-950 text-white"
-                  : "border border-slate-200 bg-white"
-              }`}
-            >
-              Conics
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setSection("practice")
-              }
-              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                section ===
-                "practice"
-                  ? "bg-slate-950 text-white"
-                  : "border border-slate-200 bg-white"
-              }`}
-            >
-              Practice
-            </button>
+            {[{ id: "overview", title: "Home" }, ...tools].map((tool) => (
+              <button
+                key={tool.id}
+                type="button"
+                onClick={() => setSection(tool.id as Section)}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold ${section === tool.id ? "bg-slate-950 text-white" : "border border-slate-200 bg-white"}`}
+              >
+                {tool.title === "Formula Book" ? "Formulas" : tool.title.replace(" Lab", "")}
+              </button>
+            ))}
           </div>
         </header>
 
