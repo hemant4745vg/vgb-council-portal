@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "katex/dist/katex.min.css";
 import katex from "katex";
 import { all, create, MathJsInstance } from "mathjs";
+import { ArgandLab, BayesLab, BinomialLab, CountingLab, Distance3DLab, InequalityLab, IntegralLab, InverseTrigLab, LinearProgrammingLab, MatrixLab, SequenceLab, TrigGraphLab, VectorLab } from "./labs";
 
 const math: MathJsInstance = create(all, {});
 
@@ -97,7 +98,20 @@ type Section =
   | "calculus"
   | "conics"
   | "practice"
-  | "reference";
+  | "reference"
+  | "argand"
+  | "inequality"
+  | "counting"
+  | "binomial"
+  | "sequences"
+  | "triggraphs"
+  | "distance3d"
+  | "matrices"
+  | "inversetrig"
+  | "integrals"
+  | "vectors"
+  | "lpp"
+  | "bayes";
 
 type ClassLevel = "XI" | "XII";
 
@@ -3502,6 +3516,97 @@ const tools: {
     classes: "XI",
   },
   {
+    id: "argand",
+    icon: "ℂ",
+    title: "Argand Plane",
+    description: "Plot a complex number, its modulus and its argument.",
+    classes: "XI",
+  },
+  {
+    id: "inequality",
+    icon: "⟷",
+    title: "Inequality Line",
+    description: "Solve a one-variable linear inequality and mark the boundary.",
+    classes: "XI",
+  },
+  {
+    id: "counting",
+    icon: "nCr",
+    title: "Permutations",
+    description: "Calculate nPr and nCr for a counting problem.",
+    classes: "XI",
+  },
+  {
+    id: "binomial",
+    icon: "(a+b)",
+    title: "Binomial Expansion",
+    description: "Expand a binomial with a positive integer index.",
+    classes: "XI",
+  },
+  {
+    id: "sequences",
+    icon: "AP",
+    title: "Sequences",
+    description: "Find the nth term and sum of an AP or GP.",
+    classes: "XI",
+  },
+  {
+    id: "triggraphs",
+    icon: "∿",
+    title: "Trig Graphs",
+    description: "Compare sine, cosine and tangent with amplitude and phase.",
+    classes: "XI",
+  },
+  {
+    id: "distance3d",
+    icon: "3D",
+    title: "3D Distance",
+    description: "Find the distance between two points in space.",
+    classes: "XI",
+  },
+  {
+    id: "matrices",
+    icon: "[]",
+    title: "Matrices",
+    description: "Find a 2×2 determinant and inverse.",
+    classes: "XII",
+  },
+  {
+    id: "inversetrig",
+    icon: "sin⁻¹",
+    title: "Inverse Trig",
+    description: "Read principal values of inverse trigonometric functions.",
+    classes: "XII",
+  },
+  {
+    id: "integrals",
+    icon: "∫",
+    title: "Integrals",
+    description: "Find an antiderivative and the area under one power curve.",
+    classes: "XII",
+  },
+  {
+    id: "vectors",
+    icon: "→",
+    title: "Vectors",
+    description: "Find magnitude, direction cosines and a dot product.",
+    classes: "XII",
+  },
+  {
+    id: "lpp",
+    icon: "LP",
+    title: "Linear Programming",
+    description: "Check the corner of a two-variable feasible region.",
+    classes: "XII",
+  },
+  {
+    id: "bayes",
+    icon: "P",
+    title: "Bayes",
+    description: "Compute conditional probability from a small table.",
+    classes: "XII",
+  },
+  {
     id: "practice",
     icon: "🧠",
     title: "Practice",
@@ -3669,6 +3774,32 @@ export default function MathematicsPage() {
 
       case "reference":
         return <ReferenceLab />;
+      case "argand":
+        return <ArgandLab />;
+      case "inequality":
+        return <InequalityLab />;
+      case "counting":
+        return <CountingLab />;
+      case "binomial":
+        return <BinomialLab />;
+      case "sequences":
+        return <SequenceLab />;
+      case "triggraphs":
+        return <TrigGraphLab />;
+      case "distance3d":
+        return <Distance3DLab />;
+      case "matrices":
+        return <MatrixLab />;
+      case "inversetrig":
+        return <InverseTrigLab />;
+      case "integrals":
+        return <IntegralLab />;
+      case "vectors":
+        return <VectorLab />;
+      case "lpp":
+        return <LinearProgrammingLab />;
+      case "bayes":
+        return <BayesLab />;
 
       default:
         return (
