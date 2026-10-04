@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCurrentMealIndex as getMealWindowIndex } from "@/lib/schedule/meals";
 
 type Meal = {
   title: string;
@@ -565,39 +566,12 @@ function getIndiaDayShort() {
 }
 
 /*
- * Meal schedule:
- *
- * Breakfast       < 09:00
- * Morning Snack   09:00–11:59
- * Lunch           12:00–14:59
- * Evening Snack   15:00–17:59
- * Dinner          18:00–20:59
- * After 21:00     No active meal
+ * Meal status uses the extended serving windows in
+ * lib/schedule/meals.ts. Those windows are not class periods.
  */
 function getCurrentMealIndex() {
   const { totalMinutes } = getIndiaTimeParts();
-
-  if (totalMinutes < 9 * 60) {
-    return 0;
-  }
-
-  if (totalMinutes < 12 * 60) {
-    return 1;
-  }
-
-  if (totalMinutes < 15 * 60) {
-    return 2;
-  }
-
-  if (totalMinutes < 18 * 60) {
-    return 3;
-  }
-
-  if (totalMinutes < 21 * 60) {
-    return 4;
-  }
-
-  return -1;
+  return getMealWindowIndex(totalMinutes);
 }
 
 function getMealStatus(

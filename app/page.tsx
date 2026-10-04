@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  formatMealWindow,
+  getCurrentMealWindow,
+  getNextMealWindow,
+} from "@/lib/schedule/meals";
 
 type Category = "Flagship" | "Academic" | "Cultural" | "Exams" | "Sports" | "Excursion";
 
@@ -81,9 +86,6 @@ type WeatherData = {
   };
 };
 
-type MealType = "Breakfast" | "Morning Snacks" | "Lunch" | "Evening Snacks" | "Dinner";
-type MealWindow = { type: MealType; startHour: number; endHour: number; label: string; description: string };
-
 type TimelineEntry = {
   id: string;
   title: string;
@@ -96,14 +98,6 @@ type TimelineEntry = {
 
 const VIDYAGYAN_LAT = "28.3835";
 const VIDYAGYAN_LON = "77.7049";
-
-const MEAL_WINDOWS: MealWindow[] = [
-  { type: "Breakfast", startHour: 0, endHour: 9, label: "Breakfast", description: "Morning meal" },
-  { type: "Morning Snacks", startHour: 9, endHour: 12, label: "Morning Snacks", description: "Morning break" },
-  { type: "Lunch", startHour: 12, endHour: 15, label: "Lunch", description: "Midday meal" },
-  { type: "Evening Snacks", startHour: 15, endHour: 18, label: "Evening Snacks", description: "Afternoon break" },
-  { type: "Dinner", startHour: 18, endHour: 21, label: "Dinner", description: "Evening meal" },
-];
 
 const WEEKDAY_TIMELINE: TimelineEntry[] = [
   { id: "wake", title: "Wake Up Call", start: "05:00", category: "Rest/Admin" },
@@ -240,14 +234,6 @@ function currentTimelineEntry(now: number, entries: TimelineEntry[]) {
 
 function nextTimelineEntry(now: number, entries: TimelineEntry[]) {
   return entries.find((entry) => minutesFrom(entry.start) > now && (!entry.days || entry.days.includes(indiaWeekdayNumber())));
-}
-
-function getCurrentMeal(hour: number) {
-  return MEAL_WINDOWS.find((meal) => hour >= meal.startHour && hour < meal.endHour) ?? null;
-}
-
-function getNextMeal(hour: number) {
-  return MEAL_WINDOWS.find((meal) => meal.startHour > hour) ?? MEAL_WINDOWS[0];
 }
 
 function weatherLabel(code: number) {
@@ -467,9 +453,9 @@ function CalendarPanel({ current, next, today }: { current?: CalendarEvent; next
   );
 }
 
-function CafeteriaPanel({ hour }: { hour: number }) {
-  const current = getCurrentMeal(hour);
-  const next = getNextMeal(hour);
+function CafeteriaPanel({ totalMinutes }: { totalMinutes: number }) {
+  const current = getCurrentMealWindow(totalMinutes);
+  const next = getNextMealWindow(totalMinutes);
   const active = current ?? next;
   const isNext = !current;
   return (
@@ -478,8 +464,8 @@ function CafeteriaPanel({ hour }: { hour: number }) {
       <div className="relative z-10 flex items-start justify-between"><span className="text-[9px] font-black uppercase tracking-[.2em] text-amber-700">Cafeteria · {isNext ? "next" : "now"}</span><span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-amber-700">↗</span></div>
       <div className="relative z-10 mt-10 max-w-[72%]">
         <p className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">{isNext ? "Next meal" : "Current meal"}</p>
-        <h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{active?.label ?? "Campus meals"}</h3>
-        <p className="mt-2 text-sm text-slate-500">{active ? `${String(active.startHour).padStart(2, "0")}:00 – ${String(active.endHour).padStart(2, "0")}:00` : "Daily cafeteria schedule"}</p>
+        <h3 className="mt-2 text-2xl font-semibold tracking-[-.04em] text-slate-950">{active?.title ?? "Campus meals"}</h3>
+        <p className="mt-2 text-sm text-slate-500">{active ? formatMealWindow(active) : "Daily cafeteria schedule"}</p>
       </div>
       <div className="relative z-10 mt-8 flex items-center gap-2 text-[9px] font-black uppercase tracking-[.16em] text-amber-700"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Campus dining</div>
     </Link>
@@ -717,7 +703,6 @@ export default function Home() {
   const isSignedIn = Boolean(profile);
   const firstName = profile?.name?.trim()?.split(/\s+/)[0] ?? "VIDYAGYAN";
   const greeting = isSignedIn ? greetingFor(hour) : "Welcome to,";
-  const currentMeal = getCurrentMeal(hour);
   const featuredNews = news[0];
   const secondaryNews = news.slice(1, 4);
   const todayHourly = useMemo(() => {
@@ -778,7 +763,7 @@ export default function Home() {
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
             <TimelinePanel current={currentTimeline} next={nextTimeline} />
             <CalendarPanel current={currentCalendar} next={nextCalendar} today={today} />
-            <CafeteriaPanel hour={hour} />
+            <CafeteriaPanel totalMinutes={minute} />
           </div>
         </section>
 
