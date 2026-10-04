@@ -1796,8 +1796,11 @@ function spearmanCorrelation(points: PairedPoint[], repeatedRanks = false) {
   const n = points.length;
   const d2 = sum(rx.map((rank, i) => (rank - ry[i]) ** 2));
   if (!repeatedRanks) return 1 - (6 * d2) / (n * (n ** 2 - 1));
-  const tieAdjustment = (tieCorrection(points.map((p) => p.x)) + tieCorrection(points.map((p) => p.y))) / 12;
-  return 1 - (6 * (d2 + tieAdjustment)) / (n * (n ** 2 - 1));
+  const rankTerm = (n ** 3 - n) / 12;
+  const tx = rankTerm - tieCorrection(points.map((p) => p.x)) / 12;
+  const ty = rankTerm - tieCorrection(points.map((p) => p.y)) / 12;
+  if (tx <= 0 || ty <= 0) return 0;
+  return (tx + ty - d2) / (2 * Math.sqrt(tx * ty));
 }
 
 function simpleAggregativeIndex(rows: IndexRow[]) {

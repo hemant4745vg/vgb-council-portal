@@ -82,18 +82,27 @@ export const presets: Preset[] = [
       const s0 = (x: number) => 10 + 0.65 * x;
       const d1 = (x: number) => d0(x) + c.dShift;
       const s1 = (x: number) => s0(x) + c.sShift;
-      const changed = Math.abs(c.dShift) > 0.01 || Math.abs(c.sShift) > 0.01;
-      if (!changed) {
+      const demandMoved = Math.abs(c.dShift) > 0.01;
+      const supplyMoved = Math.abs(c.sShift) > 0.01;
+      if (!demandMoved && !supplyMoved) {
         return [
           { id: "d", label: "D", color: curveColors[0], fn: d0 },
           { id: "s", label: "S", color: curveColors[1], fn: s0 },
         ];
       }
       return [
-        { id: "d0", label: "D₀", color: "#93c5fd", fn: d0, dashed: true },
-        { id: "d1", label: c.dShift > 0 ? "D₁ (increase)" : "D₁ (decrease)", color: curveColors[0], fn: d1 },
-        { id: "s0", label: "S₀", color: "#fca5a5", fn: s0, dashed: true },
-        { id: "s1", label: c.sShift < 0 ? "S₁ (increase)" : "S₁ (decrease)", color: curveColors[1], fn: s1 },
+        ...(demandMoved
+          ? [
+              { id: "d0", label: "D₀", color: "#93c5fd", fn: d0, dashed: true },
+              { id: "d1", label: c.dShift > 0 ? "D₁ (increase)" : "D₁ (decrease)", color: curveColors[0], fn: d1 },
+            ]
+          : [{ id: "d", label: "D", color: curveColors[0], fn: d0 }]),
+        ...(supplyMoved
+          ? [
+              { id: "s0", label: "S₀", color: "#fca5a5", fn: s0, dashed: true },
+              { id: "s1", label: c.sShift < 0 ? "S₁ (increase)" : "S₁ (decrease)", color: curveColors[1], fn: s1 },
+            ]
+          : [{ id: "s", label: "S", color: curveColors[1], fn: s0 }]),
       ];
     },
     interpretation: [
@@ -214,7 +223,7 @@ export const presets: Preset[] = [
     yLabel: "Price (₹ per unit)",
     xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      { key: "degree", label: "Elasticity (E)", min: 0, max: 4, step: 1, value: 2 },
+      { key: "degree", label: "Curve type", min: 0, max: 4, step: 1, value: 2 },
       { key: "price", label: "Price (₹ per unit)", min: 10, max: 90, step: 1, value: 50 },
     ],
     curves: (c) => {
@@ -257,15 +266,15 @@ export const presets: Preset[] = [
     xMin: 0,
     xMax: 100,
     yMin: 0,
-    yMax: 100,
+    yMax: 4500,
     controls: [
       { key: "slope", label: "Demand responsiveness", min: 0.55, max: 1.0, step: 0.01, value: 0.75 },
       { key: "price", label: "Selected price", min: 5, max: 90, step: 1, value: 35 },
     ],
     curves: (c) => {
-      const demandQ = (p) => Math.max(0, (95 - p) / c.slope);
+      const demandQ = (p: number) => Math.max(0, (95 - p) / c.slope);
       return [
-        { id: "te", label: "Total expenditure (P × Q)", color: curveColors[0], fn: (p) => Math.min(100, (p * demandQ(p)) / 28) },
+        { id: "te", label: "Total expenditure (P × Q)", color: curveColors[0], fn: (p: number) => p * demandQ(p) },
         { id: "selected", label: "Selected price", color: curveColors[2], fn: () => 0, dashed: true, vertical: true, xValue: c.price },
       ];
     },
@@ -286,7 +295,7 @@ export const presets: Preset[] = [
     yLabel: "Price (₹ per unit)",
     xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
-      { key: "degree", label: "Elasticity (E)", min: 0, max: 4, step: 1, value: 2 },
+      { key: "degree", label: "Curve type", min: 0, max: 4, step: 1, value: 2 },
       { key: "price", label: "Price (₹ per unit)", min: 10, max: 90, step: 1, value: 50 },
     ],
     curves: (c) => {
@@ -863,16 +872,22 @@ export const presets: Preset[] = [
     yMin: 0,
     yMax: 25,
     controls: [
+      { key: "mpc", label: "Selected MPC", min: 0.4, max: 0.9, step: 0.01, value: 0.75 },
       { key: "investment", label: "Change in investment (ΔI)", min: 5, max: 30, step: 1, value: 10 },
     ],
-    curves: (c) => [
-      { id: "k", label: "k = 1 / (1 − MPC)", color: curveColors[0], fn: (x) => 1 / (1 - x) },
-      { id: "selected", label: "Selected ΔY", color: curveColors[2], fn: () => Math.min(25, c.investment / (1 - 0.75)), dashed: true },
-    ],
+    curves: (c) => {
+      const mpc = Math.min(0.9, Math.max(0.4, c.mpc));
+      const multiplier = 1 / (1 - mpc);
+      const incomeChange = multiplier * c.investment;
+      return [
+        { id: "k", label: "k = 1 / (1 − MPC)", color: curveColors[0], fn: (x: number) => 1 / (1 - x) },
+        { id: "selected", label: `MPC ${mpc.toFixed(2)} · k ${multiplier.toFixed(2)} · ΔY ${incomeChange.toFixed(1)}`, color: curveColors[2], fn: () => 0, dashed: true, vertical: true, xValue: mpc },
+      ];
+    },
     interpretation: [
-      "In the simple model, k = 1 / (1 − MPC).",
-      "A higher MPC produces a larger investment multiplier.",
-      "The resulting change in income is ΔY = k × ΔI.",
+      "In the simple model, k = 1 / (1 − MPC). The curve shows that multiplier, not the income change.",
+      "The vertical line marks the selected MPC. A higher MPC produces a larger multiplier.",
+      "The income change is calculated separately as ΔY = k × ΔI. It is not plotted on the multiplier axis.",
     ],
   },
 

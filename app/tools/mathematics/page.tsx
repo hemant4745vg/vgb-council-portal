@@ -16,7 +16,7 @@ const COLORS = [
   "#0891b2",
 ];
 
-const STORAGE_KEY = "vgb-calculator-workspace-v2";
+const STORAGE_KEY = "vgb-mathematics-workspace-v1";
 
 type Expr = {
   id: number;
@@ -1176,27 +1176,21 @@ function AlgebraLab() {
 
   const discriminant =
     b * b - 4 * a * c;
-
-  const roots =
-    discriminant >= 0 && a !== 0
+  const linear = a === 0;
+  const roots = linear
+    ? b !== 0
+      ? [-c / b]
+      : []
+    : discriminant >= 0
       ? [
-          (-b +
-            Math.sqrt(discriminant)) /
-            (2 * a),
-          (-b -
-            Math.sqrt(discriminant)) /
-            (2 * a),
+          (-b + Math.sqrt(discriminant)) / (2 * a),
+          (-b - Math.sqrt(discriminant)) / (2 * a),
         ]
       : [];
-
-  const complexReal =
-    -b / (2 * a);
-
-  const complexImag =
-    Math.sqrt(
-      Math.abs(discriminant)
-    ) /
-    Math.abs(2 * a);
+  const complexReal = linear ? NaN : -b / (2 * a);
+  const complexImag = linear
+    ? NaN
+    : Math.sqrt(Math.abs(discriminant)) / Math.abs(2 * a);
 
   return (
     <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
@@ -1264,19 +1258,27 @@ function AlgebraLab() {
           </div>
 
           <div className="mt-2">
-            {discriminant > 0 && (
+            {linear && b !== 0 && (
+              <span className="text-sm text-blue-700">
+                Linear equation, one real root
+              </span>
+            )}
+            {linear && b === 0 && (
+              <span className="text-sm text-amber-700">
+                {c === 0 ? "True for every x" : "No solution"}
+              </span>
+            )}
+            {!linear && discriminant > 0 && (
               <span className="text-sm text-green-700">
                 Two distinct real roots
               </span>
             )}
-
-            {discriminant === 0 && (
+            {!linear && discriminant === 0 && (
               <span className="text-sm text-blue-700">
                 One repeated real root
               </span>
             )}
-
-            {discriminant < 0 && (
+            {!linear && discriminant < 0 && (
               <span className="text-sm text-purple-700">
                 Complex conjugate roots
               </span>
@@ -1289,7 +1291,7 @@ function AlgebraLab() {
             Roots
           </h3>
 
-          {discriminant >= 0 ? (
+          {linear || discriminant >= 0 ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {roots.map((root, i) => (
                 <div
@@ -1608,14 +1610,14 @@ function StatisticsLab() {
 
   const values = useMemo(() => {
     return input
-      .split(/[,\\s]+/)
+      .split(/[,\s]+/)
       .map(Number)
       .filter(Number.isFinite);
   }, [input]);
 
   const mean =
     values.length === 0
-      ? 0
+      ? NaN
       : values.reduce(
           (a, b) => a + b,
           0
@@ -1775,7 +1777,31 @@ const practiceQuestions = [
       "Find the 5th term of the AP 2, 5, 8, ...",
     answer: "14",
   },
+  {
+    topic: "Matrices",
+    question:
+      "Find the determinant of the 2×2 identity matrix.",
+    answer: "1",
+  },
+  {
+    topic: "Derivatives",
+    question:
+      "Find dy/dx for y = x² at x = 3.",
+    answer: "6",
+  },
+  {
+    topic: "Probability",
+    question:
+      "If P(A) = 0.2, find P(A').",
+    answer: "0.8",
+  },
 ];
+
+function answersMatch(given: string, expected: string) {
+  const normalise = (value: string) =>
+    value.toLowerCase().replace(/\s+/g, "").replace(/[{}]/g, "");
+  return normalise(given) === normalise(expected);
+}
 
 function PracticeLab() {
   const [index, setIndex] =
@@ -1795,7 +1821,7 @@ function PracticeLab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-xs font-bold uppercase tracking-[.15em] text-slate-500">
-            Class XI · Practice
+            Class XI–XII · Practice
           </div>
 
           <h2 className="mt-1 text-xl font-semibold">
@@ -1857,14 +1883,12 @@ function PracticeLab() {
       {checked && (
         <div
           className={`mt-5 rounded-xl p-4 text-sm ${
-            answer.trim() ===
-            question.answer
+            answersMatch(answer, question.answer)
               ? "bg-green-50 text-green-800"
               : "bg-red-50 text-red-800"
           }`}
         >
-          {answer.trim() ===
-          question.answer
+          {answersMatch(answer, question.answer)
             ? "Correct."
             : `Not quite. The expected answer is ${question.answer}.`}
         </div>
@@ -2325,7 +2349,7 @@ const referenceGroups = [
       "\\(a_n=a+(n-1)d\\)",
       "\\(S_n=\\frac n2[2a+(n-1)d]\\)",
       "\\(a_n=ar^{n-1}\\)",
-      "\\(S_\\infty=\\frac a{1-r}\\)",
+      "\\(S_\\infty=\\frac a{1-r},\\ |r|<1\\)",
     ],
   },
   {
@@ -3450,7 +3474,7 @@ const tools: {
     icon: "📐",
     title: "Trigonometry",
     description:
-      "Explore the unit circle, angles, radians and trigonometric identities.",
+      "Explore the unit circle, degree and radian measure, and sine and cosine values.",
     classes: "XI",
   },
   {
@@ -3669,7 +3693,7 @@ function Overview({
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              CBSE Mathematics 041 · 2026–27
+              CBSE Mathematics 041 · 2026–27. This is the syllabus map; only the topics with labs are interactive.
             </p>
           </div>
 
