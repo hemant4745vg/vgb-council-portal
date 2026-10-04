@@ -1,82 +1,47 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { presets } from "./data";
 import { EconomicsGraph, StatisticsLab } from "./components";
 
 function Stage() {
-  const ref = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    let frame = 0;
-    let raf = 0;
-
-    const project = (x: number, y: number, z: number, angle: number) => {
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      const xr = x * cos - z * sin;
-      const zr = x * sin + z * cos;
-      const scale = 280 / (280 + zr);
-      return [canvas.width / 2 + xr * scale, canvas.height / 2 - y * scale];
-    };
-
-    const draw = () => {
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
-      const angle = frame / 90;
-      context.clearRect(0, 0, width, height);
-      const grid: number[][] = [];
-      for (let i = -4; i <= 4; i += 1) {
-        grid.push([-120, 0, i * 24], [120, 0, i * 24], [i * 24, 0, -120], [i * 24, 0, 120]);
-      }
-      context.strokeStyle = "rgba(125, 211, 252, 0.35)";
-      context.lineWidth = 1;
-      for (let i = 0; i < grid.length; i += 2) {
-        const a = project(grid[i][0], grid[i][1], grid[i][2], angle);
-        const b = project(grid[i + 1][0], grid[i + 1][1], grid[i + 1][2], angle);
-        context.beginPath();
-        context.moveTo(a[0], a[1]);
-        context.lineTo(b[0], b[1]);
-        context.stroke();
-      }
-      const strokeCurve = (color: string, fn: (x: number) => number) => {
-        context.beginPath();
-        context.strokeStyle = color;
-        context.lineWidth = 3;
-        for (let step = 0; step <= 32; step += 1) {
-          const x = -110 + step * 7;
-          const y = fn(x);
-          const point = project(x, y, 0, angle);
-          if (step === 0) context.moveTo(point[0], point[1]);
-          else context.lineTo(point[0], point[1]);
-        }
-        context.stroke();
-      };
-      strokeCurve("#38bdf8", (x) => 70 - x * 0.45);
-      strokeCurve("#fb7185", (x) => -55 + x * 0.4);
-      const eq = project(18, 62, 0, angle);
-      context.fillStyle = "#fbbf24";
-      context.beginPath();
-      context.arc(eq[0], eq[1], 6, 0, Math.PI * 2);
-      context.fill();
-      frame += 1;
-      raf = requestAnimationFrame(draw);
-    };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
   return (
     <div className="econ-stage" aria-hidden="true">
-      <canvas ref={ref} className="h-full w-full" />
+      <div className="econ-glow" />
+      <div className="econ-model">
+        <svg viewBox="0 0 360 250" className="h-full w-full">
+          <defs>
+            <linearGradient id="econ-plate" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#1e3a8a" stopOpacity="0.2" />
+              <stop offset="1" stopColor="#0f172a" stopOpacity="0.05" />
+            </linearGradient>
+            <linearGradient id="econ-demand" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#7dd3fc" />
+              <stop offset="1" stopColor="#2563eb" />
+            </linearGradient>
+            <linearGradient id="econ-supply" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stopColor="#fb7185" />
+              <stop offset="1" stopColor="#f59e0b" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="180" cy="198" rx="92" ry="16" fill="rgba(15,23,42,0.28)" />
+          <g className="econ-plate">
+            <path d="M48 168 L176 104 L312 150 L184 214 Z" fill="url(#econ-plate)" stroke="rgba(255,255,255,.35)" />
+            <path d="M70 164 L176 116 L292 154" fill="none" stroke="rgba(255,255,255,.18)" />
+            <path d="M92 176 L176 128 L270 160" fill="none" stroke="rgba(255,255,255,.12)" />
+            <path d="M118 132 L150 188" fill="none" stroke="rgba(255,255,255,.16)" />
+            <path d="M176 116 L184 214" fill="none" stroke="rgba(255,255,255,.16)" />
+            <path d="M236 128 L214 186" fill="none" stroke="rgba(255,255,255,.16)" />
+          </g>
+          <path className="econ-curve econ-demand" d="M78 86 C132 98 168 146 292 168" fill="none" stroke="url(#econ-demand)" strokeWidth="4" strokeLinecap="round" />
+          <path className="econ-curve econ-supply" d="M74 176 C138 160 188 112 300 92" fill="none" stroke="url(#econ-supply)" strokeWidth="4" strokeLinecap="round" />
+          <circle className="econ-eq" cx="186" cy="132" r="6" fill="#fbbf24" />
+          <circle className="econ-eq-ring" cx="186" cy="132" r="12" fill="none" stroke="#fde68a" strokeWidth="1.5" />
+        </svg>
+        <span className="econ-chip econ-chip-d">Demand</span>
+        <span className="econ-chip econ-chip-s">Supply</span>
+        <span className="econ-chip econ-chip-e">Equilibrium</span>
+      </div>
     </div>
   );
 }

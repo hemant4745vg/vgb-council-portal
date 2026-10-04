@@ -92,3 +92,63 @@
 @media (prefers-reduced-motion: reduce) {
   .econ-plane, .econ-float, .econ-rise { animation: none; }
 }
+
+.econ-stage {
+  position: absolute;
+  right: 2%;
+  top: 6px;
+  height: 260px;
+  width: min(440px, 48vw);
+  pointer-events: none;
+}
+.econ-glow {
+  position: absolute;
+  right: 40px;
+  top: 30px;
+  height: 160px;
+  width: 220px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(56,189,248,.45), rgba(251,191,36,.12) 42%, transparent 70%);
+  filter: blur(8px);
+  animation: econ-breathe 6s ease-in-out infinite;
+}
+.econ-model {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(8deg) rotateY(-18deg);
+  transform-style: preserve-3d;
+  animation: econ-tilt 9s ease-in-out infinite;
+}
+.econ-plate { transform: translateZ(0); }
+.econ-curve { stroke-dasharray: 320; stroke-dashoffset: 320; animation: econ-draw 2.8s ease forwards; }
+.econ-supply { animation-delay: .35s; }
+.econ-eq { filter: drop-shadow(0 0 8px #fbbf24); }
+.econ-eq-ring { transform-origin: 186px 132px; animation: econ-pulse 2.8s ease-out infinite; }
+.econ-chip {
+  position: absolute;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 999px;
+  background: rgba(15,23,42,.45);
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+.econ-chip-d { left: 18px; top: 42px; color: #bae6fd; }
+.econ-chip-s { right: 28px; top: 58px; color: #fecdd3; }
+.econ-chip-e { left: 46%; bottom: 28px; color: #fde68a; }
+@keyframes econ-tilt {
+  0%, 100% { transform: rotateX(8deg) rotateY(-18deg) translateY(0); }
+  50% { transform: rotateX(14deg) rotateY(-8deg) translateY(-6px); }
+}
+@keyframes econ-draw { to { stroke-dashoffset: 0; } }
+@keyframes econ-pulse {
+  0% { transform: scale(.7); opacity: .8; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+@keyframes econ-breathe {
+  0%, 100% { opacity: .7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
