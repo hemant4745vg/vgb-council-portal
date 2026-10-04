@@ -240,6 +240,7 @@ function EditField({
 }
 
 export default function DashboardStudyMaterialPage() {
+  const supabase = createClient();
   const [profile, setProfile] = useState<PortalProfile | null>(null);
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);

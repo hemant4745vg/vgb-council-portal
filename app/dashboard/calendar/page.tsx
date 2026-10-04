@@ -643,6 +643,7 @@ function validateForm(form: FormState) {
 }
 
 export default function DashboardCalendarPage() {
+  const supabase = createClient();
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const today = useMemo(() => fromDateKey(todayKey), [todayKey]);
 

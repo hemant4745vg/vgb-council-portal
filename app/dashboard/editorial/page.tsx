@@ -676,6 +676,7 @@ function sanitizeEditorHtml(html: string) {
 }
 
 export default function EditorialAdminPage() {
+  const supabase = createClient();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const editorReadyRef = useRef(false);
 

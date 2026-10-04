@@ -329,6 +329,7 @@ function LoadingEventRows() {
 }
 
 export default function Dashboard() {
+  const supabase = createClient();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 

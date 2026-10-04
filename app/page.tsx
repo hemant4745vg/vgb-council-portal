@@ -543,6 +543,7 @@ function ForecastMetric({ label, value }: { label: string; value: string }) {
 }
 
 export default function Home() {
+  const supabase = createClient();
   const [clock, setClock] = useState("");
   const [dateLabel, setDateLabel] = useState("");
   const [hour, setHour] = useState<number>(0);

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 type PasswordFlow = "invite" | "recovery";
 
 export default function UpdatePasswordPage() {
+  const supabase = createClient();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
