@@ -253,6 +253,111 @@ function Timer(){const [seconds,setSeconds]=useState(300);const [running,setRunn
 function TextAnalyzer(){const [text,setText]=useState("");const words=text.trim()?text.trim().split(/\s+/).length:0;const sentences=text.split(/[.!?]+/).filter(Boolean).length;return <div><textarea value={text} onChange={e=>setText(e.target.value)} className="min-h-40 w-full rounded-2xl border border-slate-200 p-4" placeholder="Paste or type text..."/><div className="mt-4 grid grid-cols-3 gap-3">{[["Words",words],["Characters",text.length],["Sentences",sentences]].map(([k,v])=><div key={String(k)} className="rounded-xl bg-slate-50 p-4 text-center"><p className="text-xs font-black uppercase text-slate-400">{String(k)}</p><p className="mt-1 text-2xl font-black">{String(v)}</p></div>)}</div></div>}
 function Randomizer(){const [value,setValue]=useState<number|null>(null);return <div className="text-center"><div className="text-7xl font-black">{value??"?"}</div><p className="mt-3 text-sm text-slate-500">Generate a number from 1 to 100.</p><button onClick={()=>setValue(Math.floor(Math.random()*100)+1)} className="mt-5 rounded-xl bg-slate-950 px-6 py-3 font-bold text-white">Generate</button></div>}
 
+
+function SubjectArtwork({ index }: { index: number }) {
+  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, opacity: 0.22 };
+  return (
+    <svg viewBox="0 0 320 170" className="absolute inset-0 h-full w-full text-sky-300" aria-hidden="true">
+      {index === 0 && <>
+        <path d="M-10 118 C45 90 72 72 111 94 S172 151 211 116 S245 35 276 43 S307 94 330 75" {...common} strokeWidth="2" opacity="0.3" />
+        <path d="M0 132 C48 109 77 94 112 105 S169 142 211 125 S260 70 320 96" {...common} />
+        <circle cx="110" cy="94" r="4" fill="currentColor" opacity="0.35" />
+        <circle cx="211" cy="116" r="4" fill="currentColor" opacity="0.35" />
+      </>}
+      {index === 1 && <>
+        <ellipse cx="164" cy="88" rx="86" ry="37" transform="rotate(8 164 88)" {...common} />
+        <ellipse cx="164" cy="88" rx="56" ry="91" transform="rotate(42 164 88)" {...common} />
+        <circle cx="164" cy="88" r="12" fill="currentColor" opacity="0.08" />
+        <circle cx="242" cy="83" r="4" fill="currentColor" opacity="0.35" />
+      </>}
+      {index === 2 && <>
+        <circle cx="161" cy="84" r="28" {...common} />
+        <circle cx="161" cy="84" r="11" {...common} />
+        <path d="M161 56 L161 20 M133 84 L97 84 M189 84 L225 84 M141 64 L116 39 M181 64 L206 39 M141 104 L116 129 M181 104 L206 129" {...common} />
+        <circle cx="97" cy="84" r="5" fill="currentColor" opacity="0.28" />
+        <circle cx="225" cy="84" r="5" fill="currentColor" opacity="0.28" />
+      </>}
+      {index === 3 && <>
+        <path d="M58 94 C42 61 69 42 98 58 C126 74 131 111 160 109 C190 107 189 56 221 58 C253 60 263 94 251 116" {...common} strokeWidth="2" />
+        <path d="M49 96 C69 112 91 118 111 101 C136 80 143 49 166 50 C193 51 193 103 219 105 C238 107 251 92 263 78" {...common} />
+        <circle cx="111" cy="101" r="4" fill="currentColor" opacity="0.3" />
+        <circle cx="219" cy="105" r="4" fill="currentColor" opacity="0.3" />
+      </>}
+      {index === 4 && <>
+        <path d="M18 42 L154 112 L302 39" {...common} strokeWidth="2" />
+        <path d="M17 128 L154 58 L303 129" {...common} />
+        <circle cx="154" cy="85" r="5" fill="currentColor" opacity="0.35" />
+        <circle cx="18" cy="42" r="3" fill="currentColor" opacity="0.25" />
+        <circle cx="302" cy="39" r="3" fill="currentColor" opacity="0.25" />
+      </>}
+      {index === 5 && <>
+        <ellipse cx="157" cy="86" rx="105" ry="48" {...common} />
+        <ellipse cx="157" cy="86" rx="79" ry="35" {...common} />
+        <ellipse cx="157" cy="86" rx="51" ry="24" {...common} />
+        <path d="M157 86 C184 74 202 73 224 81 C244 88 263 87 281 77" {...common} />
+      </>}
+      {index === 6 && <>
+        <path d="M60 28 V142 M60 92 C91 92 95 72 122 72 C151 72 150 110 181 110 C212 110 213 51 255 51" {...common} strokeWidth="2" />
+        <path d="M60 122 C104 122 110 103 145 103 C178 103 190 126 225 126 C254 126 272 106 295 91" {...common} />
+        <circle cx="181" cy="110" r="4" fill="currentColor" opacity="0.28" />
+      </>}
+      {index === 7 && <>
+        <path d="M32 52 L157 122 L289 47" {...common} />
+        <path d="M32 118 L157 48 L289 123" {...common} />
+        <circle cx="157" cy="85" r="18" fill="currentColor" opacity="0.08" />
+        <circle cx="32" cy="52" r="5" fill="currentColor" opacity="0.3" />
+        <circle cx="289" cy="47" r="5" fill="currentColor" opacity="0.3" />
+      </>}
+    </svg>
+  );
+}
+
+function GameArtwork({ index }: { index: number }) {
+  return (
+    <svg viewBox="0 0 320 170" className="absolute inset-0 h-full w-full text-cyan-200/25" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="1.2">
+        {index === 0 && <>
+          <path d="M25 118 H295" />
+          <path d="M48 118 L92 78 L126 103 L177 45 L218 83 L278 34" />
+          <circle cx="177" cy="45" r="5" />
+        </>}
+        {index === 1 && <>
+          <path d="M54 108 L92 61 L133 105 L171 54 L213 105 L257 63" />
+          <path d="M70 124 H250" />
+        </>}
+        {index === 2 && <>
+          <circle cx="160" cy="85" r="54" />
+          <path d="M160 31 V139 M106 85 H214" />
+          <path d="M123 48 L197 122 M197 48 L123 122" />
+        </>}
+        {index === 3 && <>
+          <path d="M38 106 C77 50 111 50 151 95 S223 135 282 56" />
+          <circle cx="151" cy="95" r="5" />
+          <circle cx="282" cy="56" r="5" />
+        </>}
+        {index === 4 && <>
+          <rect x="72" y="42" width="176" height="100" rx="12" />
+          <path d="M72 76 H248 M112 42 V142 M160 42 V142 M208 42 V142" />
+        </>}
+        {index === 5 && <>
+          <path d="M55 117 L104 64 L153 116 L202 51 L267 118" />
+          <circle cx="104" cy="64" r="5" />
+          <circle cx="202" cy="51" r="5" />
+        </>}
+        {index === 6 && <>
+          <path d="M54 52 C88 52 88 118 122 118 C156 118 156 52 190 52 C224 52 224 118 258 118" />
+          <path d="M54 88 H258" />
+        </>}
+        {index === 7 && <>
+          <path d="M45 104 L106 43 L164 97 L223 54 L282 108" />
+          <circle cx="106" cy="43" r="6" />
+          <circle cx="223" cy="54" r="6" />
+        </>}
+      </g>
+    </svg>
+  );
+}
+
 export default function ToolsPage(){
   const [category,setCategory]=useState<Category>("all");
   const [query,setQuery]=useState("");
@@ -265,35 +370,96 @@ export default function ToolsPage(){
   const showUtilities=category==="all"||category==="utilities";
   const showCurrent=category==="all"||category==="current";
   const showGames=category==="all"||category==="games";
-  return <main className="min-h-screen overflow-hidden bg-slate-50 text-slate-950">
-    <section className="relative isolate overflow-hidden bg-slate-950 text-white">
-      <div className="absolute inset-0 -z-10 opacity-50 [background-image:linear-gradient(rgba(255,255,255,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.06)_1px,transparent_1px)] [background-size:56px_56px]" />
-      <div className="absolute -left-24 top-12 h-80 w-80 rounded-full bg-cyan-400/20 blur-3xl" /><div className="absolute right-0 top-0 h-[30rem] w-[30rem] rounded-full bg-blue-500/20 blur-3xl" />
-      <div className="mx-auto max-w-7xl px-5 pb-16 pt-16 sm:px-8 lg:px-10 lg:pb-20 lg:pt-20">
-        <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_.9fr]">
-          <div><p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">VGB Academic Lab</p><h1 className="mt-5 max-w-3xl text-5xl font-black tracking-[-0.05em] sm:text-6xl lg:text-7xl">Tools that make learning <span className="text-white/45">interactive.</span></h1><p className="mt-6 max-w-2xl text-base leading-7 text-white/65 sm:text-lg">Calculate. Visualize. Simulate. Explore. A practical collection of academic tools, utilities and interactive experiences built for the VidyaGyan community.</p><div className="mt-8 max-w-2xl"><div className="flex items-center rounded-2xl border border-white/10 bg-white/10 px-4 py-1 shadow-2xl backdrop-blur-xl"><span className="mr-3 text-white/40">⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} className="w-full bg-transparent py-4 text-sm font-semibold outline-none placeholder:text-white/40" placeholder="Search tools, subjects and games..." /></div></div></div>
-          <div className="relative mx-auto h-80 w-full max-w-md"><div className="absolute inset-10 rounded-full border border-white/10"/><div className="absolute inset-20 rounded-full border border-white/10"/><div className="absolute left-1/2 top-1/2 flex h-32 w-32 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2rem] border border-white/15 bg-white/10 text-center shadow-2xl backdrop-blur-xl"><div><div className="text-3xl font-black">VGB</div><div className="text-[10px] font-black uppercase tracking-[0.25em] text-white/45">Lab</div></div></div>{[["∑","20%","2%"],["⚛","72%","24%"],["🧬","22%","72%"],["◎","72%","72%"],["₹","2%","52%"],["⚖","72%","48%"]].map(([icon,left,top],i)=><div key={i} className="absolute flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-xl shadow-lg backdrop-blur-xl" style={{left,top}}>{icon}</div>)}</div>
+  return <main className="min-h-screen overflow-hidden bg-[#071426] text-white">
+    <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#071426]">
+      <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_75%_30%,rgba(53,110,177,.18),transparent_28%),radial-gradient(circle_at_18%_72%,rgba(19,104,137,.12),transparent_25%)]" />
+      <div className="absolute inset-0 -z-10 opacity-50 [background-image:linear-gradient(rgba(130,170,220,.055)_1px,transparent_1px),linear-gradient(90deg,rgba(130,170,220,.055)_1px,transparent_1px)] [background-size:52px_52px]" />
+      <div className="absolute right-[-12rem] top-[-12rem] -z-10 h-[34rem] w-[34rem] rounded-full border border-cyan-200/[0.08] shadow-[0_0_140px_rgba(59,130,246,.08)]" />
+      <div className="absolute left-[-8rem] bottom-[-13rem] -z-10 h-[28rem] w-[28rem] rounded-full border border-cyan-200/[0.06]" />
+
+      <div className="mx-auto max-w-[1440px] px-5 pb-14 pt-10 sm:px-8 lg:px-12 lg:pb-20 lg:pt-14">
+        <div className="flex items-center justify-between border-b border-white/[0.08] pb-5">
+          <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.32em] text-white/45"><span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,.8)]" /> VGB Academic Lab</div>
+          <div className="hidden text-[10px] font-black uppercase tracking-[0.28em] text-white/30 sm:block">Tools / Games / Experiments</div>
         </div>
-        <div className="mt-12 grid grid-cols-3 gap-3 border-t border-white/10 pt-6 sm:gap-8">{[["8","Academic subjects"],["6","Everyday utilities"],["8","Interactive experiences"]].map(([n,l])=><div key={l}><p className="text-2xl font-black sm:text-3xl">{n}</p><p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/40 sm:text-sm">{l}</p></div>)}</div>
+
+        <div className="grid items-end gap-12 pt-14 lg:grid-cols-[1.05fr_.95fr] lg:pt-20">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.36em] text-cyan-300/80">01 / The Lab</p>
+            <h1 className="mt-5 max-w-4xl text-5xl font-black leading-[0.94] tracking-[-0.065em] sm:text-6xl lg:text-[6.4rem]">Tools &amp;<br /><span className="text-white/35">Games.</span></h1>
+            <p className="mt-7 max-w-2xl text-sm leading-7 text-white/55 sm:text-base">A focused collection of academic workspaces, practical utilities and interactive challenges built to make learning feel less like a worksheet and more like a system.</p>
+            <div className="mt-8 flex max-w-2xl items-center border border-white/[0.11] bg-white/[0.035] px-4 shadow-2xl shadow-black/20 transition focus-within:border-cyan-200/30 focus-within:bg-white/[0.055]">
+              <span className="mr-3 text-sm text-white/30">⌕</span>
+              <input value={query} onChange={e=>setQuery(e.target.value)} className="w-full bg-transparent py-4 text-xs font-bold uppercase tracking-[0.08em] text-white outline-none placeholder:text-white/25" placeholder="Search the lab..." />
+              <span className="hidden border-l border-white/10 pl-3 text-[9px] font-black uppercase tracking-[0.2em] text-white/20 sm:block">Search</span>
+            </div>
+          </div>
+
+          <div className="relative mx-auto hidden h-[360px] w-full max-w-[520px] lg:block">
+            <div className="absolute left-1/2 top-1/2 h-[270px] w-[270px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.07]" />
+            <div className="absolute left-1/2 top-1/2 h-[190px] w-[190px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.07]" />
+            <div className="absolute left-1/2 top-1/2 h-[110px] w-[110px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/15 bg-cyan-300/[0.035] shadow-[0_0_70px_rgba(34,211,238,.08)]" />
+            <div className="absolute left-1/2 top-1/2 h-px w-[90%] -translate-x-1/2 bg-gradient-to-r from-transparent via-cyan-200/20 to-transparent" />
+            <div className="absolute left-1/2 top-1/2 w-px h-[90%] -translate-y-1/2 bg-gradient-to-b from-transparent via-cyan-200/15 to-transparent" />
+            {[['∑','10%','18%'],['⚛','72%','11%'],['◎','84%','58%'],['⚖','12%','68%'],['₹','48%','6%'],['Aa','60%','82%']].map(([icon,left,top],i)=><div key={i} className="absolute flex h-11 w-11 items-center justify-center border border-white/[0.10] bg-[#0b1c34]/80 text-sm font-black text-white/70 shadow-xl backdrop-blur-md" style={{left,top}}>{icon}</div>)}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center"><p className="text-4xl font-black tracking-[-0.06em]">VGB</p><p className="mt-1 text-[9px] font-black uppercase tracking-[0.35em] text-white/30">Learning systems</p></div>
+          </div>
+        </div>
+
+        <div className="mt-14 grid grid-cols-3 border-t border-white/[0.08] pt-6 sm:mt-20 sm:grid-cols-4">
+          {[['08','Academic subjects'],['06','Utility systems'],['08','Interactive games'],['01','News desk']].map(([n,l])=><div key={l} className="border-r border-white/[0.07] px-3 first:pl-0 last:border-0 sm:px-6"><p className="text-xl font-black tracking-tight sm:text-2xl">{n}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/30 sm:text-[10px]">{l}</p></div>)}
+        </div>
       </div>
     </section>
 
-    <div className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl"><div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-5 py-3 sm:px-8 lg:px-10">{(["all","academic","utilities","current","games"] as Category[]).map(c=><button key={c} onClick={()=>setCategory(c)} className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-black uppercase tracking-wider transition ${category===c?"bg-slate-950 text-white":"text-slate-500 hover:bg-slate-100"}`}>{c==="all"?"Everything":c==="current"?"Current Affairs":c[0].toUpperCase()+c.slice(1)}</button>)}</div></div>
-
-    <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 lg:px-10">
-      {showAcademic && <section><SectionHeading eyebrow="Academic tools" title="Learn by interacting." text="Open the dedicated subject labs without duplicating their systems here."/><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{subjectFiltered.map((t,i)=><a href={t.href} key={t.href} className={`group relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl ${i===0?"xl:col-span-2 xl:row-span-2": ""}`}><div className="flex items-start justify-between"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-white">{t.icon}</div><span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">{t.tag}</span></div><h3 className={`mt-7 font-black tracking-tight ${i===0?"text-3xl":"text-xl"}`}>{t.title}</h3><p className="mt-2 max-w-md text-sm leading-6 text-slate-500">{t.description}</p><div className="mt-5 flex flex-wrap gap-2">{t.capabilities.map(x=><span key={x} className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">{x}</span>)}</div><div className="mt-7 text-sm font-black">Open {t.title} <span className="inline-block transition group-hover:translate-x-1">→</span></div></a>)}</div></section>}
-
-      {showUtilities && <section className="mt-20"><SectionHeading eyebrow="Everyday tools" title="Small utilities. Less friction." text="Useful enough to keep around, simple enough not to require a user manual written by committee."/><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{([ ["calculator","∑","Calculator","Fast arithmetic and expression evaluation."],["marks","%","Marks Calculator","Average multiple subject scores."],["converter","↔","Unit Converter","Length and temperature conversions."],["timer","◷","Study Timer","Simple focused study sessions."],["text","Aa","Text Analyzer","Words, characters and sentence counts."],["random","?","Randomizer","Generate a random number from 1 to 100."] ] as [ToolId,string,string,string][]).map(([id,icon,title,desc])=><button key={id} onClick={()=>setTool(id)} className="group rounded-[1.5rem] border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"><div className="flex items-center gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg font-black">{icon}</div><div><h3 className="font-black">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{desc}</p></div><span className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-slate-950">→</span></div></button>)}</div></section>}
-
-      {showCurrent && <section className="mt-20"><div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-7 text-white shadow-xl sm:p-10"><div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl"/><div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end"><div><p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">Current affairs</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">VGB News Desk</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-white/60">Daily India, world, economy, geopolitics, technology, public policy and other high-value current affairs. The actual news product lives on /news, where it belongs.</p></div><a href="/news" className="rounded-xl bg-white px-5 py-3 text-center text-sm font-black text-slate-950 transition hover:bg-cyan-100">Open News →</a></div></div></section>}
-
-      {showGames && <section className="mt-20"><SectionHeading eyebrow="Interactive lab" title="Games that actually do something." text="Short challenges for reasoning, vocabulary, geography, economics, polity and strategy."/><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{gamesFiltered.map(g=><button key={g.id} onClick={()=>setGame(g.id)} className="group rounded-[1.75rem] border border-slate-200 bg-white p-6 text-left shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"><div className="flex items-start justify-between"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-white">{g.icon}</div><span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{g.difficulty}</span></div><h3 className="mt-7 text-xl font-black tracking-tight">{g.title}</h3><p className="mt-2 text-sm leading-6 text-slate-500">{g.description}</p><div className="mt-5 text-xs font-black uppercase tracking-wider text-slate-400">{g.tag}</div><div className="mt-5 text-sm font-black">Play →</div></button>)}</div></section>}
-
-      <footer className="mt-20 border-t border-slate-200 pt-8 text-sm text-slate-400"><div className="flex flex-wrap items-center justify-between gap-3"><span>VGB Academic Lab</span><span>Built for learning, experimentation and the occasional respectable distraction.</span><span>© {year} VidyaGyan</span></div></footer>
+    <div className="sticky top-0 z-30 border-b border-white/[0.08] bg-[#071426]/90 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-5 py-3 sm:px-8 lg:px-12">
+        {(['all','academic','utilities','current','games'] as Category[]).map(c=><button key={c} onClick={()=>setCategory(c)} className={`relative whitespace-nowrap px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] transition ${category===c?'text-white':'text-white/30 hover:text-white/70'}`}>{c==='all'?'Index':c==='current'?'Current Affairs':c}<span className={`absolute bottom-0 left-4 right-4 h-px bg-cyan-300 transition ${category===c?'opacity-100':'opacity-0'}`} /></button>)}
+      </div>
     </div>
 
-    {game==="typing"&&<TypingGame close={()=>setGame(null)}/>} {game==="word"&&<WordGame close={()=>setGame(null)}/>} {game==="geography"&&<GeographyGame close={()=>setGame(null)}/>} {game==="logic"&&<QuizGame kind="logic" close={()=>setGame(null)}/>} {game==="constitution"&&<QuizGame kind="constitution" close={()=>setGame(null)}/>} {game==="budget"&&<BudgetGame close={()=>setGame(null)}/>} {game==="market"&&<MarketGame close={()=>setGame(null)}/>} {game==="chess"&&<ChessGame close={()=>setGame(null)}/>} {tool&&<UtilityModal tool={tool} close={()=>setTool(null)}/>} 
+    <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 lg:px-12 lg:py-20">
+      {showAcademic && <section>
+        <div className="mb-9 flex items-end justify-between gap-6 border-b border-white/[0.08] pb-5">
+          <div><p className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300/70">02 / Academic systems</p><h2 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Subject Labs</h2></div>
+          <p className="hidden max-w-md text-right text-xs leading-6 text-white/35 md:block">Eight dedicated environments for calculation, visualization, simulation, mapping and structured study.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {subjectFiltered.map((t,i)=><a href={t.href} key={t.href} className="group relative min-h-[252px] overflow-hidden border border-[#203653] bg-[#0b1b34] p-5 transition duration-500 hover:-translate-y-1 hover:border-cyan-200/30 hover:bg-[#0d213d] hover:shadow-[0_20px_70px_rgba(0,0,0,.28)]">
+            <div className="absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100 bg-[radial-gradient(circle_at_70%_45%,rgba(70,170,220,.09),transparent_34%)]" />
+            <SubjectArtwork index={i} />
+            <div className="relative z-10 flex items-start justify-between">
+              <span className="text-[9px] font-black tracking-[0.25em] text-white/30">{formatTwo(i+1)}</span>
+              <span className="text-sm text-white/30 transition duration-300 group-hover:-translate-y-1 group-hover:translate-x-1 group-hover:text-cyan-200">↗</span>
+            </div>
+            <div className="relative z-10 mt-11 flex h-8 w-8 items-center justify-center border border-cyan-100/20 bg-cyan-200/[0.035] text-sm font-black text-cyan-100/80">{t.icon}</div>
+            <div className="relative z-10 mt-4"><h3 className="text-[18px] font-black tracking-[-0.02em] text-white">{t.title}</h3><p className="mt-2 max-w-[255px] text-[11px] leading-5 text-white/38">{t.description}</p></div>
+            <div className="absolute bottom-5 left-5 right-5 z-10 flex items-center justify-between"><span className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200/75">Open tool</span><span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/20">{t.tag}</span></div>
+          </a>)}
+        </div>
+      </section>}
+
+      {showUtilities && <section className="mt-20">
+        <div className="mb-9 flex items-end justify-between gap-6 border-b border-white/[0.08] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300/70">03 / Utility systems</p><h2 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Everyday Tools</h2></div><p className="hidden text-xs text-white/30 md:block">Small systems. Immediate output.</p></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {([['calculator','∑','Calculator','Fast arithmetic and expression evaluation.'],['marks','%','Marks Calculator','Average multiple subject scores.'],['converter','↔','Unit Converter','Length and temperature conversions.'],['timer','◷','Study Timer','Simple focused study sessions.'],['text','Aa','Text Analyzer','Words, characters and sentence counts.'],['random','?','Randomizer','Generate a random number from 1 to 100.']] as [ToolId,string,string,string][]).map(([id,icon,title,desc],i)=><button key={id} onClick={()=>setTool(id)} className="group relative overflow-hidden border border-[#203653] bg-[#0b1b34] p-5 text-left transition duration-300 hover:border-cyan-200/25 hover:bg-[#0d213d]"><div className="flex items-center gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center border border-white/[0.09] bg-white/[0.025] text-sm font-black text-cyan-100/80">{icon}</div><div className="min-w-0"><h3 className="text-sm font-black text-white">{title}</h3><p className="mt-1 text-[10px] leading-5 text-white/35">{desc}</p></div><span className="ml-auto text-white/20 transition group-hover:translate-x-1 group-hover:text-cyan-200">↗</span></div><span className="absolute bottom-0 left-0 h-px w-0 bg-cyan-300/60 transition-all duration-500 group-hover:w-full" /></button>)}
+        </div>
+      </section>}
+
+      {showCurrent && <section className="mt-20">
+        <div className="relative overflow-hidden border border-[#203653] bg-[#0b1b34] p-7 sm:p-10"><div className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(37,160,210,.09),transparent_60%)]" /><div className="relative flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300/70">04 / Current affairs</p><h2 className="mt-3 text-3xl font-black tracking-[-0.04em]">VGB News Desk</h2><p className="mt-3 max-w-2xl text-xs leading-6 text-white/35">Daily India, world, economy, geopolitics, technology, public policy and other high-value current affairs.</p></div><a href="/news" className="border border-cyan-200/20 bg-cyan-200/[0.06] px-5 py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100 transition hover:bg-cyan-200/10">Open news ↗</a></div></div>
+      </section>}
+
+      {showGames && <section className="mt-20">
+        <div className="mb-9 flex items-end justify-between gap-6 border-b border-white/[0.08] pb-5"><div><p className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300/70">05 / Interactive systems</p><h2 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Game Lab</h2></div><p className="hidden max-w-md text-right text-xs leading-6 text-white/35 md:block">Reasoning, vocabulary, geography, economics, constitutional judgement and strategy. No decorative “games” pretending to be learning.</p></div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {gamesFiltered.map((g,i)=><button key={g.id} onClick={()=>setGame(g.id)} className="group relative min-h-[230px] overflow-hidden border border-[#203653] bg-[#0b1b34] p-5 text-left transition duration-500 hover:-translate-y-1 hover:border-cyan-200/30 hover:bg-[#0d213d] hover:shadow-[0_20px_70px_rgba(0,0,0,.28)]"><GameArtwork index={i} /><div className="relative z-10 flex items-start justify-between"><span className="text-[9px] font-black tracking-[0.25em] text-white/30">G.{formatTwo(i+1)}</span><span className="text-sm text-white/25 transition group-hover:translate-x-1 group-hover:-translate-y-1 group-hover:text-cyan-200">↗</span></div><div className="relative z-10 mt-12"><h3 className="text-[18px] font-black tracking-[-0.02em] text-white">{g.title}</h3><p className="mt-2 max-w-[260px] text-[11px] leading-5 text-white/38">{g.description}</p></div><div className="absolute bottom-5 left-5 right-5 z-10 flex items-center justify-between"><span className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200/75">Launch</span><span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/20">{g.difficulty} · {g.tag}</span></div></button>)}
+        </div>
+      </section>}
+
+      <footer className="mt-20 border-t border-white/[0.08] pt-7 text-[10px] font-bold uppercase tracking-[0.14em] text-white/20"><div className="flex flex-wrap items-center justify-between gap-3"><span>VGB Academic Lab</span><span>Learning / Experimentation / Play</span><span>© {year} VidyaGyan</span></div></footer>
+    </div>
+
+    {game==="typing"&&<TypingGame close={()=>setGame(null)}/>} {game==="word"&&<WordGame close={()=>setGame(null)}/>} {game==="geography"&&<GeographyGame close={()=>setGame(null)}/>} {game==="logic"&&<QuizGame kind="logic" close={()=>setGame(null)}/>} {game==="constitution"&&<QuizGame kind="constitution" close={()=>setGame(null)}/>} {game==="budget"&&<BudgetGame close={()=>setGame(null)}/>} {game==="market"&&<MarketGame close={()=>setGame(null)}/>} {game==="chess"&&<ChessGame close={()=>setGame(null)}/>} {tool&&<UtilityModal tool={tool} close={()=>setTool(null)}/>}
   </main>;
 }
-
-function SectionHeading({eyebrow,title,text}:{eyebrow:string;title:string;text:string}){return <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-black uppercase tracking-[0.28em] text-slate-400">{eyebrow}</p><h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{title}</h2></div><p className="max-w-xl text-sm leading-6 text-slate-500">{text}</p></div>}
