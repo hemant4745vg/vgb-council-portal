@@ -73,16 +73,21 @@ function Progress({ value }: { value: number }) {
   return <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-slate-950 transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>;
 }
 
-function GameShell({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children?: ReactNode }) {
+function GameShell({ title, subtitle, onClose, children, tone = "light" }: { title: string; subtitle: string; onClose: () => void; children?: ReactNode; tone?: "light" | "dark" }) {
+  const dark = tone === "dark";
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-md sm:p-8">
-      <div className="mx-auto min-h-full max-w-5xl py-4 sm:py-8">
-        <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-7">
-            <div><p className="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Interactive Lab</p><h2 className="mt-1 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{title}</h2><p className="text-sm text-slate-500">{subtitle}</p></div>
-            <button onClick={onClose} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100">Exit</button>
+    <div className={`fixed inset-0 z-50 overflow-y-auto p-4 backdrop-blur-md sm:p-8 ${dark ? "bg-[#020913]/92" : "bg-slate-950/80"}`}>
+      <div className="mx-auto min-h-full max-w-6xl py-4 sm:py-8">
+        <div className={`overflow-hidden rounded-[2rem] border shadow-2xl ${dark ? "border-white/[0.08] bg-[#071321] shadow-[0_40px_120px_rgba(0,0,0,.55)]" : "border-white/10 bg-white"}`}>
+          <div className={`flex items-center justify-between border-b px-5 py-4 sm:px-7 ${dark ? "border-white/[0.08] bg-[#081624]" : "border-slate-200"}`}>
+            <div>
+              <p className={`text-xs font-black uppercase tracking-[0.25em] ${dark ? "text-cyan-200/65" : "text-slate-500"}`}>Interactive Lab</p>
+              <h2 className={`mt-1 text-xl font-black tracking-tight sm:text-2xl ${dark ? "text-white" : "text-slate-950"}`}>{title}</h2>
+              <p className={`text-sm ${dark ? "text-white/40" : "text-slate-500"}`}>{subtitle}</p>
+            </div>
+            <button onClick={onClose} className={`rounded-full border px-4 py-2 text-sm font-bold transition ${dark ? "border-white/10 bg-white/[0.035] text-white/65 hover:border-cyan-200/30 hover:bg-cyan-200/[0.06] hover:text-white" : "border-slate-200 text-slate-700 hover:bg-slate-100"}`}>Exit</button>
           </div>
-          <div className="p-5 sm:p-8">{children}</div>
+          <div className={dark ? "bg-[#071321] p-5 sm:p-8" : "p-5 sm:p-8"}>{children}</div>
         </div>
       </div>
     </div>
@@ -382,7 +387,7 @@ function ChessGame({ close }: { close: () => void }) {
   const displaySquares: Square[]=[];
   displayRows.forEach((r)=>displayCols.forEach((c)=>displaySquares.push([r,c])));
 
-  return <GameShell title="Chess" subtitle="Complete local two-player chess · legal play · no shortcuts" onClose={close}>
+  return <GameShell title="Chess" subtitle="Complete local two-player chess · legal play · no shortcuts" onClose={close} tone="dark">
     <div className="grid gap-7 xl:grid-cols-[minmax(0,620px)_340px]">
       <div>
         <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300/70">{state.fullmove} · {state.turn === "w" ? "White" : "Black"} to move</p><p className={`mt-1 text-sm font-bold ${checked?"text-rose-400":"text-white/45"}`}>{checked ? "King in check" : gameStatus || "Position stable"}</p></div><button onClick={()=>setFlipped(v=>!v)} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/55 hover:text-white">Flip board</button></div>
