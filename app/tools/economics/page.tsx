@@ -1,23 +1,82 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { presets } from "./data";
 import { EconomicsGraph, StatisticsLab } from "./components";
 
 function Stage() {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    let frame = 0;
+    let raf = 0;
+
+    const project = (x: number, y: number, z: number, angle: number) => {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const xr = x * cos - z * sin;
+      const zr = x * sin + z * cos;
+      const scale = 280 / (280 + zr);
+      return [canvas.width / 2 + xr * scale, canvas.height / 2 - y * scale];
+    };
+
+    const draw = () => {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      const angle = frame / 90;
+      context.clearRect(0, 0, width, height);
+      const grid: number[][] = [];
+      for (let i = -4; i <= 4; i += 1) {
+        grid.push([-120, 0, i * 24], [120, 0, i * 24], [i * 24, 0, -120], [i * 24, 0, 120]);
+      }
+      context.strokeStyle = "rgba(125, 211, 252, 0.35)";
+      context.lineWidth = 1;
+      for (let i = 0; i < grid.length; i += 2) {
+        const a = project(grid[i][0], grid[i][1], grid[i][2], angle);
+        const b = project(grid[i + 1][0], grid[i + 1][1], grid[i + 1][2], angle);
+        context.beginPath();
+        context.moveTo(a[0], a[1]);
+        context.lineTo(b[0], b[1]);
+        context.stroke();
+      }
+      const strokeCurve = (color: string, fn: (x: number) => number) => {
+        context.beginPath();
+        context.strokeStyle = color;
+        context.lineWidth = 3;
+        for (let step = 0; step <= 32; step += 1) {
+          const x = -110 + step * 7;
+          const y = fn(x);
+          const point = project(x, y, 0, angle);
+          if (step === 0) context.moveTo(point[0], point[1]);
+          else context.lineTo(point[0], point[1]);
+        }
+        context.stroke();
+      };
+      strokeCurve("#38bdf8", (x) => 70 - x * 0.45);
+      strokeCurve("#fb7185", (x) => -55 + x * 0.4);
+      const eq = project(18, 62, 0, angle);
+      context.fillStyle = "#fbbf24";
+      context.beginPath();
+      context.arc(eq[0], eq[1], 6, 0, Math.PI * 2);
+      context.fill();
+      frame += 1;
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   return (
     <div className="econ-stage" aria-hidden="true">
-      <div className="econ-plane">
-        <span />
-        <span />
-        <span />
-        <i />
-        <i />
-        <b />
-      </div>
-      <div className="econ-float econ-float-a">D</div>
-      <div className="econ-float econ-float-b">S</div>
-      <div className="econ-float econ-float-c">E</div>
+      <canvas ref={ref} className="h-full w-full" />
     </div>
   );
 }
@@ -58,12 +117,12 @@ export default function EconomicsGraphLabPage() {
   return (
     <main className="min-h-screen bg-[#eef3f8] text-slate-950">
       <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-        <header className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-[#071426] text-white shadow-[0_30px_80px_-40px_rgba(7,20,38,.7)]">
+        <header className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(circle_at_20%_20%,#1d4ed8,#020617_55%)] text-white shadow-[0_30px_80px_-40px_rgba(7,20,38,.7)]">
           <Stage />
           <div className="relative z-10 flex flex-col justify-between gap-8 p-6 sm:p-8 lg:flex-row lg:items-end">
             <div className="max-w-2xl">
               <p className="text-[11px] font-bold uppercase tracking-[.22em] text-amber-200">VGB Tools · Economics</p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">Graph Lab</h1>
+              <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] sm:text-5xl">Economics Graphs Lab</h1>
               <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
                 Class XI and XII diagrams, drawn on the scales an exam expects. Change one assumption and watch the equilibrium move.
               </p>

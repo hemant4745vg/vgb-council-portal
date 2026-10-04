@@ -4,12 +4,12 @@
 
 .econ-stage {
   position: absolute;
-  right: 4%;
-  top: 18px;
-  height: 220px;
-  width: 280px;
-  perspective: 900px;
+  right: 2%;
+  top: 8px;
+  height: 250px;
+  width: min(420px, 46vw);
   pointer-events: none;
+  filter: drop-shadow(0 20px 30px rgba(56, 189, 248, 0.25));
 }
 
 .econ-plane {
