@@ -1108,61 +1108,7 @@ function TrigonometryLab() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="text-xs font-bold uppercase tracking-[.16em] text-slate-500">
-          Current angle
-        </div>
-
-        <div className="mt-2 text-3xl font-semibold">
-          {angle}°
-        </div>
-
-        <div className="mt-1 text-sm text-slate-500">
-          {fmt(radians)} radians
-        </div>
-
-        <div className="mt-6 grid gap-2">
-          {[
-            ["sin θ", y],
-            ["cos θ", x],
-            ["sin²θ + cos²θ", y * y + x * x],
-            ["tan θ", Math.tan(radians)],
-          ].map(([name, value]) => (
-            <div
-              key={String(name)}
-              className="rounded-xl bg-slate-50 p-4"
-            >
-              <div className="text-sm text-slate-500">
-                {name}
-              </div>
-
-              <div className="mt-1 font-mono text-xl font-semibold">
-                {fmt(Number(value))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-5 rounded-xl border border-slate-200 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Identity
           </div>
-
-          <div className="mt-3">
-            <Latex
-              value={`\\sin^2\\theta+\\cos^2\\theta=1`}
-            />
-          </div>
-
-          <div className="mt-2 text-sm text-slate-500">
-            Current value:{" "}
-            {fmt(
-              x * x + y * y
-            )}
-          </div>
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -3573,38 +3519,6 @@ const tools: {
   },
 ];
 
-const syllabusXI = [
-  "Sets & Functions",
-  "Trigonometric Functions",
-  "Complex Numbers & Quadratic Equations",
-  "Linear Inequalities",
-  "Permutations & Combinations",
-  "Binomial Theorem",
-  "Sequence & Series",
-  "Straight Lines",
-  "Conic Sections",
-  "3D Geometry",
-  "Limits & Derivatives",
-  "Statistics",
-  "Probability",
-];
-
-const syllabusXII = [
-  "Relations & Functions",
-  "Inverse Trigonometric Functions",
-  "Matrices",
-  "Determinants",
-  "Continuity & Differentiability",
-  "Applications of Derivatives",
-  "Integrals",
-  "Applications of Integrals",
-  "Differential Equations",
-  "Vectors",
-  "3D Geometry",
-  "Linear Programming",
-  "Probability",
-];
-
 function Overview({
   classLevel,
   setClassLevel,
@@ -3616,10 +3530,7 @@ function Overview({
   ) => void;
   open: (section: Section) => void;
 }) {
-  const syllabus =
-    classLevel === "XI"
-      ? syllabusXI
-      : syllabusXII;
+  const visible = tools.filter((tool) => tool.classes.includes(classLevel));
 
   return (
     <div className="space-y-5">
@@ -3635,10 +3546,7 @@ function Overview({
             </h1>
 
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
-              A mathematical workspace built around
-              the CBSE Class XI–XII syllabus:
-              calculation, visualization, reasoning
-              and practice in one place.
+              Graphs and calculators for Class XI and XII. Open a tool, change a value, and read the result.
             </p>
           </div>
 
@@ -3680,7 +3588,7 @@ function Overview({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {tools.map((tool) => (
+          {visible.map((tool) => (
             <button
               key={tool.id}
               type="button"
