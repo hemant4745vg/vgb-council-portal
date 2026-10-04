@@ -39,6 +39,12 @@ const CATEGORIES: Category[] = [
   "Science & Tech",
 ];
 
+function getIndiaDate(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+}
+
 const CATEGORY_META: Record<
   Exclude<Category, "All">,
   {
@@ -782,7 +788,7 @@ function BriefingStory({ item, lead = false }: { item: CuratedNewsItem; lead?: b
         )}
         <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
           <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-            VGB Daily Briefing
+            Editor's Choice
           </span>
           <a
             href={item.source_url}
@@ -805,20 +811,20 @@ function BriefingSection({ items }: { items: CuratedNewsItem[] }) {
   if (!lead) return null;
 
   return (
-    <section aria-labelledby="daily-briefing-heading" className="overflow-hidden rounded-[30px] border border-slate-800 bg-[#0a1019] p-4 shadow-[0_24px_80px_-42px_rgba(2,8,23,0.8)] sm:p-5 lg:p-6">
+    <section aria-labelledby="editors-choice-heading" className="overflow-hidden rounded-[30px] border border-slate-800 bg-[#0a1019] p-4 shadow-[0_24px_80px_-42px_rgba(2,8,23,0.8)] sm:p-5 lg:p-6">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.75)]" />
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">
-              Editorial intelligence
+              Editorial selection
             </span>
           </div>
-          <h2 id="daily-briefing-heading" className="mt-2 text-2xl font-bold tracking-[-0.035em] text-white sm:text-3xl">
-            VGB Daily Briefing
+          <h2 id="editors-choice-heading" className="mt-2 text-2xl font-bold tracking-[-0.035em] text-white sm:text-3xl">
+            Editor's Choice
           </h2>
           <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-400">
-            A selective daily layer for the stories that matter most, curated separately from the automated live feed.
+            Editorially selected analytically.
           </p>
         </div>
         <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
@@ -925,7 +931,7 @@ export default function NewsPage() {
           .select(
             "id, external_id, title, summary, source, source_url, image_url, category, published_at, briefing_date, rank, featured"
           )
-          .order("briefing_date", { ascending: false })
+          .eq("briefing_date", getIndiaDate())
           .order("rank", { ascending: true })
           .order("published_at", { ascending: false })
           .limit(12),
@@ -987,7 +993,7 @@ export default function NewsPage() {
 
   const pageDescription =
     selectedCategory === "All"
-      ? "A selective daily briefing on top, followed by the continuously refreshed VGB news feed."
+      ? "Editor's Choice on top, followed by the continuously refreshed VGB news feed."
       : CATEGORY_META[selectedCategory].description;
 
   return (
@@ -1117,17 +1123,22 @@ export default function NewsPage() {
         )}
 
         {/* Empty */}
-        {!loading && !error && filteredStories.length === 0 && (
-          <EmptyState
-            category={selectedCategory}
-            onRefresh={() => void loadNews(true)}
-            refreshing={refreshing}
-          />
-        )}
+        {!loading &&
+          !error &&
+          filteredStories.length === 0 &&
+          filteredCuratedStories.length === 0 && (
+            <EmptyState
+              category={selectedCategory}
+              onRefresh={() => void loadNews(true)}
+              refreshing={refreshing}
+            />
+          )}
 
         {/* News */}
-        {!loading && !error && filteredStories.length > 0 && (
-          <div className="space-y-10">
+        {!loading &&
+          !error &&
+          (filteredStories.length > 0 || filteredCuratedStories.length > 0) && (
+            <div className="space-y-10">
             {/* Lead */}
             {featuredStory && (
               <section aria-labelledby="lead-story-heading">
@@ -1182,7 +1193,7 @@ export default function NewsPage() {
 
             {/* Latest */}
             {remainingStories.length > 0 && (
-              <section aria-labelledby="latest-heading">
+              <section id="latest-news" aria-labelledby="latest-heading">
                 <div className="mb-5 flex items-end justify-between gap-4 border-b border-slate-200 pb-4">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
