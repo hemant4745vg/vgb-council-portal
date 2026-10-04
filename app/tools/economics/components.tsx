@@ -219,7 +219,7 @@ function graphAnnotations(preset: Preset, controls: Record<string, number>, curv
 
   if (preset.id === "demand-movement-shift") {
     const determinantSum=controls.income+controls.substitutes-controls.complements+controls.tastes+controls.expectations+controls.buyers;
-    const shift=Math.max(-32, Math.min(32, determinantSum*9));
+    const shift=determinantSum*5;
     const d0=(x:number)=>90-0.72*x;
     const d1=(x:number)=>d0(x)+shift;
     const refPrice=60;
@@ -401,8 +401,7 @@ function MarginalUtilityDiagram({ controls }: { controls: Record<string, number>
   // q = initial / decline is therefore the exact point where MU = 0 and TU
   // reaches its maximum.
   const qZero = initial / decline;
-  const qMax = Math.max(6, Math.ceil(qZero) + 2);
-  const qEnd = qMax;
+  const qEnd = Math.max(8, Math.ceil(qZero * 2) + 1);
 
   const mu = (q: number) => initial - decline * q;
   const tu = (q: number) => initial * q - 0.5 * decline * q * q;
@@ -436,7 +435,7 @@ function MarginalUtilityDiagram({ controls }: { controls: Record<string, number>
 
   const x = (q: number) => L + (q / qEnd) * plotW;
   const yTU = (u: number) =>
-    top.y1 - (Math.max(0, Math.min(tuYMax, u)) / tuYMax) * (top.y1 - top.y0);
+    top.y1 - (Math.min(tuYMax, u) / tuYMax) * (top.y1 - top.y0);
   const yMU = (u: number) =>
     bottom.y1 - ((u - muYMin) / (muYMax - muYMin)) * (bottom.y1 - bottom.y0);
 
@@ -757,8 +756,8 @@ function MarginalUtilityDiagram({ controls }: { controls: Record<string, number>
           .map((q) => (
             <circle
               key={`mu-point-${q}`}
-              cx={x(q)}
-              cy={yMU(mu(q))}
+              cx={x(q - 0.5)}
+              cy={yMU(tu(q) - tu(q - 1))}
               r="4"
               fill="#111827"
             />

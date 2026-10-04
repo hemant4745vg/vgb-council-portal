@@ -155,9 +155,9 @@ export const presets: Preset[] = [
     xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
       { key: "price", label: "Price (₹ per unit)", min: 20, max: 75, step: 1, value: 50 },
-      { key: "income", label: "Income effect", min: -2, max: 2, step: 1, value: 0 },
-      { key: "substitutes", label: "Price of substitutes", min: -2, max: 2, step: 1, value: 0 },
-      { key: "complements", label: "Price of complements", min: -2, max: 2, step: 1, value: 0 },
+      { key: "income", label: "Income (+ raises demand)", min: -2, max: 2, step: 1, value: 0 },
+      { key: "substitutes", label: "Substitute price (+ raises demand)", min: -2, max: 2, step: 1, value: 0 },
+      { key: "complements", label: "Complement price (+ lowers demand)", min: -2, max: 2, step: 1, value: 0 },
       { key: "tastes", label: "Tastes / preferences", min: -2, max: 2, step: 1, value: 0 },
       { key: "expectations", label: "Expectations", min: -2, max: 2, step: 1, value: 0 },
       { key: "buyers", label: "Number of buyers", min: -2, max: 2, step: 1, value: 0 },
@@ -168,7 +168,8 @@ export const presets: Preset[] = [
       const d0 = (x:number) => 90 - 0.72*x;
       const d1 = (x:number) => 90 - 0.72*x + shift;
       const curves: Curve[] = [{ id: "d0", label: "D₀", color: curveColors[0], fn: d0 }];
-      if (Math.abs(shift) > 0.01) curves.splice(1, 0, { id: "d1", label: shift > 0 ? "D₁ (increase)" : "D₂ (decrease)", color: curveColors[1], fn: d1 });
+      if (Math.abs(shift) > 0.01) curves.push({ id: "d1", label: shift > 0 ? "D₁ (increase)" : "D₁ (decrease)", color: curveColors[1], fn: d1 });
+      curves.push({ id: "price", label: "Selected price", color: curveColors[2], fn: () => c.price, dashed: true });
       return curves;
     },
     interpretation: [
@@ -188,13 +189,13 @@ export const presets: Preset[] = [
     xMin: 0, xMax: 100, yMin: 0, yMax: 100,
     controls: [
       { key: "price", label: "Price (₹ per unit)", min: 20, max: 80, step: 1, value: 50 },
-      { key: "input", label: "Input prices", min: -2, max: 2, step: 1, value: 0 },
+      { key: "input", label: "Input prices (+ lowers supply)", min: -2, max: 2, step: 1, value: 0 },
       { key: "related", label: "Prices of related goods", min: -2, max: 2, step: 1, value: 0 },
-      { key: "technology", label: "Technology", min: -2, max: 2, step: 1, value: 0 },
-      { key: "tax", label: "Taxes", min: -2, max: 2, step: 1, value: 0 },
-      { key: "subsidy", label: "Subsidies", min: -2, max: 2, step: 1, value: 0 },
+      { key: "technology", label: "Technology (+ raises supply)", min: -2, max: 2, step: 1, value: 0 },
+      { key: "tax", label: "Taxes (+ lowers supply)", min: -2, max: 2, step: 1, value: 0 },
+      { key: "subsidy", label: "Subsidies (+ raises supply)", min: -2, max: 2, step: 1, value: 0 },
       { key: "expectations", label: "Expectations", min: -2, max: 2, step: 1, value: 0 },
-      { key: "firms", label: "Number of firms", min: -2, max: 2, step: 1, value: 0 },
+      { key: "firms", label: "Number of firms (+ raises supply)", min: -2, max: 2, step: 1, value: 0 },
     ],
     curves: (c) => {
       const determinantSum = c.input + c.related - c.technology + c.tax - c.subsidy + c.expectations - c.firms;
@@ -204,7 +205,8 @@ export const presets: Preset[] = [
       const curves: Curve[] = [
         { id: "s0", label: "S₀", color: curveColors[0], fn: s0 },
       ];
-      if (Math.abs(shift) > 0.01) curves.splice(1, 0, { id: "s1", label: shift < 0 ? "S₁ (increase)" : "S₂ (decrease)", color: curveColors[1], fn: s1 });
+      if (Math.abs(shift) > 0.01) curves.push({ id: "s1", label: shift < 0 ? "S₁ (increase)" : "S₁ (decrease)", color: curveColors[1], fn: s1 });
+      curves.push({ id: "price", label: "Selected price", color: curveColors[2], fn: () => c.price, dashed: true });
       return curves;
     },
     interpretation: [
