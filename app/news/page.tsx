@@ -29,6 +29,14 @@ type CuratedNewsItem = {
   briefing_date: string;
   rank: number;
   featured: boolean;
+  what_happened: string | null;
+  why_it_matters: string | null;
+  deeper_context: string | null;
+  key_implications: string[] | null;
+  what_to_watch: string | null;
+  vgb_lens: string | null;
+  confidence: number | null;
+  analysis_updated_at: string | null;
 };
 
 const CATEGORIES: Category[] = [
@@ -38,12 +46,6 @@ const CATEGORIES: Category[] = [
   "Economy",
   "Science & Tech",
 ];
-
-function getIndiaDate(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-  }).format(new Date());
-}
 
 const CATEGORY_META: Record<
   Exclude<Category, "All">,
@@ -132,6 +134,12 @@ function formatExactDate(dateString: string): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function getIndiaDate(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
 }
 
 function getSourcePriority(source: string): number {
@@ -738,19 +746,241 @@ function CuratedImage({
   );
 }
 
-function BriefingStory({ item, lead = false }: { item: CuratedNewsItem; lead?: boolean }) {
+function AnalysisLabel({ children }: { children: string }) {
+  return (
+    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-300">
+      {children}
+    </p>
+  );
+}
+
+function AnalysisBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: string | null;
+}) {
+  if (!children?.trim()) return null;
+
+  return (
+    <section className="border-t border-white/10 pt-5 first:border-t-0 first:pt-0">
+      <AnalysisLabel>{label}</AnalysisLabel>
+      <p className="mt-2 text-sm leading-7 text-slate-300">{children}</p>
+    </section>
+  );
+}
+
+function ConfidenceIndicator({ confidence }: { confidence: number | null }) {
+  if (!confidence) return null;
+
+  return (
+    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+      <span>Confidence</span>
+      <span className="flex gap-0.5" aria-label={`${confidence} out of 5 confidence`}>
+        {Array.from({ length: 5 }, (_, index) => (
+          <span
+            key={index}
+            className={`h-1.5 w-3 rounded-full ${
+              index < confidence ? "bg-cyan-400" : "bg-slate-700"
+            }`}
+          />
+        ))}
+      </span>
+    </div>
+  );
+}
+
+function EditorialAnalysisModal({
+  item,
+  onClose,
+}: {
+  item: CuratedNewsItem;
+  onClose: () => void;
+}) {
+  const hasAnalysis = Boolean(
+    item.what_happened ||
+      item.why_it_matters ||
+      item.deeper_context ||
+      item.key_implications?.length ||
+      item.what_to_watch ||
+      item.vgb_lens
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-5"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <article
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="editorial-analysis-title"
+        className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-slate-700 bg-[#0b111b] text-white shadow-[0_30px_100px_-30px_rgba(2,8,23,0.95)] sm:max-h-[90vh] sm:rounded-[28px]"
+      >
+        <div className="flex items-start justify-between gap-5 border-b border-white/10 px-5 py-5 sm:px-7 sm:py-6">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <CategoryBadge category={item.category} inverted />
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-300">
+                Editor&apos;s Choice
+              </span>
+            </div>
+            <h2
+              id="editorial-analysis-title"
+              className="mt-3 max-w-3xl text-2xl font-bold leading-tight tracking-[-0.03em] sm:text-3xl"
+            >
+              {item.title}
+            </h2>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <span>{item.source}</span>
+              <span className="text-slate-600">·</span>
+              <span>{formatExactDate(item.published_at)}</span>
+              {item.analysis_updated_at && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span>Analysis updated {formatRelativeTime(item.analysis_updated_at)}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close editorial analysis"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <span className="text-xl leading-none">×</span>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto">
+          <div className="grid lg:grid-cols-[1fr_280px]">
+            <div className="space-y-6 px-5 py-6 sm:px-7 sm:py-8">
+              {!hasAnalysis ? (
+                <div className="rounded-2xl border border-amber-300/20 bg-amber-300/5 p-5">
+                  <AnalysisLabel>Editorial analysis</AnalysisLabel>
+                  <p className="mt-2 text-sm leading-7 text-slate-300">
+                    This story has been selected for Editor&apos;s Choice, but its
+                    structured analysis has not been populated yet. The portal
+                    deliberately does not invent interpretation when the editorial
+                    layer has no analysis to support it.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <AnalysisBlock label="What happened" children={item.what_happened} />
+                  <AnalysisBlock label="Why it matters" children={item.why_it_matters} />
+                  <AnalysisBlock label="The deeper issue" children={item.deeper_context} />
+
+                  {item.key_implications && item.key_implications.length > 0 && (
+                    <section className="border-t border-white/10 pt-5">
+                      <AnalysisLabel>Key implications</AnalysisLabel>
+                      <ol className="mt-3 space-y-3">
+                        {item.key_implications.map((implication, index) => (
+                          <li key={`${item.id}-implication-${index}`} className="flex gap-3 text-sm leading-6 text-slate-300">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
+                              {String(index + 1).padStart(2, "0")}
+                            </span>
+                            <span>{implication}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </section>
+                  )}
+
+                  <AnalysisBlock label="What to watch" children={item.what_to_watch} />
+
+                  {item.vgb_lens && (
+                    <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/5 p-5 sm:p-6">
+                      <AnalysisLabel>VGB Lens</AnalysisLabel>
+                      <p className="mt-2 text-sm leading-7 text-slate-200">{item.vgb_lens}</p>
+                    </section>
+                  )}
+                </>
+              )}
+            </div>
+
+            <aside className="border-t border-white/10 bg-white/[0.025] px-5 py-6 sm:px-7 lg:border-l lg:border-t-0">
+              <div className="space-y-6">
+                <div>
+                  <AnalysisLabel>Editorial standard</AnalysisLabel>
+                  <p className="mt-2 text-xs leading-6 text-slate-400">
+                    Facts, interpretation and forward-looking assessment are kept
+                    separate. Stories are selected for significance rather than
+                    simply because they are recent or popular.
+                  </p>
+                </div>
+
+                <ConfidenceIndicator confidence={item.confidence} />
+
+                <div>
+                  <AnalysisLabel>Source</AnalysisLabel>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">{item.source}</p>
+                  <a
+                    href={item.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-white transition hover:text-cyan-300"
+                  >
+                    Verify original report <ExternalLinkIcon />
+                  </a>
+                </div>
+
+                <div className="border-t border-white/10 pt-5">
+                  <p className="text-[10px] leading-5 text-slate-500">
+                    Editor&apos;s Choice is an analytical layer, not a replacement for
+                    the original reporting. The source remains available for direct
+                    verification.
+                  </p>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function BriefingStory({
+  item,
+  lead = false,
+  onOpen,
+}: {
+  item: CuratedNewsItem;
+  lead?: boolean;
+  onOpen: (item: CuratedNewsItem) => void;
+}) {
   return (
     <article
       className={`group overflow-hidden rounded-[24px] border border-slate-800/80 bg-[#101722] text-white shadow-[0_18px_60px_-32px_rgba(2,8,23,0.75)] transition duration-300 hover:-translate-y-0.5 hover:border-slate-700 hover:shadow-[0_24px_70px_-34px_rgba(2,8,23,0.9)] ${
         lead ? "lg:grid lg:grid-cols-[1.08fr_0.92fr]" : ""
       }`}
     >
-      <a
-        href={item.source_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`Read ${item.title} from ${item.source}`}
-        className={`relative block overflow-hidden ${lead ? "min-h-[250px] lg:min-h-[390px]" : "h-48"}`}
+      <button
+        type="button"
+        onClick={() => onOpen(item)}
+        aria-label={`Open analysis of ${item.title}`}
+        className={`relative block w-full overflow-hidden text-left ${lead ? "min-h-[250px] lg:min-h-[390px]" : "h-48"}`}
       >
         <CuratedImage item={item} className="h-full w-full" />
         <div className="absolute left-4 top-4 flex items-center gap-2">
@@ -764,7 +994,7 @@ function BriefingStory({ item, lead = false }: { item: CuratedNewsItem; lead?: b
         <div className="absolute bottom-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-lg">
           <ArrowRightIcon />
         </div>
-      </a>
+      </button>
 
       <div className={`flex flex-col ${lead ? "justify-center p-6 sm:p-8 lg:p-9" : "p-5"}`}>
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-400">
@@ -777,34 +1007,43 @@ function BriefingStory({ item, lead = false }: { item: CuratedNewsItem; lead?: b
             lead ? "text-2xl leading-[1.12] sm:text-3xl lg:text-[34px]" : "text-lg leading-6"
           }`}
         >
-          <a href={item.source_url} target="_blank" rel="noopener noreferrer" className="transition hover:text-cyan-300">
+          <button
+            type="button"
+            onClick={() => onOpen(item)}
+            className="text-left transition hover:text-cyan-300"
+          >
             {item.title}
-          </a>
+          </button>
         </h3>
-        {item.summary && (
-          <p className={`mt-3 leading-6 text-slate-400 ${lead ? "text-sm sm:text-[15px]" : "line-clamp-3 text-sm"}`}>
-            {truncateText(item.summary, lead ? 430 : 220)}
-          </p>
-        )}
+
+        <p className={`mt-3 leading-6 text-slate-400 ${lead ? "text-sm sm:text-[15px]" : "line-clamp-3 text-sm"}`}>
+          {item.why_it_matters || item.summary || "Editorial analysis selected for significance, context and future relevance."}
+        </p>
+
         <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-            Editor's Choice
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-300">
+            Editorial analysis
           </span>
-          <a
-            href={item.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => onOpen(item)}
             className="inline-flex items-center gap-1.5 text-xs font-bold text-white transition hover:text-cyan-300"
           >
-            Read source <ExternalLinkIcon />
-          </a>
+            Open analysis <ArrowRightIcon />
+          </button>
         </div>
       </div>
     </article>
   );
 }
 
-function BriefingSection({ items }: { items: CuratedNewsItem[] }) {
+function BriefingSection({
+  items,
+  onOpen,
+}: {
+  items: CuratedNewsItem[];
+  onOpen: (item: CuratedNewsItem) => void;
+}) {
   const lead = items.find((item) => item.featured) ?? items[0] ?? null;
   const rest = lead ? items.filter((item) => item.id !== lead.id).slice(0, 4) : [];
 
@@ -821,23 +1060,23 @@ function BriefingSection({ items }: { items: CuratedNewsItem[] }) {
             </span>
           </div>
           <h2 id="editors-choice-heading" className="mt-2 text-2xl font-bold tracking-[-0.035em] text-white sm:text-3xl">
-            Editor's Choice
+            Editor&apos;s Choice
           </h2>
           <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-400">
-            Editorially selected analytically.
+            The stories worth understanding, with context, implications and what to watch next.
           </p>
         </div>
         <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
-          {items.length} briefing {items.length === 1 ? "story" : "stories"}
+          {items.length} selected {items.length === 1 ? "story" : "stories"}
         </div>
       </div>
 
-      <BriefingStory item={lead} lead />
+      <BriefingStory item={lead} lead onOpen={onOpen} />
 
       {rest.length > 0 && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {rest.map((item) => (
-            <BriefingStory key={item.id} item={item} />
+            <BriefingStory key={item.id} item={item} onOpen={onOpen} />
           ))}
         </div>
       )}
@@ -912,6 +1151,7 @@ export default function NewsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedEditorialStory, setSelectedEditorialStory] = useState<CuratedNewsItem | null>(null);
 
   const loadNews = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -929,12 +1169,12 @@ export default function NewsPage() {
         supabase
           .from("curated_news")
           .select(
-            "id, external_id, title, summary, source, source_url, image_url, category, published_at, briefing_date, rank, featured"
+            "id, external_id, title, summary, source, source_url, image_url, category, published_at, briefing_date, rank, featured, what_happened, why_it_matters, deeper_context, key_implications, what_to_watch, vgb_lens, confidence, analysis_updated_at"
           )
           .eq("briefing_date", getIndiaDate())
           .order("rank", { ascending: true })
           .order("published_at", { ascending: false })
-          .limit(12),
+          .limit(10),
       ]);
 
       if (newsResult.error) throw newsResult.error;
@@ -993,7 +1233,7 @@ export default function NewsPage() {
 
   const pageDescription =
     selectedCategory === "All"
-      ? "Editor's Choice on top, followed by the continuously refreshed VGB news feed."
+      ? "Editorial analysis on top, followed by the continuously refreshed VGB news feed."
       : CATEGORY_META[selectedCategory].description;
 
   return (
@@ -1100,7 +1340,10 @@ export default function NewsPage() {
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
         {!loading && !error && filteredCuratedStories.length > 0 && (
           <div className="mb-10">
-            <BriefingSection items={filteredCuratedStories} />
+            <BriefingSection
+              items={filteredCuratedStories}
+              onOpen={setSelectedEditorialStory}
+            />
           </div>
         )}
 
@@ -1123,22 +1366,17 @@ export default function NewsPage() {
         )}
 
         {/* Empty */}
-        {!loading &&
-          !error &&
-          filteredStories.length === 0 &&
-          filteredCuratedStories.length === 0 && (
-            <EmptyState
-              category={selectedCategory}
-              onRefresh={() => void loadNews(true)}
-              refreshing={refreshing}
-            />
-          )}
+        {!loading && !error && filteredStories.length === 0 && filteredCuratedStories.length === 0 && (
+          <EmptyState
+            category={selectedCategory}
+            onRefresh={() => void loadNews(true)}
+            refreshing={refreshing}
+          />
+        )}
 
         {/* News */}
-        {!loading &&
-          !error &&
-          (filteredStories.length > 0 || filteredCuratedStories.length > 0) && (
-            <div className="space-y-10">
+        {!loading && !error && (filteredStories.length > 0 || filteredCuratedStories.length > 0) && (
+          <div className="space-y-10">
             {/* Lead */}
             {featuredStory && (
               <section aria-labelledby="lead-story-heading">
@@ -1193,7 +1431,7 @@ export default function NewsPage() {
 
             {/* Latest */}
             {remainingStories.length > 0 && (
-              <section id="latest-news" aria-labelledby="latest-heading">
+              <section aria-labelledby="latest-heading">
                 <div className="mb-5 flex items-end justify-between gap-4 border-b border-slate-200 pb-4">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
@@ -1228,6 +1466,13 @@ export default function NewsPage() {
           </div>
         )}
       </div>
+
+      {selectedEditorialStory && (
+        <EditorialAnalysisModal
+          item={selectedEditorialStory}
+          onClose={() => setSelectedEditorialStory(null)}
+        />
+      )}
     </main>
   );
 }
