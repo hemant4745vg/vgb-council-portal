@@ -246,7 +246,7 @@ function drawRunnerZone(
   width: number,
   height: number,
 ) {
-  const line = project(RUNNER_LINE_Z, width, height);
+
   const near = project(PLAYER_Z, width, height);
   const leftFar = cx - line.half * 0.98;
   const rightFar = cx + line.half * 0.98;
