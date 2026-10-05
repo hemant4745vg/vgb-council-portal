@@ -185,7 +185,9 @@ export function updateGame(
     obstacle.z -= g.speed * dt;
     if (!obstacle.resolved && obstacle.z <= COLLISION_FRONT) {
       resolveObstacle(g, obstacle, finish);
-      if (g.phase === "gameover") break;
+
+if (g.phase !== "playing") {
+  break;
     }
   }
 
