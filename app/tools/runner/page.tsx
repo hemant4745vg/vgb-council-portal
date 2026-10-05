@@ -78,10 +78,9 @@ type Game = {
 const BEST_KEY = "vgb-runner-best-v3";
 const BANK_KEY = "vgb-runner-bank-v3";
 
-const PLAYER_Z = 115;
+const PLAYER_Z = 0;
 const SPAWN_Z = 920;
-const COLLISION_FRONT = 82;
-const COLLISION_BACK = 126;
+const COLLISION_FRONT = 26;
 const START_SPEED = 235;
 const MAX_SPEED = 610;
 const LANE_CENTER = 2 / 3;
@@ -203,7 +202,7 @@ function obstaclePattern(difficulty: number, index: number): Array<{ lane: Lane;
 function spawnObstacleSet(g: Game) {
   const difficulty = clamp(g.elapsed / 100, 0, 1);
   const pattern = obstaclePattern(difficulty, g.patternIndex++);
-  const z = SPAWN_Z + 20;
+  const z = SPAWN_Z;
 
   for (const item of pattern) {
     g.obstacles.push({ id: g.nextId++, lane: item.lane, z, kind: item.kind, resolved: false });
@@ -221,10 +220,10 @@ function spawnPickupSet(g: Game) {
   if (power === "coin") {
     const count = 3 + Math.floor(Math.random() * 4);
     for (let i = 0; i < count; i += 1) {
-      g.pickups.push({ id: g.nextId++, lane, z: SPAWN_Z + 80 + i * 48, kind: "coin", collected: false, phase: Math.random() * Math.PI * 2 });
+      g.pickups.push({ id: g.nextId++, lane, z: SPAWN_Z - 30 + i * 48, kind: "coin", collected: false, phase: Math.random() * Math.PI * 2 });
     }
   } else {
-    g.pickups.push({ id: g.nextId++, lane, z: SPAWN_Z + 160, kind: power, collected: false, phase: Math.random() * Math.PI * 2 });
+    g.pickups.push({ id: g.nextId++, lane, z: SPAWN_Z - 70, kind: power, collected: false, phase: Math.random() * Math.PI * 2 });
   }
 
   g.pickupTimer = 1.25 + Math.random() * 1.35;
@@ -651,18 +650,18 @@ export default function RunnerPage() {
 
       // Campus scenery, intentionally based on the uploaded brick architecture, covered walkways, lawns and entrance gate.
       const scenery = [
-        { z: 22, side: -1, label: "ACADEMIC BLOCK" },
-        { z: 48, side: 1, label: "" },
-        { z: 78, side: -1, label: "" },
-        { z: 112, side: 1, label: "" },
-        { z: 152, side: -1, label: "" },
-        { z: 198, side: 1, label: "" },
+        { z: 780, side: -1, label: "ACADEMIC BLOCK" },
+        { z: 610, side: 1, label: "" },
+        { z: 430, side: -1, label: "" },
+        { z: 270, side: 1, label: "" },
+        { z: 145, side: -1, label: "" },
+        { z: 70, side: 1, label: "" },
       ];
       for (const item of scenery) {
         const p = project(item.z, width, height);
         const x = cx + item.side * (p.half + 42 * p.scale);
         drawBuilding(ctx, x, p.y + 4 * p.scale, 105 + (item.z % 3) * 20, 78 + (item.z % 2) * 35, p.scale, item.label || undefined);
-        if (item.z === 48 || item.z === 152) drawWalkway(ctx, x + item.side * 60 * p.scale, p.y + 4 * p.scale, 170, p.scale);
+        if (item.z === 610 || item.z === 145) drawWalkway(ctx, x + item.side * 60 * p.scale, p.y + 4 * p.scale, 170, p.scale);
         drawTree(ctx, cx + item.side * (p.half + 12 * p.scale), p.y + 8 * p.scale, Math.max(0.16, p.scale * 0.8));
       }
 
@@ -676,13 +675,13 @@ export default function RunnerPage() {
       }
 
       if (g.environment === "gate") {
-        const gp = project(330, width, height);
+        const gp = project(180, width, height);
         drawGate(ctx, cx, gp.y, gp.scale * 0.85);
       }
 
       const sortedObstacles = [...g.obstacles].sort((a, b) => b.z - a.z);
       for (const obstacle of sortedObstacles) {
-        if (obstacle.z < 0 || obstacle.z > SPAWN_Z + 20) continue;
+        if (obstacle.z < -90 || obstacle.z > SPAWN_Z + 30) continue;
         const p = project(obstacle.z, width, height);
         const x = cx + laneX(obstacle.lane, p.half);
         const laneWidth = (p.half * 2) / 3;
@@ -718,7 +717,7 @@ export default function RunnerPage() {
       }
 
       for (const pickup of g.pickups) {
-        if (pickup.collected || pickup.z < 0 || pickup.z > SPAWN_Z + 200) continue;
+        if (pickup.collected || pickup.z < -100 || pickup.z > SPAWN_Z + 120) continue;
         const p = project(pickup.z, width, height);
         const x = cx + laneX(pickup.lane, p.half);
         drawPickup(ctx, x, p.y, p.scale, pickup.kind, pickup.phase, now);
@@ -795,9 +794,8 @@ export default function RunnerPage() {
 
         for (const obstacle of g.obstacles) {
           obstacle.z -= g.speed * dt;
-          if (obstacle.resolved || obstacle.z < COLLISION_FRONT) continue;
-          if (obstacle.z <= COLLISION_BACK) {
-            obstacle.resolved = true;
+          if (obstacle.resolved || obstacle.z > COLLISION_FRONT) continue;
+          obstacle.resolved = true;
             const sameLane = Math.abs(g.lane - obstacle.lane) < 0.42;
             if (!sameLane) {
               g.combo += 1;
@@ -816,16 +814,15 @@ export default function RunnerPage() {
               continue;
             }
 
-            if (g.shield) {
-              g.shield = false;
-              g.shake = 12;
-              g.flash = 0.18;
-              addBurst(g, 0, 0, "spark", 22);
-              beep(170, 0.13, "square");
-            } else {
-              finish();
-              break;
-            }
+          if (g.shield) {
+            g.shield = false;
+            g.shake = 12;
+            g.flash = 0.18;
+            addBurst(g, 0, 0, "spark", 22);
+            beep(170, 0.13, "square");
+          } else {
+            finish();
+            break;
           }
         }
 
@@ -834,10 +831,10 @@ export default function RunnerPage() {
           if (pickup.collected) continue;
 
           const laneDelta = Math.abs(g.lane - pickup.lane);
-          if (g.magnetUntil > g.elapsed && pickup.kind === "coin" && pickup.z < PLAYER_Z + 190 && laneDelta < 1.15) {
+          if (g.magnetUntil > g.elapsed && pickup.kind === "coin" && pickup.z < PLAYER_Z + 190 && pickup.z > PLAYER_Z - 120 && laneDelta < 1.15) {
             pickup.z -= 620 * dt;
           }
-          if (pickup.z <= PLAYER_Z + 22 && pickup.z >= PLAYER_Z - 38 && laneDelta < 0.45) collect(pickup, g);
+          if (pickup.z <= PLAYER_Z + 24 && pickup.z >= PLAYER_Z - 34 && laneDelta < 0.45) collect(pickup, g);
         }
 
         g.obstacles = g.obstacles.filter((o) => o.z > -120);
@@ -898,7 +895,7 @@ export default function RunnerPage() {
       observer.disconnect();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [collect, draw, finish, syncHud]);
+  }, [collect, finish, syncHud]);
 
   const pointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     touchRef.current = { x: event.clientX, y: event.clientY };
