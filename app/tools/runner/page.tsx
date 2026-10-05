@@ -3,20 +3,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Lane = -1 | 0 | 1;
-type ObstacleKind = "block" | "bar" | "wall";
-type PickupKind = "coin" | "magnet" | "shield" | "multiplier";
+type Phase = "menu" | "playing" | "paused" | "gameover";
+type ObstacleKind = "block" | "bar" | "wall" | "gap";
+type PickupKind = "coin" | "magnet" | "shield" | "multiplier" | "boost";
 
 type Obstacle = {
+  id: number;
   lane: Lane;
   z: number;
   kind: ObstacleKind;
+  width: number;
   height: number;
+  passed: boolean;
 };
 
 type Pickup = {
+  id: number;
   lane: Lane;
   z: number;
   kind: PickupKind;
+  collected: boolean;
+  phase: number;
 };
 
 type Particle = {
@@ -27,923 +34,859 @@ type Particle = {
   life: number;
   maxLife: number;
   size: number;
-  glyph: string;
 };
 
-type GameState = {
-  running: boolean;
-  paused: boolean;
-  over: boolean;
-  score: number;
+type Game = {
+  phase: Phase;
+  last: number;
+  elapsed: number;
   distance: number;
+  score: number;
   coins: number;
   multiplier: number;
   speed: number;
-  lane: Lane;
-  targetLane: Lane;
-  y: number;
-  vy: number;
-  sliding: number;
+  targetSpeed: number;
+  lane: number;
+  targetLane: number;
+  jumpY: number;
+  jumpV: number;
+  sliding: boolean;
+  slideUntil: number;
   shield: number;
-  magnet: number;
-  boost: number;
+  magnetUntil: number;
+  boostUntil: number;
+  combo: number;
+  comboUntil: number;
+  spawnTimer: number;
+  pickupTimer: number;
+  nextId: number;
   obstacles: Obstacle[];
   pickups: Pickup[];
   particles: Particle[];
-  spawnTimer: number;
-  pickupTimer: number;
-  flash: number;
   shake: number;
+  flash: number;
+  milestone: number;
+  best: number;
 };
 
-const STORAGE_KEY = "vgb-runner-best-v1";
-const COINS_KEY = "vgb-runner-coins-v1";
+const BEST_KEY = "vgb-runner-best-v2";
+const COINS_KEY = "vgb-runner-coins-v2";
+const WORLD_DEPTH = 1000;
+const PLAYER_Z = 115;
+const START_SPEED = 235;
+const MAX_SPEED = 590;
+const LANES: Lane[] = [-1, 0, 1];
 
-const INITIAL: GameState = {
-  running: false,
-  paused: false,
-  over: false,
-  score: 0,
-  distance: 0,
-  coins: 0,
-  multiplier: 1,
-  speed: 0.32,
-  lane: 0,
-  targetLane: 0,
-  y: 0,
-  vy: 0,
-  sliding: 0,
-  shield: 0,
-  magnet: 0,
-  boost: 0,
-  obstacles: [],
-  pickups: [],
-  particles: [],
-  spawnTimer: 0.7,
-  pickupTimer: 1.4,
-  flash: 0,
-  shake: 0,
-};
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const ease = (t: number) => t * t * (3 - 2 * t);
+const laneIndex = (lane: number) => lane + 1;
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
+function laneX(lane: number, roadHalf: number) {
+  return lane * roadHalf * 0.34;
 }
 
-function laneX(lane: number, width: number) {
-  return width / 2 + lane * Math.min(width * 0.115, 92);
-}
-
-function formatScore(n: number) {
-  return Math.floor(n).toLocaleString("en-IN");
-}
-
-function createObstacle(): Obstacle {
-  const r = Math.random();
-  const kind: ObstacleKind = r < 0.58 ? "block" : r < 0.82 ? "bar" : "wall";
+function freshGame(best: number): Game {
   return {
-    lane: (Math.floor(Math.random() * 3) - 1) as Lane,
-    z: 1.12,
-    kind,
-    height: kind === "bar" ? 0.34 : kind === "wall" ? 0.8 : 0.55,
+    phase: "menu",
+    last: 0,
+    elapsed: 0,
+    distance: 0,
+    score: 0,
+    coins: 0,
+    multiplier: 1,
+    speed: START_SPEED,
+    targetSpeed: START_SPEED,
+    lane: 0,
+    targetLane: 0,
+    jumpY: 0,
+    jumpV: 0,
+    sliding: false,
+    slideUntil: 0,
+    shield: 0,
+    magnetUntil: 0,
+    boostUntil: 0,
+    combo: 0,
+    comboUntil: 0,
+    spawnTimer: 0.7,
+    pickupTimer: 0.8,
+    nextId: 1,
+    obstacles: [],
+    pickups: [],
+    particles: [],
+    shake: 0,
+    flash: 0,
+    milestone: 250,
+    best,
   };
 }
 
-function createPickup(): Pickup {
-  const r = Math.random();
-  const kind: PickupKind =
-    r < 0.72 ? "coin" : r < 0.82 ? "magnet" : r < 0.92 ? "shield" : "multiplier";
+function spawnObstacle(g: Game) {
+  const difficulty = clamp(g.elapsed / 85, 0, 1);
+  const patterns = [
+    [-1], [0], [1],
+    [-1, 0], [0, 1], [-1, 1],
+    difficulty > 0.18 ? [-1, 0, 1] : [-1],
+  ] as Lane[][];
+  const lanes = patterns[Math.floor(Math.random() * patterns.length)];
+  const kinds: ObstacleKind[] = ["block", "block", "bar", "wall", "gap"];
+  const kind = kinds[Math.floor(Math.random() * kinds.length)];
+  lanes.forEach((lane) => {
+    g.obstacles.push({
+      id: g.nextId++,
+      lane,
+      z: WORLD_DEPTH + Math.random() * 70,
+      kind,
+      width: kind === "wall" ? 0.42 : 0.34,
+      height: kind === "bar" ? 0.23 : kind === "gap" ? 0.08 : 0.48,
+      passed: false,
+    });
+  });
+}
 
-  return {
-    lane: (Math.floor(Math.random() * 3) - 1) as Lane,
-    z: 1.1,
-    kind,
-  };
+function spawnPickup(g: Game) {
+  const roll = Math.random();
+  const kind: PickupKind = roll < 0.72 ? "coin" : roll < 0.82 ? "magnet" : roll < 0.91 ? "shield" : roll < 0.97 ? "multiplier" : "boost";
+  const lane = LANES[Math.floor(Math.random() * LANES.length)];
+  const count = kind === "coin" ? 3 + Math.floor(Math.random() * 4) : 1;
+  for (let i = 0; i < count; i++) {
+    g.pickups.push({
+      id: g.nextId++,
+      lane: (kind === "coin" && i > 0 ? lane : lane) as Lane,
+      z: WORLD_DEPTH + 90 + i * 54,
+      kind,
+      collected: false,
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function burst(g: Game, x: number, y: number, amount = 10) {
+  for (let i = 0; i < amount; i++) {
+    const maxLife = 0.35 + Math.random() * 0.45;
+    g.particles.push({
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 180,
+      vy: (Math.random() - 0.65) * 170,
+      life: maxLife,
+      maxLife,
+      size: 2 + Math.random() * 4,
+    });
+  }
+}
+
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
 }
 
 export default function RunnerPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const gameRef = useRef<GameState>({ ...INITIAL });
+  const gameRef = useRef<Game | null>(null);
   const rafRef = useRef<number | null>(null);
-  const lastRef = useRef<number>(0);
-  const [best, setBest] = useState(0);
-  const [bankedCoins, setBankedCoins] = useState(0);
-  const [, render] = useState(0);
+  const hudClockRef = useRef<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [phase, setPhase] = useState<Phase>("menu");
+  const [hud, setHud] = useState({ score: 0, distance: 0, coins: 0, multiplier: 1, best: 0, shield: 0, power: "" });
+  const [sound, setSound] = useState(true);
+
+  const readBest = useCallback(() => {
+    if (typeof window === "undefined") return 0;
+    return Number(localStorage.getItem(BEST_KEY) || 0);
+  }, []);
 
   useEffect(() => {
-    try {
-      setBest(Number(localStorage.getItem(STORAGE_KEY) || 0));
-      setBankedCoins(Number(localStorage.getItem(COINS_KEY) || 0));
-    } catch {}
-  }, []);
+    const best = readBest();
+    gameRef.current = freshGame(best);
+    setHud((h) => ({ ...h, best }));
+  }, [readBest]);
 
-  const saveBest = useCallback((score: number) => {
-    setBest((old) => {
-      const next = Math.max(old, Math.floor(score));
-      try {
-        localStorage.setItem(STORAGE_KEY, String(next));
-      } catch {}
-      return next;
-    });
-  }, []);
-
-  const saveCoins = useCallback((coins: number) => {
-    setBankedCoins((old) => {
-      const next = old + coins;
-      try {
-        localStorage.setItem(COINS_KEY, String(next));
-      } catch {}
-      return next;
-    });
-  }, []);
-
-  const resetGame = useCallback(() => {
-    gameRef.current = {
-      ...INITIAL,
-      running: true,
-      spawnTimer: 0.65,
-      pickupTimer: 0.9,
-    };
-    lastRef.current = performance.now();
-    render((x) => x + 1);
-  }, []);
-
-  const startGame = useCallback(() => {
-    resetGame();
-  }, [resetGame]);
-
-  const endGame = useCallback(() => {
+  const updateHud = useCallback(() => {
     const g = gameRef.current;
-    if (g.over) return;
-    g.over = true;
-    g.running = false;
-    g.flash = 0.35;
-    g.shake = 0.35;
-    saveBest(g.score);
-    saveCoins(g.coins);
-    render((x) => x + 1);
-  }, [saveBest, saveCoins]);
+    if (!g) return;
+    const power = g.boostUntil > g.elapsed ? "BOOST" : g.magnetUntil > g.elapsed ? "MAGNET" : g.shield > 0 ? "SHIELD" : "";
+    setHud({
+      score: Math.floor(g.score),
+      distance: Math.floor(g.distance),
+      coins: g.coins,
+      multiplier: g.multiplier,
+      best: g.best,
+      shield: g.shield,
+      power,
+    });
+  }, []);
+
+  const setGamePhase = useCallback((next: Phase) => {
+    const g = gameRef.current;
+    if (!g) return;
+    g.phase = next;
+    setPhase(next);
+    updateHud();
+  }, [updateHud]);
+
+  const reset = useCallback(() => {
+    const best = readBest();
+    gameRef.current = freshGame(best);
+    setPhase("menu");
+    updateHud();
+  }, [readBest, updateHud]);
+
+  const start = useCallback(() => {
+    const g = gameRef.current || freshGame(readBest());
+    g.phase = "playing";
+    g.last = performance.now();
+    g.elapsed = 0;
+    g.distance = 0;
+    g.score = 0;
+    g.coins = 0;
+    g.multiplier = 1;
+    g.speed = START_SPEED;
+    g.targetSpeed = START_SPEED;
+    g.lane = 0;
+    g.targetLane = 0;
+    g.jumpY = 0;
+    g.jumpV = 0;
+    g.sliding = false;
+    g.slideUntil = 0;
+    g.shield = 0;
+    g.magnetUntil = 0;
+    g.boostUntil = 0;
+    g.combo = 0;
+    g.comboUntil = 0;
+    g.spawnTimer = 0.65;
+    g.pickupTimer = 0.8;
+    g.obstacles = [];
+    g.pickups = [];
+    g.particles = [];
+    g.shake = 0;
+    g.flash = 0;
+    g.milestone = 250;
+    gameRef.current = g;
+    setPhase("playing");
+    updateHud();
+  }, [readBest, updateHud]);
 
   const move = useCallback((direction: -1 | 1) => {
     const g = gameRef.current;
-    if (!g.running || g.paused || g.over) return;
-    g.targetLane = clamp(g.targetLane + direction, -1, 1) as Lane;
+    if (!g || g.phase !== "playing") return;
+    g.targetLane = clamp(g.targetLane + direction, -1, 1);
   }, []);
 
   const jump = useCallback(() => {
     const g = gameRef.current;
-    if (!g.running || g.paused || g.over) return;
-    if (g.y <= 0.001) {
-      g.vy = 1.15;
-      g.y = 0.01;
+    if (!g || g.phase !== "playing") return;
+    if (g.jumpY <= 0.01 && !g.sliding) {
+      g.jumpV = 575;
+      g.jumpY = 1;
     }
   }, []);
 
   const slide = useCallback(() => {
     const g = gameRef.current;
-    if (!g.running || g.paused || g.over) return;
-    g.sliding = 0.55;
+    if (!g || g.phase !== "playing") return;
+    if (g.jumpY <= 0.01) {
+      g.sliding = true;
+      g.slideUntil = g.elapsed + 0.62;
+    }
   }, []);
 
-  const togglePause = useCallback(() => {
+  const pause = useCallback(() => {
     const g = gameRef.current;
-    if (!g.running || g.over) return;
-    g.paused = !g.paused;
-    lastRef.current = performance.now();
-    render((x) => x + 1);
+    if (!g) return;
+    if (g.phase === "playing") {
+      g.phase = "paused";
+      setPhase("paused");
+    } else if (g.phase === "paused") {
+      g.phase = "playing";
+      g.last = performance.now();
+      setPhase("playing");
+    }
   }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(e.key)) {
-        e.preventDefault();
-      }
-      if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") move(-1);
-      else if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") move(1);
-      else if (e.key === "ArrowUp" || e.key.toLowerCase() === "w" || e.key === " ") jump();
-      else if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") slide();
-      else if (e.key.toLowerCase() === "p" || e.key === "Escape") togglePause();
+      const k = e.key.toLowerCase();
+      if (["arrowleft", "arrowright", "arrowup", "arrowdown", " "].includes(e.key.toLowerCase())) e.preventDefault();
+      if (k === "arrowleft" || k === "a") move(-1);
+      else if (k === "arrowright" || k === "d") move(1);
+      else if (k === "arrowup" || k === "w" || k === " ") jump();
+      else if (k === "arrowdown" || k === "s") slide();
+      else if (k === "p" || k === "escape") pause();
+      else if (k === "enter" && (phase === "menu" || phase === "gameover")) start();
     };
-
     window.addEventListener("keydown", onKey, { passive: false });
     return () => window.removeEventListener("keydown", onKey);
-  }, [jump, move, slide, togglePause]);
+  }, [jump, move, pause, phase, slide, start]);
+
+  const fail = useCallback(() => {
+    const g = gameRef.current;
+    if (!g) return;
+    g.phase = "gameover";
+    g.shake = 14;
+    g.flash = 0.22;
+    const score = Math.floor(g.score);
+    const best = Math.max(g.best, score);
+    g.best = best;
+    localStorage.setItem(BEST_KEY, String(best));
+    const banked = Number(localStorage.getItem(COINS_KEY) || 0) + g.coins;
+    localStorage.setItem(COINS_KEY, String(banked));
+    burst(g, 0, 0, 26);
+    setPhase("gameover");
+    updateHud();
+  }, [updateHud]);
+
+  const collect = useCallback((p: Pickup, g: Game) => {
+    p.collected = true;
+    if (p.kind === "coin") {
+      g.coins += 1;
+      g.score += 25 * g.multiplier;
+      g.combo += 1;
+      g.comboUntil = g.elapsed + 1.7;
+    } else if (p.kind === "magnet") {
+      g.magnetUntil = g.elapsed + 7;
+      g.score += 100;
+    } else if (p.kind === "shield") {
+      g.shield = 1;
+      g.score += 120;
+    } else if (p.kind === "multiplier") {
+      g.multiplier = clamp(g.multiplier + 1, 1, 5);
+      g.score += 175;
+    } else if (p.kind === "boost") {
+      g.boostUntil = g.elapsed + 4;
+      g.score += 150;
+    }
+    burst(g, 0, 0, p.kind === "coin" ? 5 : 14);
+    g.flash = 0.08;
+  }, []);
+
+  const draw = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number, g: Game, now: number) => {
+    const dpr = window.devicePixelRatio || 1;
+    const horizon = h * 0.39;
+    const roadBottom = Math.min(w * 0.72, 780);
+    const roadTop = Math.max(w * 0.075, 86);
+    const cx = w / 2;
+    const roadHalfBottom = roadBottom / 2;
+    const roadHalfTop = roadTop / 2;
+    const tNow = now * 0.001;
+
+    ctx.save();
+    if (g.shake > 0) {
+      const s = g.shake * (0.35 + 0.65 * Math.random());
+      ctx.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
+    }
+
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, "#07152d");
+    sky.addColorStop(0.48, "#12345f");
+    sky.addColorStop(1, "#07101e");
+    ctx.fillStyle = sky;
+    ctx.fillRect(-20, -20, w + 40, h + 40);
+
+    const glow = ctx.createRadialGradient(cx, horizon * 0.55, 8, cx, horizon * 0.55, w * 0.52);
+    glow.addColorStop(0, "rgba(65,180,255,.25)");
+    glow.addColorStop(1, "rgba(65,180,255,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+
+    // Parallax skyline / hills.
+    for (let layer = 0; layer < 3; layer++) {
+      const base = horizon + 35 + layer * 32;
+      ctx.beginPath();
+      ctx.moveTo(0, base + 80);
+      for (let x = 0; x <= w + 40; x += 42) {
+        const n = Math.sin(x * 0.013 + layer * 1.7) * (18 + layer * 9) + Math.sin(x * 0.031) * 9;
+        ctx.lineTo(x, base + n);
+      }
+      ctx.lineTo(w, base + 100);
+      ctx.lineTo(0, base + 100);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(5,14,30,${0.5 + layer * 0.12})`;
+      ctx.fill();
+    }
+
+    // Road shoulders.
+    ctx.beginPath();
+    ctx.moveTo(cx - roadHalfTop, horizon);
+    ctx.lineTo(cx + roadHalfTop, horizon);
+    ctx.lineTo(cx + roadHalfBottom, h + 20);
+    ctx.lineTo(cx - roadHalfBottom, h + 20);
+    ctx.closePath();
+    const road = ctx.createLinearGradient(0, horizon, 0, h);
+    road.addColorStop(0, "#16263d");
+    road.addColorStop(1, "#08111e");
+    ctx.fillStyle = road;
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(74,198,255,.35)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - roadHalfTop, horizon);
+    ctx.lineTo(cx - roadHalfBottom, h);
+    ctx.moveTo(cx + roadHalfTop, horizon);
+    ctx.lineTo(cx + roadHalfBottom, h);
+    ctx.stroke();
+
+    // Lane separators with moving perspective dashes.
+    const scroll = (g.distance * 0.7) % 80;
+    for (const lane of [-0.5, 0.5]) {
+      for (let i = -1; i < 17; i++) {
+        const z = i * 80 + scroll + 20;
+        const p = clamp(1 - z / WORLD_DEPTH, 0, 1);
+        const y = lerp(horizon, h + 50, Math.pow(p, 1.35));
+        const half = lerp(roadHalfTop, roadHalfBottom, p);
+        const x = cx + lane * half * 0.68;
+        const len = lerp(4, 42, p);
+        ctx.strokeStyle = `rgba(148,219,255,${0.15 + p * 0.38})`;
+        ctx.lineWidth = lerp(1, 4, p);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + len);
+        ctx.stroke();
+      }
+    }
+
+    // Side markers.
+    for (let i = 0; i < 13; i++) {
+      const z = (i * 90 + scroll * 1.5) % (WORLD_DEPTH + 100);
+      const p = clamp(1 - z / WORLD_DEPTH, 0, 1);
+      const y = lerp(horizon, h, Math.pow(p, 1.35));
+      const half = lerp(roadHalfTop, roadHalfBottom, p);
+      const size = lerp(3, 12, p);
+      ctx.fillStyle = `rgba(69,190,255,${0.18 + p * 0.55})`;
+      ctx.fillRect(cx - half - size * 2, y, size, size);
+      ctx.fillRect(cx + half + size, y, size, size);
+    }
+
+    const project = (z: number) => {
+      const p = clamp(1 - z / WORLD_DEPTH, 0, 1);
+      const y = lerp(horizon, h * 0.98, Math.pow(p, 1.28));
+      const half = lerp(roadHalfTop, roadHalfBottom, p);
+      const scale = lerp(0.16, 1.28, Math.pow(p, 1.08));
+      return { p, y, half, scale };
+    };
+
+    const sortedObstacles = [...g.obstacles].sort((a, b) => b.z - a.z);
+    for (const o of sortedObstacles) {
+      if (o.z < -50 || o.z > WORLD_DEPTH + 120) continue;
+      const q = project(o.z);
+      const x = cx + laneX(o.lane, q.half);
+      const ow = o.width * q.half * 1.65;
+      const oh = Math.max(10, o.height * 110 * q.scale);
+      const baseY = q.y;
+      ctx.save();
+      ctx.translate(x, baseY);
+      ctx.shadowBlur = 18 * q.p;
+      ctx.shadowColor = "rgba(255,77,107,.55)";
+      if (o.kind === "gap") {
+        ctx.fillStyle = "#020711";
+        ctx.fillRect(-ow * 0.9, -4, ow * 1.8, 8);
+        ctx.strokeStyle = "rgba(255,130,75,.7)";
+        ctx.lineWidth = Math.max(1, 3 * q.scale);
+        ctx.strokeRect(-ow * 0.9, -5, ow * 1.8, 10);
+      } else if (o.kind === "bar") {
+        ctx.fillStyle = "#e7495e";
+        roundedRect(ctx, -ow, -oh * 0.85, ow * 2, oh * 0.72, 7 * q.scale);
+        ctx.fill();
+        ctx.fillStyle = "#ffb14a";
+        ctx.fillRect(-ow * 0.78, -oh * 0.72, ow * 1.56, Math.max(2, oh * 0.11));
+      } else {
+        ctx.fillStyle = o.kind === "wall" ? "#c92e56" : "#ef475f";
+        roundedRect(ctx, -ow, -oh, ow * 2, oh, 9 * q.scale);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,.2)";
+        ctx.fillRect(-ow * 0.72, -oh * 0.75, ow * 1.44, Math.max(2, oh * 0.12));
+        ctx.strokeStyle = "rgba(255,196,87,.72)";
+        ctx.lineWidth = Math.max(1, 2 * q.scale);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Pickups.
+    for (const p of g.pickups) {
+      if (p.collected || p.z < -40 || p.z > WORLD_DEPTH + 160) continue;
+      const q = project(p.z);
+      const x = cx + laneX(p.lane, q.half);
+      const bob = Math.sin(tNow * 5 + p.phase) * (2 + q.p * 7);
+      const r = Math.max(4, 10 * q.scale);
+      ctx.save();
+      ctx.translate(x, q.y - 38 * q.scale + bob);
+      ctx.shadowBlur = 20 * q.scale;
+      ctx.shadowColor = p.kind === "coin" ? "#ffd34d" : p.kind === "shield" ? "#55e5ff" : p.kind === "magnet" ? "#9f7cff" : p.kind === "boost" ? "#ff8a3d" : "#69ffb5";
+      if (p.kind === "coin") {
+        ctx.fillStyle = "#ffd34d";
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,.7)"; ctx.lineWidth = Math.max(1, q.scale * 2); ctx.stroke();
+      } else {
+        ctx.fillStyle = p.kind === "shield" ? "#55e5ff" : p.kind === "magnet" ? "#9f7cff" : p.kind === "boost" ? "#ff8a3d" : "#69ffb5";
+        ctx.beginPath(); ctx.arc(0, 0, r * 1.12, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#061322";
+        ctx.font = `900 ${Math.max(7, 10 * q.scale)}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(p.kind === "shield" ? "S" : p.kind === "magnet" ? "M" : p.kind === "boost" ? "B" : "×", 0, 0.5);
+      }
+      ctx.restore();
+    }
+
+    // Player shadow.
+    const playerGround = h * 0.84;
+    const playerX = cx + laneX(g.lane, roadHalfBottom);
+    const jumpPx = g.jumpY * 0.19;
+    ctx.fillStyle = `rgba(0,0,0,${0.28 - Math.min(0.18, g.jumpY * 0.03)})`;
+    ctx.beginPath();
+    ctx.ellipse(playerX, playerGround + 18, 34 - Math.min(18, g.jumpY * 2), 9 - Math.min(5, g.jumpY * 0.5), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Player.
+    ctx.save();
+    ctx.translate(playerX, playerGround - jumpPx);
+    const lean = (g.targetLane - g.lane) * -0.13;
+    ctx.rotate(lean);
+    const sliding = g.sliding;
+    const bodyW = sliding ? 52 : 35;
+    const bodyH = sliding ? 28 : 60;
+    ctx.shadowBlur = 22;
+    ctx.shadowColor = "rgba(61,207,255,.75)";
+    ctx.fillStyle = "#39c8ff";
+    roundedRect(ctx, -bodyW / 2, -bodyH, bodyW, bodyH, 12);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#0b213d";
+    ctx.beginPath(); ctx.arc(sliding ? 19 : 0, -bodyH - 11, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#f3f8ff";
+    ctx.beginPath(); ctx.arc(sliding ? 22 : 4, -bodyH - 12, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#8af0ff";
+    ctx.fillRect(-bodyW * 0.35, -bodyH * 0.64, bodyW * 0.7, 5);
+    ctx.fillStyle = "#162f50";
+    if (!sliding) {
+      ctx.fillRect(-16, -2, 11, 25);
+      ctx.fillRect(5, -2, 11, 25);
+    } else {
+      ctx.fillRect(-24, 1, 18, 9);
+      ctx.fillRect(8, 1, 18, 9);
+    }
+    if (g.shield > 0) {
+      ctx.strokeStyle = "rgba(83,230,255,.85)";
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, -bodyH * 0.48, 47, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(83,230,255,.18)";
+      ctx.lineWidth = 8;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Particles.
+    for (const p of g.particles) {
+      ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
+      ctx.fillStyle = "#7ce7ff";
+      ctx.beginPath(); ctx.arc(cx + p.x, playerGround - p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Speed streaks at higher speeds.
+    if (g.speed > 380 && g.phase === "playing") {
+      ctx.strokeStyle = `rgba(140,225,255,${clamp((g.speed - 380) / 850, 0.04, 0.22)})`;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 14; i++) {
+        const x = (Math.sin(i * 17.3 + g.elapsed * 2) * 0.5 + 0.5) * w;
+        const y = horizon + ((i * 71 + g.elapsed * 150) % (h - horizon));
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 18 + g.speed * 0.035); ctx.stroke();
+      }
+    }
+
+    // Vignette.
+    const vignette = ctx.createRadialGradient(cx, h * 0.55, h * 0.15, cx, h * 0.55, h * 0.78);
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(1, "rgba(0,0,0,.52)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, w, h);
+
+    if (g.flash > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${g.flash})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.restore();
+
+    // Keep canvas physically crisp.
+    void dpr;
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    let mounted = true;
+    let width = 0;
+    let height = 0;
+
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const rect = canvas.getBoundingClientRect();
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = Math.max(320, Math.floor(rect.width));
+      height = Math.max(520, Math.floor(rect.height));
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
-
     resize();
-    window.addEventListener("resize", resize);
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
 
-    const drawRounded = (
-      x: number,
-      y: number,
-      w: number,
-      h: number,
-      r: number,
-      fill: string,
-      stroke?: string
-    ) => {
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, r);
-      ctx.fillStyle = fill;
-      ctx.fill();
-      if (stroke) {
-        ctx.strokeStyle = stroke;
-        ctx.stroke();
-      }
-    };
-
-    const addParticle = (
-      g: GameState,
-      x: number,
-      y: number,
-      glyph: string,
-      count = 3
-    ) => {
-      for (let i = 0; i < count; i++) {
-        const life = 0.35 + Math.random() * 0.45;
-        g.particles.push({
-          x,
-          y,
-          vx: (Math.random() - 0.5) * 120,
-          vy: -20 - Math.random() * 90,
-          life,
-          maxLife: life,
-          size: 6 + Math.random() * 7,
-          glyph,
-        });
-      }
-    };
-
-    const update = (dt: number) => {
+    const tick = (now: number) => {
+      if (!mounted) return;
       const g = gameRef.current;
-      if (!g.running || g.paused || g.over) return;
-
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
-
-      g.distance += g.speed * dt * 260;
-      g.speed = Math.min(0.72, 0.32 + g.distance / 22000);
-      if (g.boost > 0) g.boost -= dt;
-      if (g.magnet > 0) g.magnet -= dt;
-      if (g.shield > 0) g.shield -= dt;
-      if (g.sliding > 0) g.sliding -= dt;
-      g.flash = Math.max(0, g.flash - dt);
-      g.shake = Math.max(0, g.shake - dt);
-
-      g.lane += (g.targetLane - g.lane) * Math.min(1, dt * 14);
-      g.y += g.vy * dt;
-      g.vy -= 2.9 * dt;
-      if (g.y <= 0) {
-        g.y = 0;
-        g.vy = 0;
+      if (!g) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
       }
 
-      const actualSpeed = g.speed * (g.boost > 0 ? 1.55 : 1);
-      const worldDelta = actualSpeed * dt;
+      if (g.phase === "playing") {
+        const dt = clamp((now - (g.last || now)) / 1000, 0, 0.035);
+        g.last = now;
+        g.elapsed += dt;
 
-      g.spawnTimer -= dt;
-      if (g.spawnTimer <= 0) {
-        g.obstacles.push(createObstacle());
+        const base = Math.min(MAX_SPEED, START_SPEED + g.elapsed * 4.7);
+        g.targetSpeed = g.boostUntil > g.elapsed ? Math.min(MAX_SPEED + 80, base * 1.42) : base;
+        g.speed = lerp(g.speed, g.targetSpeed, 1 - Math.pow(0.001, dt));
+        g.distance += g.speed * dt * 0.022;
+        g.score += g.speed * dt * 0.14 * g.multiplier;
 
-        // Occasionally add a second obstacle, but always leave at least one lane open.
-        if (Math.random() < Math.min(0.3, g.distance / 18000)) {
-          const second = createObstacle();
-          if (second.lane !== g.obstacles[g.obstacles.length - 1].lane) {
-            g.obstacles.push(second);
-          }
+        g.lane = lerp(g.lane, g.targetLane, 1 - Math.pow(0.0007, dt));
+        if (Math.abs(g.lane - g.targetLane) < 0.015) g.lane = g.targetLane;
+
+        if (g.jumpY > 0 || g.jumpV > 0) {
+          g.jumpV -= 1380 * dt;
+          g.jumpY += g.jumpV * dt;
+          if (g.jumpY <= 0) { g.jumpY = 0; g.jumpV = 0; }
+        }
+        if (g.sliding && g.elapsed >= g.slideUntil) g.sliding = false;
+        if (g.combo > 0 && g.elapsed > g.comboUntil) g.combo = 0;
+
+        g.spawnTimer -= dt;
+        if (g.spawnTimer <= 0) {
+          spawnObstacle(g);
+          const difficulty = clamp(g.elapsed / 90, 0, 1);
+          g.spawnTimer = lerp(1.12, 0.56, difficulty) + Math.random() * 0.26;
+        }
+        g.pickupTimer -= dt;
+        if (g.pickupTimer <= 0) {
+          spawnPickup(g);
+          g.pickupTimer = 1.1 + Math.random() * 1.5;
         }
 
-        g.spawnTimer = Math.max(0.42, 0.92 - g.distance / 24000) + Math.random() * 0.42;
-      }
-
-      g.pickupTimer -= dt;
-      if (g.pickupTimer <= 0) {
-        g.pickups.push(createPickup());
-        g.pickupTimer = 0.8 + Math.random() * 0.85;
-      }
-
-      for (const o of g.obstacles) o.z -= worldDelta;
-      for (const p of g.pickups) p.z -= worldDelta;
-
-      const playerLane = Math.round(g.lane) as Lane;
-
-      for (const o of g.obstacles) {
-        if (o.z > 0.035 && o.z < 0.11 && o.lane === playerLane) {
-          const safeJump = g.y > (o.kind === "bar" ? 0.32 : 0.55);
-          const safeSlide = o.kind === "bar" && g.sliding > 0;
-          if (!safeJump && !safeSlide) {
-            if (g.shield > 0) {
-              g.shield = 0;
-              o.z = -1;
-              g.flash = 0.18;
-              g.shake = 0.15;
-              addParticle(g, laneX(playerLane, width), height * 0.68, "✦", 10);
-            } else {
-              endGame();
-              return;
+        for (const o of g.obstacles) {
+          o.z -= g.speed * dt;
+          if (!o.passed && o.z < PLAYER_Z - 35) {
+            o.passed = true;
+            const laneDelta = Math.abs(g.lane - o.lane);
+            if (laneDelta > 0.58) {
+              g.score += 20 * g.multiplier;
+              g.combo += 1;
+              g.comboUntil = g.elapsed + 1.7;
             }
           }
         }
-      }
 
-      for (const p of g.pickups) {
-        if (p.z > 0.02 && p.z < 0.14) {
-          const sameLane = p.lane === playerLane;
-          const px = laneX(p.lane, width);
-          const playerX = laneX(g.lane, width);
-          const magnetPull = g.magnet > 0 && Math.abs(px - playerX) < 120;
-
-          if (sameLane || magnetPull) {
-            p.z = -1;
-            if (p.kind === "coin") {
-              g.coins += 1;
-              g.score += 100 * g.multiplier;
-              addParticle(g, playerX, height * 0.68 - g.y * 100, "✦", 4);
-            } else if (p.kind === "magnet") {
-              g.magnet = 7;
-              g.score += 250;
-              addParticle(g, playerX, height * 0.68, "◆", 8);
-            } else if (p.kind === "shield") {
-              g.shield = 8;
-              g.score += 250;
-              addParticle(g, playerX, height * 0.68, "◇", 8);
-            } else {
-              g.multiplier = Math.min(5, g.multiplier + 1);
-              g.score += 500;
-              addParticle(g, playerX, height * 0.68, "×", 8);
-            }
-          }
+        for (const p of g.pickups) {
+          p.z -= g.speed * dt;
+          if (p.collected) continue;
+          const laneDelta = Math.abs(g.lane - p.lane);
+          const magnet = g.magnetUntil > g.elapsed;
+          if (magnet && p.kind === "coin" && p.z < PLAYER_Z + 170 && laneDelta < 1.05) p.z -= 520 * dt;
+          if (p.z < PLAYER_Z + 32 && p.z > PLAYER_Z - 45 && laneDelta < 0.44) collect(p, g);
         }
-      }
 
-      g.obstacles = g.obstacles.filter((o) => o.z > -0.15);
-      g.pickups = g.pickups.filter((p) => p.z > -0.15);
+        // Collision envelope. Jump clears blocks/gaps; slide clears overhead bars.
+        for (const o of g.obstacles) {
+          if (o.z < PLAYER_Z - 34 || o.z > PLAYER_Z + 32) continue;
+          if (Math.abs(g.lane - o.lane) > 0.46) continue;
+          const highEnough = g.jumpY > (o.kind === "wall" ? 78 : 48);
+          const lowEnough = g.sliding && o.kind === "bar";
+          if (highEnough || lowEnough) continue;
+          if (o.kind === "gap" && g.jumpY > 30) continue;
 
-      g.score += actualSpeed * dt * 80 * g.multiplier;
-
-      for (const p of g.particles) {
-        p.life -= dt;
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.vy += 150 * dt;
-      }
-      g.particles = g.particles.filter((p) => p.life > 0);
-
-      if (Math.random() < dt * 9) {
-        addParticle(
-          g,
-          laneX(g.lane, width) + (Math.random() - 0.5) * 24,
-          height * 0.78,
-          "·",
-          1
-        );
-      }
-    };
-
-    const projectZ = (z: number, height: number) => {
-      const t = clamp(1 - z, 0, 1);
-      const eased = Math.pow(t, 1.7);
-      return {
-        y: height * 0.22 + eased * height * 0.58,
-        scale: 0.12 + eased * 1.15,
-      };
-    };
-
-    const draw = () => {
-      const g = gameRef.current;
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
-
-      ctx.clearRect(0, 0, width, height);
-
-      // Sky.
-      const sky = ctx.createLinearGradient(0, 0, 0, height);
-      sky.addColorStop(0, "#071b35");
-      sky.addColorStop(0.52, "#123f65");
-      sky.addColorStop(1, "#08151f");
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, width, height);
-
-      // Distant glow.
-      const glow = ctx.createRadialGradient(
-        width * 0.5,
-        height * 0.3,
-        10,
-        width * 0.5,
-        height * 0.3,
-        width * 0.55
-      );
-      glow.addColorStop(0, "rgba(82,210,255,0.22)");
-      glow.addColorStop(1, "rgba(82,210,255,0)");
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, width, height);
-
-      // Distant city/campus silhouettes.
-      const horizon = height * 0.42;
-      ctx.fillStyle = "rgba(3,13,25,0.75)";
-      for (let i = 0; i < 18; i++) {
-        const bw = 25 + ((i * 17) % 45);
-        const bh = 30 + ((i * 31) % 90);
-        const bx = (i / 18) * width;
-        ctx.fillRect(bx, horizon - bh, bw, bh);
-      }
-
-      // Track.
-      const vanishingX = width / 2;
-      const vanishingY = height * 0.4;
-      const bottomY = height * 0.98;
-      ctx.beginPath();
-      ctx.moveTo(vanishingX - width * 0.045, vanishingY);
-      ctx.lineTo(vanishingX + width * 0.045, vanishingY);
-      ctx.lineTo(width * 0.93, bottomY);
-      ctx.lineTo(width * 0.07, bottomY);
-      ctx.closePath();
-      const road = ctx.createLinearGradient(0, vanishingY, 0, bottomY);
-      road.addColorStop(0, "#1d2935");
-      road.addColorStop(1, "#101820");
-      ctx.fillStyle = road;
-      ctx.fill();
-
-      // Lane separators.
-      for (const lane of [-0.5, 0.5]) {
-        ctx.beginPath();
-        ctx.moveTo(vanishingX + lane * width * 0.045, vanishingY);
-        ctx.lineTo(width / 2 + lane * width * 0.415, bottomY);
-        ctx.strokeStyle = "rgba(164,220,236,0.24)";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([12, 18]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Road glow lines.
-      for (let i = 0; i < 8; i++) {
-        const z = ((i / 8) + (g.distance / 450)) % 1;
-        const py = vanishingY + Math.pow(z, 1.7) * (bottomY - vanishingY);
-        const half = 10 + z * width * 0.36;
-        ctx.strokeStyle = `rgba(88,210,255,${0.06 + z * 0.1})`;
-        ctx.lineWidth = 1 + z * 2;
-        ctx.beginPath();
-        ctx.moveTo(width / 2 - half, py);
-        ctx.lineTo(width / 2 + half, py);
-        ctx.stroke();
-      }
-
-      // Objects sorted back to front.
-      const objects = [
-        ...g.obstacles.map((o) => ({ type: "obstacle" as const, item: o })),
-        ...g.pickups.map((p) => ({ type: "pickup" as const, item: p })),
-      ].sort((a, b) => b.item.z - a.item.z);
-
-      for (const obj of objects) {
-        if (obj.item.z < 0 || obj.item.z > 1.2) continue;
-        const { y, scale } = projectZ(obj.item.z, height);
-        const x = laneX(obj.item.lane, width);
-        const s = scale;
-
-        if (obj.type === "pickup") {
-          const p = obj.item;
-          const glyph =
-            p.kind === "coin" ? "◆" : p.kind === "magnet" ? "M" : p.kind === "shield" ? "◇" : "×";
-          const size = 17 * s + 8;
-          ctx.save();
-          ctx.shadowBlur = 16;
-          ctx.shadowColor =
-            p.kind === "coin"
-              ? "#ffd34e"
-              : p.kind === "magnet"
-              ? "#72e5ff"
-              : p.kind === "shield"
-              ? "#a6ffb2"
-              : "#ff9cf2";
-          ctx.fillStyle = "#ffffff";
-          ctx.font = `900 ${size}px system-ui`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(glyph, x, y - 24 * s);
-          ctx.restore();
-        } else {
-          const o = obj.item;
-          const w = 58 * s + 12;
-          const h = (o.kind === "bar" ? 34 : o.kind === "wall" ? 62 : 48) * s + 8;
-          const ox = x - w / 2;
-          const oy = y - h;
-
-          const fill =
-            o.kind === "bar"
-              ? "rgba(255,167,69,0.96)"
-              : o.kind === "wall"
-              ? "rgba(255,79,106,0.96)"
-              : "rgba(239,247,255,0.94)";
-
-          drawRounded(ox, oy, w, h, 8 * s + 2, fill);
-          ctx.strokeStyle = "rgba(255,255,255,0.4)";
-          ctx.lineWidth = Math.max(1, s * 2);
-          ctx.strokeRect(ox, oy, w, h);
-
-          if (o.kind === "bar") {
-            ctx.fillStyle = "rgba(20,35,50,0.85)";
-            ctx.fillRect(ox + w * 0.12, oy + h * 0.35, w * 0.76, h * 0.3);
+          if (g.shield > 0) {
+            g.shield = 0;
+            o.z = -100;
+            g.shake = 10;
+            g.flash = 0.18;
+            burst(g, 0, 0, 20);
+          } else {
+            fail();
           }
+          break;
         }
+
+        g.obstacles = g.obstacles.filter((o) => o.z > -120);
+        g.pickups = g.pickups.filter((p) => p.z > -100 && !p.collected);
+
+        for (const p of g.particles) {
+          p.life -= dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy -= 220 * dt;
+        }
+        g.particles = g.particles.filter((p) => p.life > 0);
+
+        g.shake = Math.max(0, g.shake - 24 * dt);
+        g.flash = Math.max(0, g.flash - dt * 1.8);
+
+        if (g.distance >= g.milestone) {
+          g.score += 300 * g.multiplier;
+          g.milestone += 250;
+          g.flash = 0.13;
+          burst(g, 0, 20, 18);
+        }
+
+        if (hudClockRef.current === null || now - hudClockRef.current > 100) {
+          hudClockRef.current = now;
+          updateHud();
+        }
+      } else if (g.phase === "paused") {
+        g.last = now;
       }
 
-      // Player shadow.
-      const playerX = laneX(g.lane, width);
-      const playerBaseY = height * 0.78;
-      ctx.save();
-      ctx.globalAlpha = Math.max(0.15, 0.42 - g.y * 0.15);
-      ctx.fillStyle = "#000";
-      ctx.beginPath();
-      ctx.ellipse(playerX, playerBaseY + 10, 30 - g.y * 6, 9 - g.y * 1.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // Player.
-      const py = playerBaseY - g.y * 120;
-      const sliding = g.sliding > 0;
-      const pw = sliding ? 72 : 42;
-      const ph = sliding ? 30 : 72;
-
-      ctx.save();
-      if (g.shield > 0) {
-        ctx.beginPath();
-        ctx.arc(playerX, py - ph * 0.48, 46, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(111,235,255,0.16)";
-        ctx.fill();
-        ctx.strokeStyle = "rgba(130,242,255,0.9)";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      drawRounded(
-        playerX - pw / 2,
-        py - ph,
-        pw,
-        ph,
-        12,
-        "#f5f8ff",
-        "rgba(92,222,255,0.9)"
-      );
-
-      // Head / visor.
-      ctx.fillStyle = "#0a2740";
-      ctx.beginPath();
-      ctx.arc(playerX, py - ph + 17, 14, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#7fe8ff";
-      ctx.fillRect(playerX - 8, py - ph + 13, 16, 5);
-
-      // Shoes.
-      ctx.fillStyle = "#5ce0ff";
-      ctx.fillRect(playerX - pw * 0.42, py - 7, 13, 7);
-      ctx.fillRect(playerX + pw * 0.13, py - 7, 13, 7);
-      ctx.restore();
-
-      // Particles.
-      for (const p of g.particles) {
-        ctx.save();
-        ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
-        ctx.fillStyle = "#a8efff";
-        ctx.font = `900 ${p.size}px system-ui`;
-        ctx.textAlign = "center";
-        ctx.fillText(p.glyph, p.x, p.y);
-        ctx.restore();
-      }
-
-      // Vignette.
-      const vignette = ctx.createRadialGradient(
-        width / 2,
-        height / 2,
-        height * 0.2,
-        width / 2,
-        height / 2,
-        height * 0.75
-      );
-      vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(1, "rgba(0,0,0,0.38)");
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, width, height);
-
-      if (g.flash > 0) {
-        ctx.fillStyle = `rgba(255,255,255,${g.flash})`;
-        ctx.fillRect(0, 0, width, height);
-      }
+      draw(ctx, width, height, g, now);
+      rafRef.current = requestAnimationFrame(tick);
     };
 
-    const frame = (time: number) => {
-      const dt = Math.min(0.035, Math.max(0, (time - lastRef.current) / 1000));
-      lastRef.current = time;
-      update(dt);
-      draw();
-      render((x) => x + 1);
-      rafRef.current = requestAnimationFrame(frame);
-    };
-
-    lastRef.current = performance.now();
-    rafRef.current = requestAnimationFrame(frame);
-
+    rafRef.current = requestAnimationFrame(tick);
     return () => {
-      window.removeEventListener("resize", resize);
+      mounted = false;
+      ro.disconnect();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [endGame]);
+  }, [collect, draw, fail, updateHud]);
 
-  const g = gameRef.current;
-  const status = !g.running && !g.over ? "ready" : g.over ? "over" : g.paused ? "paused" : "running";
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    touchStartRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const s = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!s) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    if (Math.max(ax, ay) < 28) {
+      if (phase === "menu" || phase === "gameover") start();
+      else if (phase === "playing") jump();
+      return;
+    }
+    if (ax > ay) move(dx > 0 ? 1 : -1);
+    else if (dy < 0) jump();
+    else slide();
+  };
+
+  const displayCoins = typeof window === "undefined" ? 0 : Number(localStorage.getItem(COINS_KEY) || 0);
 
   return (
-    <main
-      style={{
-        minHeight: "calc(100vh - 80px)",
-        padding: "18px",
-        background:
-          "radial-gradient(circle at top, rgba(49,104,151,.16), transparent 35%), #070d14",
-        color: "#eef7ff",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 1180,
-          margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-        }}
-      >
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 800,
-                letterSpacing: ".16em",
-                textTransform: "uppercase",
-                color: "#6fe4ff",
-              }}
-            >
-              VGB Arcade
-            </div>
-            <h1 style={{ margin: "3px 0 0", fontSize: "clamp(28px, 5vw, 48px)", lineHeight: 1 }}>
-              Runner
-            </h1>
+    <main className="runner-shell">
+      <section className="runner-frame">
+        <header className="topbar">
+          <div className="brand">
+            <div className="brand-mark">VGB</div>
+            <div><strong>RUNNER</strong><span>ARCADE</span></div>
           </div>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <div style={pillStyle}>
-              BEST&nbsp; {formatScore(best)}
-            </div>
-            <div style={pillStyle}>COINS&nbsp; {bankedCoins}</div>
-            <button onClick={togglePause} style={smallButtonStyle} disabled={!g.running || g.over}>
-              {g.paused ? "Resume" : "Pause"}
-            </button>
+          <div className="top-stats">
+            <div><span>BEST</span><b>{hud.best.toLocaleString()}</b></div>
+            <div><span>BANK</span><b>🪙 {displayCoins}</b></div>
+            <button className="icon-btn" onClick={() => setSound((v) => !v)} aria-label="Toggle sound">{sound ? "🔊" : "🔇"}</button>
+            <button className="icon-btn" onClick={pause} disabled={phase === "menu" || phase === "gameover"}>{phase === "paused" ? "▶" : "Ⅱ"}</button>
           </div>
         </header>
 
-        <section
-          style={{
-            position: "relative",
-            overflow: "hidden",
-            borderRadius: 24,
-            border: "1px solid rgba(136,220,255,.2)",
-            boxShadow: "0 22px 70px rgba(0,0,0,.4)",
-            background: "#08121c",
-          }}
-        >
+        <div className="game-wrap">
           <canvas
             ref={canvasRef}
-            style={{
-              width: "100%",
-              height: "min(72vh, 700px)",
-              minHeight: 520,
-              display: "block",
-              touchAction: "none",
-            }}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            aria-label="VGB Runner game canvas"
           />
 
-          {status === "running" && (
-            <div
-              style={{
-                position: "absolute",
-                inset: "14px 16px auto",
-                display: "flex",
-                justifyContent: "space-between",
-                pointerEvents: "none",
-                fontWeight: 800,
-              }}
-            >
-              <div>
-                <div style={hudLabel}>SCORE</div>
-                <div style={hudValue}>{formatScore(g.score)}</div>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={hudLabel}>DISTANCE</div>
-                <div style={hudValue}>{(g.distance / 1000).toFixed(2)} KM</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={hudLabel}>×{g.multiplier}</div>
-                <div style={hudValue}>🪙 {g.coins}</div>
+          <div className="hud">
+            <div className="metric"><small>SCORE</small><strong>{hud.score.toLocaleString()}</strong></div>
+            <div className="metric center"><small>DISTANCE</small><strong>{hud.distance}m</strong></div>
+            <div className="metric right"><small>COINS</small><strong>🪙 {hud.coins}</strong></div>
+            {hud.multiplier > 1 && <div className="multiplier">×{hud.multiplier}</div>}
+            {hud.power && <div className="power-pill">{hud.power}</div>}
+          </div>
+
+          <div className="mobile-controls" aria-hidden="true">
+            <button onPointerDown={() => move(-1)}>‹</button>
+            <button onPointerDown={jump}>↑</button>
+            <button onPointerDown={slide}>↓</button>
+            <button onPointerDown={() => move(1)}>›</button>
+          </div>
+
+          {phase === "menu" && (
+            <div className="overlay">
+              <div className="hero-card">
+                <div className="eyebrow">VGB ARCADE · ENDLESS RUN</div>
+                <h1>RUN.<br /><em>DODGE.</em><br />DOMINATE.</h1>
+                <p>Three lanes. One runner. An increasingly unreasonable number of obstacles.</p>
+                <button className="primary" onClick={start}>START RUN <span>→</span></button>
+                <div className="controls"><span>← →</span> LANES <span>↑</span> JUMP <span>↓</span> SLIDE</div>
+                <div className="touch-note">Swipe on the track · Tap to jump</div>
               </div>
             </div>
           )}
 
-          {status === "ready" && (
-            <Overlay>
-              <div style={eyebrow}>ENDLESS ARCADE</div>
-              <h2 style={overlayTitle}>Run. Dodge. Repeat.</h2>
-              <p style={overlayText}>
-                Three lanes. Increasing speed. A frankly unreasonable number of obstacles.
-              </p>
-              <button onClick={startGame} style={primaryButtonStyle}>
-                START RUN
-              </button>
-              <div style={controlsText}>← → / A D to move · ↑ / W / Space to jump · ↓ / S to slide</div>
-            </Overlay>
+          {phase === "paused" && (
+            <div className="overlay compact">
+              <div className="pause-card"><div className="eyebrow">RUN PAUSED</div><h2>Catch your breath.</h2><p>The track, irritatingly, will still be there.</p><button className="primary" onClick={pause}>RESUME <span>▶</span></button></div>
+            </div>
           )}
 
-          {status === "paused" && (
-            <Overlay>
-              <div style={eyebrow}>PAUSED</div>
-              <h2 style={overlayTitle}>Take five.</h2>
-              <p style={overlayText}>The obstacles have generously agreed to wait.</p>
-              <button onClick={togglePause} style={primaryButtonStyle}>
-                RESUME
-              </button>
-            </Overlay>
-          )}
-
-          {status === "over" && (
-            <Overlay>
-              <div style={eyebrow}>RUN COMPLETE</div>
-              <h2 style={overlayTitle}>{formatScore(g.score)}</h2>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0,1fr))",
-                  gap: 8,
-                  width: "min(460px, 100%)",
-                  margin: "6px 0 18px",
-                }}
-              >
-                <Stat label="DISTANCE" value={`${(g.distance / 1000).toFixed(2)} km`} />
-                <Stat label="COINS" value={String(g.coins)} />
-                <Stat label="BEST" value={formatScore(Math.max(best, g.score))} />
+          {phase === "gameover" && (
+            <div className="overlay">
+              <div className="result-card">
+                <div className="eyebrow">RUN COMPLETE</div>
+                <h2>YOU GOT<br /><em>SMACKED.</em></h2>
+                <div className="result-grid">
+                  <div><span>SCORE</span><b>{hud.score.toLocaleString()}</b></div>
+                  <div><span>DISTANCE</span><b>{hud.distance}m</b></div>
+                  <div><span>COINS</span><b>🪙 {hud.coins}</b></div>
+                  <div><span>BEST</span><b>{hud.best.toLocaleString()}</b></div>
+                </div>
+                <button className="primary" onClick={start}>RUN AGAIN <span>↻</span></button>
               </div>
-              <button onClick={startGame} style={primaryButtonStyle}>
-                RUN AGAIN
-              </button>
-            </Overlay>
+            </div>
           )}
-        </section>
+        </div>
 
-        <footer
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 10,
-            flexWrap: "wrap",
-            color: "rgba(226,241,250,.55)",
-            fontSize: 12,
-            padding: "0 4px",
-          }}
-        >
-          <span>VGB Runner · local high score</span>
-          <span>Keyboard + touch friendly</span>
+        <footer>
+          <span>VGB RUNNER · LOCAL SCORE</span>
+          <span>KEYBOARD + SWIPE + TOUCH</span>
         </footer>
-      </div>
+      </section>
+
+      <style jsx>{`
+        .runner-shell{min-height:100vh;background:radial-gradient(circle at 50% -20%,#183c6d 0,#07111f 46%,#040914 100%);color:#eef7ff;padding:24px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+        .runner-frame{width:min(1240px,100%);margin:auto;border:1px solid rgba(116,205,255,.16);border-radius:26px;overflow:hidden;background:#07101c;box-shadow:0 30px 90px rgba(0,0,0,.45)}
+        .topbar{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:rgba(5,14,27,.94);border-bottom:1px solid rgba(130,211,255,.1)}
+        .brand{display:flex;align-items:center;gap:11px;letter-spacing:.08em}.brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:linear-gradient(145deg,#35c9ff,#3978ff);font-size:12px;font-weight:950;color:#031021;box-shadow:0 8px 25px rgba(48,180,255,.28)}
+        .brand strong,.brand span{display:block}.brand strong{font-size:14px;letter-spacing:.14em}.brand span{font-size:9px;color:#68d8ff;letter-spacing:.22em;margin-top:2px}
+        .top-stats{display:flex;align-items:center;gap:18px}.top-stats>div{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}.top-stats span{font-size:8px;color:#7290ad;letter-spacing:.18em}.top-stats b{font-size:13px;margin-top:5px}.icon-btn{border:1px solid rgba(120,205,255,.15);background:#0b1a2d;color:#d9f4ff;width:34px;height:34px;border-radius:10px;cursor:pointer}.icon-btn:disabled{opacity:.35;cursor:default}
+        .game-wrap{position:relative;height:min(76vh,760px);min-height:560px;background:#06101d;touch-action:none;user-select:none}.game-wrap canvas{width:100%;height:100%;display:block;touch-action:none}
+        .hud{position:absolute;top:18px;left:22px;right:22px;display:grid;grid-template-columns:1fr 1fr 1fr;pointer-events:none}.metric{display:flex;flex-direction:column}.metric.center{align-items:center}.metric.right{align-items:flex-end}.metric small{font-size:8px;font-weight:800;letter-spacing:.2em;color:#79a0bd}.metric strong{font-size:19px;letter-spacing:.02em;text-shadow:0 3px 15px rgba(0,0,0,.5)}.multiplier,.power-pill{position:absolute;top:52px;border-radius:999px;padding:7px 11px;font-size:11px;font-weight:900;letter-spacing:.08em}.multiplier{left:0;background:#62f2b0;color:#04251a}.power-pill{right:0;background:#55dfff;color:#031722}
+        .overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(90deg,rgba(2,8,18,.72),rgba(2,8,18,.22),rgba(2,8,18,.7));backdrop-filter:blur(2px)}.hero-card,.result-card,.pause-card{width:min(500px,calc(100% - 36px));text-align:left;padding:38px;border:1px solid rgba(137,218,255,.18);background:linear-gradient(145deg,rgba(8,24,42,.94),rgba(5,13,26,.88));box-shadow:0 25px 70px rgba(0,0,0,.45);border-radius:24px}.eyebrow{font-size:9px;font-weight:900;letter-spacing:.24em;color:#65d9ff}.hero-card h1,.result-card h2{font-size:clamp(43px,7vw,76px);line-height:.86;letter-spacing:-.055em;margin:17px 0}.hero-card h1 em,.result-card h2 em{font-style:normal;color:#54d9ff}.hero-card p,.pause-card p{color:#9ab2c9;line-height:1.6;font-size:13px;max-width:390px}.primary{border:0;border-radius:13px;padding:14px 17px;background:linear-gradient(135deg,#42d7ff,#4678ff);color:#021321;font-weight:950;letter-spacing:.08em;cursor:pointer;box-shadow:0 12px 30px rgba(52,171,255,.26);transition:transform .16s ease,filter .16s ease}.primary:hover{transform:translateY(-2px);filter:brightness(1.08)}.primary span{margin-left:18px;font-size:17px}.controls{display:flex;gap:10px;align-items:center;margin-top:18px;font-size:8px;color:#718ca7;letter-spacing:.1em}.controls span{color:#dff7ff;border:1px solid rgba(150,220,255,.15);background:#0b1a2d;padding:4px 7px;border-radius:6px}.touch-note{display:none;margin-top:10px;font-size:9px;color:#59738e}.compact{background:rgba(2,8,18,.5)}.pause-card{text-align:center;width:min(400px,calc(100% - 36px))}.pause-card h2{font-size:34px;letter-spacing:-.04em;margin:12px 0 4px}.result-card{width:min(520px,calc(100% - 36px))}.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:20px 0}.result-grid div{padding:13px;border-radius:12px;background:rgba(130,205,255,.055);border:1px solid rgba(130,205,255,.08)}.result-grid span{display:block;font-size:8px;color:#6e8ba5;letter-spacing:.16em}.result-grid b{display:block;margin-top:5px;font-size:17px}
+        .mobile-controls{display:none;position:absolute;left:14px;right:14px;bottom:15px;justify-content:space-between;pointer-events:none}.mobile-controls button{pointer-events:auto;width:54px;height:46px;border-radius:14px;border:1px solid rgba(135,218,255,.18);background:rgba(6,20,35,.76);color:#dff8ff;font-size:22px;backdrop-filter:blur(8px)}
+        footer{height:38px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;color:#536c83;font-size:8px;letter-spacing:.14em;background:#050d18;border-top:1px solid rgba(130,211,255,.08)}
+        @media(max-width:700px){.runner-shell{padding:0}.runner-frame{border-radius:0;border-left:0;border-right:0;min-height:100vh}.topbar{height:62px;padding:0 14px}.top-stats{gap:9px}.top-stats>div:first-child{display:none}.game-wrap{height:calc(100vh - 100px);min-height:560px}.hud{top:13px;left:14px;right:14px}.metric strong{font-size:15px}.hero-card,.result-card,.pause-card{padding:27px}.hero-card h1,.result-card h2{font-size:47px}.controls{display:none}.touch-note{display:block}.mobile-controls{display:flex}footer{height:38px;font-size:7px}}
+      `}</style>
     </main>
   );
 }
-
-function Overlay({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        textAlign: "center",
-        padding: 24,
-        background: "linear-gradient(rgba(3,11,18,.3), rgba(3,11,18,.78))",
-        backdropFilter: "blur(5px)",
-      }}
-    >
-      <div style={{ maxWidth: 620, width: "100%" }}>{children}</div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        padding: "12px 8px",
-        borderRadius: 14,
-        background: "rgba(255,255,255,.06)",
-        border: "1px solid rgba(255,255,255,.08)",
-      }}
-    >
-      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".12em", opacity: 0.55 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 17, fontWeight: 900, marginTop: 3 }}>{value}</div>
-    </div>
-  );
-}
-
-const pillStyle: React.CSSProperties = {
-  border: "1px solid rgba(140,220,255,.15)",
-  background: "rgba(255,255,255,.045)",
-  borderRadius: 999,
-  padding: "8px 12px",
-  fontSize: 11,
-  fontWeight: 800,
-  letterSpacing: ".04em",
-};
-
-const smallButtonStyle: React.CSSProperties = {
-  border: "1px solid rgba(140,220,255,.2)",
-  background: "rgba(100,190,225,.1)",
-  color: "#eafaff",
-  borderRadius: 999,
-  padding: "8px 13px",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  border: "1px solid rgba(159,238,255,.55)",
-  background: "linear-gradient(135deg, #57dcff, #3d9cff)",
-  color: "#04101a",
-  borderRadius: 14,
-  padding: "13px 24px",
-  fontSize: 14,
-  fontWeight: 950,
-  letterSpacing: ".08em",
-  cursor: "pointer",
-  boxShadow: "0 12px 35px rgba(53,177,255,.28)",
-};
-
-const eyebrow: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 900,
-  letterSpacing: ".2em",
-  color: "#73e5ff",
-  marginBottom: 8,
-};
-
-const overlayTitle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(38px, 7vw, 68px)",
-  lineHeight: 0.95,
-  letterSpacing: "-.045em",
-};
-
-const overlayText: React.CSSProperties = {
-  margin: "14px auto 20px",
-  maxWidth: 500,
-  color: "rgba(238,247,255,.7)",
-  lineHeight: 1.55,
-};
-
-const controlsText: React.CSSProperties = {
-  marginTop: 16,
-  color: "rgba(238,247,255,.52)",
-  fontSize: 11,
-  lineHeight: 1.5,
-};
-
-const hudLabel: React.CSSProperties = {
-  fontSize: 9,
-  letterSpacing: ".14em",
-  opacity: 0.5,
-};
-
-const hudValue: React.CSSProperties = {
-  fontSize: 17,
-  marginTop: 2,
-  textShadow: "0 2px 12px rgba(0,0,0,.5)",
-};
