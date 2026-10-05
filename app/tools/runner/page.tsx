@@ -80,7 +80,9 @@ const BANK_KEY = "vgb-runner-bank-v3";
 
 const PLAYER_Z = 0;
 const SPAWN_Z = 920;
-const COLLISION_FRONT = 26;
+const COLLISION_FRONT = 42;
+const WARNING_Z = 150;
+const RUNNER_LINE_Z = 72;
 const START_SPEED = 235;
 const MAX_SPEED = 610;
 const LANE_CENTER = 2 / 3;
@@ -238,6 +240,80 @@ function project(z: number, width: number, height: number) {
   const y = lerp(horizonY, bottomY, eased);
   const scale = lerp(0.14, 1.13, Math.pow(eased, 1.05));
   return { t: eased, y, half, scale };
+}
+
+function drawRunnerZone(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  width: number,
+  height: number,
+) {
+  const line = project(RUNNER_LINE_Z, width, height);
+  const near = project(PLAYER_Z, width, height);
+  const leftFar = cx - line.half * 0.98;
+  const rightFar = cx + line.half * 0.98;
+  const leftNear = cx - near.half * 0.98;
+  const rightNear = cx + near.half * 0.98;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(255,255,255,.055)";
+  ctx.beginPath();
+  ctx.moveTo(leftFar, line.y);
+  ctx.lineTo(rightFar, line.y);
+  ctx.lineTo(rightNear, near.y);
+  ctx.lineTo(leftNear, near.y);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(255,255,255,.34)";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([9, 10]);
+  ctx.beginPath();
+  ctx.moveTo(leftFar, line.y);
+  ctx.lineTo(rightFar, line.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = "rgba(255,255,255,.42)";
+  ctx.font = "800 9px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("RUNNER ZONE", cx, line.y + 16);
+
+  ctx.restore();
+}
+
+function drawWarningMarker(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  width: number,
+  height: number,
+  lane: Lane,
+  kind: ObstacleKind,
+) {
+  const p = project(WARNING_Z, width, height);
+  const x = cx + laneX(lane, p.half);
+  const w = (p.half * 2 / 3) * 0.68;
+
+  ctx.save();
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = kind === "gap" ? "#e39a43" : "#efc15a";
+  ctx.beginPath();
+  ctx.moveTo(x, p.y - 12 * p.scale);
+  ctx.lineTo(x - 8 * p.scale, p.y - 1 * p.scale);
+  ctx.lineTo(x + 8 * p.scale, p.y - 1 * p.scale);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.75)";
+  ctx.lineWidth = Math.max(1, p.scale);
+  ctx.stroke();
+
+  if (p.scale > 0.45) {
+    ctx.fillStyle = "rgba(24,25,22,.72)";
+    ctx.font = `900 ${Math.max(7, 9 * p.scale)}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(kind === "bar" ? "SLIDE" : kind === "gap" || kind === "wall" ? "JUMP" : "MOVE", x, p.y - 17 * p.scale);
+  }
+  ctx.restore();
 }
 
 function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number) {
@@ -637,6 +713,11 @@ export default function RunnerPage() {
         ctx.stroke();
       }
 
+      // A persistent visual anchor tells the player exactly where their character is
+      // and where an incoming obstacle must be cleared. This is deliberately on the
+      // track rather than in the HUD, because reaction timing is a spatial problem.
+      drawRunnerZone(ctx, cx, width, height);
+
       for (let i = -1; i < 18; i += 1) {
         const z = i * 65 + scroll + 20;
         const p = project(z, width, height);
@@ -677,6 +758,13 @@ export default function RunnerPage() {
       if (g.environment === "gate") {
         const gp = project(180, width, height);
         drawGate(ctx, cx, gp.y, gp.scale * 0.85);
+      }
+
+      const warningCandidates = g.obstacles
+        .filter((o) => !o.resolved && o.z > RUNNER_LINE_Z && o.z < WARNING_Z)
+        .sort((a, b) => a.z - b.z);
+      for (const obstacle of warningCandidates.slice(0, 3)) {
+        drawWarningMarker(ctx, cx, width, height, obstacle.lane, obstacle.kind);
       }
 
       const sortedObstacles = [...g.obstacles].sort((a, b) => b.z - a.z);
@@ -725,7 +813,17 @@ export default function RunnerPage() {
 
       const player = project(PLAYER_Z, width, height);
       const playerX = cx + laneX(g.lane, player.half);
-      drawPlayer(ctx, playerX, player.y, clamp(player.scale, 0.82, 1.04), g.jumpY, g.sliding, (g.targetLane - g.lane) * -0.12);
+
+      // Lane center marker directly beneath the runner. It makes the three-lane
+      // coordinate system legible even when the background is visually busy.
+      ctx.save();
+      ctx.fillStyle = "rgba(255,255,255,.22)";
+      ctx.beginPath();
+      ctx.ellipse(playerX, player.y + 5, 34 * player.scale, 8 * player.scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      drawPlayer(ctx, playerX, player.y, clamp(player.scale, 0.92, 1.14), g.jumpY, g.sliding, (g.targetLane - g.lane) * -0.12);
 
       for (const particle of g.particles) {
         ctx.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
