@@ -1,7 +1,4 @@
 private buildCampusArchitecture() {
-  /*
-   * Main academic quadrangle.
-   */
   const academicLeft =
     createAcademicBlock({
       width: 20,
@@ -44,9 +41,6 @@ private buildCampusArchitecture() {
     academicRight,
   );
 
-  /*
-   * A deeper block in the distance.
-   */
   const academicRear =
     createAcademicBlock({
       width: 24,
@@ -65,9 +59,6 @@ private buildCampusArchitecture() {
     academicRear,
   );
 
-  /*
-   * Hostel silhouettes.
-   */
   const hostelLeft =
     createHostelBlock({
       width: 18,
@@ -89,9 +80,6 @@ private buildCampusArchitecture() {
     hostelLeft,
   );
 
-  /*
-   * Administration building.
-   */
   const administration =
     createAdministrationBlock({
       width: 17,
@@ -113,10 +101,6 @@ private buildCampusArchitecture() {
     administration,
   );
 
-  /*
-   * Small service structure gives the
-   * background more believable variation.
-   */
   const service =
     createServiceBlock({
       width: 11,
