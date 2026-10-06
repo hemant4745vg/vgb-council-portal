@@ -762,18 +762,6 @@ export function createCampusSign(
   });
 }
 
-export function createNoticeBoard(
-  options: Omit<
-    CampusDetailOptions,
-    "kind"
-  > = {},
-) {
-  return createCampusDetail({
-    ...options,
-    kind: "noticeboard",
-  });
-}
-
 export function createCampusBanner(
   options: Omit<
     CampusDetailOptions,
