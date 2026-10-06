@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 export type LandscapeStyle =
+  | "campus"
   | "quadrangle"
   | "walkway"
   | "garden"
@@ -9,7 +10,10 @@ export type LandscapeStyle =
   | "gate";
 
 /**
- * Backward-compatible alias used by CampusWorld.ts.
+ * Backward-compatible type name used by CampusWorld.ts.
+ *
+ * CampusWorld currently uses "campus" as its default theme, while
+ * the newer landscape system exposes several more specific styles.
  */
 export type LandscapeTheme = LandscapeStyle;
 
@@ -66,7 +70,7 @@ type MaterialSet = {
 const DEFAULTS: ResolvedLandscapeOptions = {
   width: 32,
   depth: 64,
-  style: "quadrangle",
+  style: "campus",
 
   grassColor: 0x4f7f45,
   pathColor: 0xc6b79a,
@@ -166,10 +170,11 @@ function seededRandom(seed: number) {
   let value = Math.floor(seed) || 1;
 
   return () => {
-    value = (
-      value * 1664525 +
-      1013904223
-    ) >>> 0;
+    value =
+      (
+        value * 1664525 +
+        1013904223
+      ) >>> 0;
 
     return value / 4294967296;
   };
@@ -299,9 +304,14 @@ function createRadialPath(
 ) {
   const group = new THREE.Group();
 
-  for (let i = 0; i < segments; i += 1) {
+  for (
+    let i = 0;
+    i < segments;
+    i += 1
+  ) {
     const angle =
-      (Math.PI * 2 * i) / segments;
+      (Math.PI * 2 * i) /
+      segments;
 
     const path = createPath(
       pathWidth,
@@ -353,7 +363,11 @@ function createHedgeRow(
       ? length / (count - 1)
       : length;
 
-  for (let i = 0; i < count; i += 1) {
+  for (
+    let i = 0;
+    i < count;
+    i += 1
+  ) {
     const hedge = rounded
       ? new THREE.Mesh(
           new THREE.SphereGeometry(
@@ -453,11 +467,17 @@ function createFlowerBed(
 
     const x =
       (random() - 0.5) *
-      Math.max(0.1, width * 0.88);
+      Math.max(
+        0.1,
+        width * 0.88,
+      );
 
     const z =
       (random() - 0.5) *
-      Math.max(0.1, depth * 0.82);
+      Math.max(
+        0.1,
+        depth * 0.82,
+      );
 
     stem.position.set(
       x,
@@ -485,6 +505,7 @@ function createFlowerBed(
     );
 
     flower.scale.y = 0.72;
+
     group.add(flower);
   }
 
@@ -531,6 +552,7 @@ function createTree(
     trunkHeight / 2;
 
   trunk.castShadow = true;
+
   group.add(trunk);
 
   if (variant === "narrow") {
@@ -547,9 +569,14 @@ function createTree(
       trunkHeight + 1.15;
 
     crown.castShadow = true;
+
     group.add(crown);
   } else if (variant === "cluster") {
-    for (let i = 0; i < 5; i += 1) {
+    for (
+      let i = 0;
+      i < 5;
+      i += 1
+    ) {
       const crown = new THREE.Mesh(
         new THREE.SphereGeometry(
           0.75 +
@@ -571,9 +598,11 @@ function createTree(
       );
 
       crown.scale.y =
-        0.9 + random() * 0.25;
+        0.9 +
+        random() * 0.25;
 
       crown.castShadow = true;
+
       group.add(crown);
     }
   } else {
@@ -591,6 +620,7 @@ function createTree(
 
     crown.scale.y = 0.88;
     crown.castShadow = true;
+
     group.add(crown);
 
     const secondary = new THREE.Mesh(
@@ -610,6 +640,7 @@ function createTree(
 
     secondary.scale.y = 0.82;
     secondary.castShadow = true;
+
     group.add(secondary);
   }
 
@@ -639,7 +670,9 @@ function scatterTrees(
 
   const count = Math.max(
     0,
-    Math.floor(options.treeCount),
+    Math.floor(
+      options.treeCount,
+    ),
   );
 
   for (
@@ -659,7 +692,8 @@ function scatterTrees(
     const tree = createTree(
       variant,
       materials,
-      options.seed + i * 97,
+      options.seed +
+        i * 97,
     );
 
     const edgeBias =
@@ -728,6 +762,7 @@ function createBench(
 
   seat.position.y = 0.72;
   seat.castShadow = true;
+
   group.add(seat);
 
   const back = createBox(
@@ -744,9 +779,13 @@ function createBench(
   );
 
   back.castShadow = true;
+
   group.add(back);
 
-  for (const x of [-0.62, 0.62]) {
+  for (const x of [
+    -0.62,
+    0.62,
+  ]) {
     const leg = createBox(
       0.1,
       0.7,
@@ -783,6 +822,7 @@ function createLamp(
   );
 
   pole.position.y = 1.4;
+
   group.add(pole);
 
   const arm = createBox(
@@ -800,19 +840,20 @@ function createLamp(
 
   group.add(arm);
 
-  const light = new THREE.Mesh(
-    new THREE.SphereGeometry(
-      0.16,
-      10,
-      8,
-    ),
-    new THREE.MeshStandardMaterial({
-      color: 0xffe4a8,
-      emissive: 0xffc86a,
-      emissiveIntensity: 1.5,
-      roughness: 0.4,
-    }),
-  );
+  const light =
+    new THREE.Mesh(
+      new THREE.SphereGeometry(
+        0.16,
+        10,
+        8,
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0xffe4a8,
+        emissive: 0xffc86a,
+        emissiveIntensity: 1.5,
+        roughness: 0.4,
+      }),
+    );
 
   light.position.set(
     0.48,
@@ -830,7 +871,7 @@ function createLamp(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Internal landscape builders                                                 */
+/* Internal landscape builders                                                */
 /* -------------------------------------------------------------------------- */
 
 function createQuadrangleLandscapeInternal(
@@ -874,6 +915,7 @@ function createQuadrangleLandscapeInternal(
         );
 
       hedge.position.z = z;
+
       group.add(hedge);
     }
 
@@ -894,6 +936,7 @@ function createQuadrangleLandscapeInternal(
         Math.PI / 2;
 
       hedge.position.x = x;
+
       group.add(hedge);
     }
   }
@@ -975,7 +1018,10 @@ function createWalkwayLandscapeInternal(
         options.width * 0.18,
       );
 
-    for (const side of [-1, 1]) {
+    for (const side of [
+      -1,
+      1,
+    ]) {
       const strip =
         createFlowerBed(
           plantingStripWidth,
@@ -993,7 +1039,10 @@ function createWalkwayLandscapeInternal(
   }
 
   if (options.includeHedges) {
-    for (const side of [-1, 1]) {
+    for (const side of [
+      -1,
+      1,
+    ]) {
       const hedge =
         createHedgeRow(
           options.depth * 0.72,
@@ -1066,6 +1115,7 @@ function createGardenLandscapeInternal(
       );
 
     flowerBed.position.y = 0.02;
+
     group.add(flowerBed);
   }
 
@@ -1239,6 +1289,7 @@ function createHostelLandscapeInternal(
         Math.PI / 2;
 
       hedge.position.x = x;
+
       group.add(hedge);
     }
   }
@@ -1273,7 +1324,10 @@ function createHostelLandscapeInternal(
       -options.depth * 0.25,
       options.depth * 0.25,
     ]) {
-      for (const side of [-1, 1]) {
+      for (const side of [
+        -1,
+        1,
+      ]) {
         const lamp =
           createLamp(materials);
 
@@ -1316,7 +1370,10 @@ function createGateLandscapeInternal(
   }
 
   if (options.includeHedges) {
-    for (const side of [-1, 1]) {
+    for (const side of [
+      -1,
+      1,
+    ]) {
       const hedge =
         createHedgeRow(
           options.depth * 0.55,
@@ -1358,7 +1415,10 @@ function createGateLandscapeInternal(
       0,
       options.depth * 0.28,
     ]) {
-      for (const side of [-1, 1]) {
+      for (const side of [
+        -1,
+        1,
+      ]) {
         const lamp =
           createLamp(materials);
 
@@ -1377,7 +1437,7 @@ function createGateLandscapeInternal(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Main public factory                                                         */
+/* Main public factory                                                        */
 /* -------------------------------------------------------------------------- */
 
 export function createLandscape(
@@ -1396,6 +1456,15 @@ export function createLandscape(
     `CampusLandscape:${resolved.style}`;
 
   switch (resolved.style) {
+    case "campus":
+    case "quadrangle":
+      createQuadrangleLandscapeInternal(
+        group,
+        resolved,
+        materials,
+      );
+      break;
+
     case "walkway":
       createWalkwayLandscapeInternal(
         group,
@@ -1436,7 +1505,6 @@ export function createLandscape(
       );
       break;
 
-    case "quadrangle":
     default:
       createQuadrangleLandscapeInternal(
         group,
@@ -1461,9 +1529,15 @@ export function createLandscape(
 /* -------------------------------------------------------------------------- */
 
 export function createCampusLandscape(
-  options: LandscapeOptions = {},
+  options: Omit<
+    LandscapeOptions,
+    "style"
+  > = {},
 ) {
-  return createLandscape(options);
+  return createLandscape({
+    ...options,
+    style: "campus",
+  });
 }
 
 export function createQuadrangleLandscape(
