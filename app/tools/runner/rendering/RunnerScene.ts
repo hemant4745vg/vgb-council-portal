@@ -599,23 +599,24 @@ export class RunnerScene {
       }
     }
 
-    for (const [id, view] of this.obstacleViews) {
-      if (!active.has(id)) {
-        this.obstacles.remove(view.root);
-        view.root.traverse((object) => {
-          if (object instanceof THREE.Mesh) {
-            object.geometry.dispose();
-            if (Array.isArray(object.material)) {
-              object.material.forEach((material) => material.dispose());
-            } else {
-              object.material.dispose();
-            }
-          }
-        });
-        this.obstacleViews.delete(id);
+    this.obstacleViews.forEach((view, id) => {
+  if (!active.has(id)) {
+    this.obstacles.remove(view.root);
+    view.root.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.geometry.dispose();
+
+        if (Array.isArray(object.material)) {
+          object.material.forEach((material) => material.dispose());
+        } else {
+          object.material.dispose();
+        }
       }
-    }
+    });
+
+    this.obstacleViews.delete(id);
   }
+});
 
   private createPickupView(pickup: Pickup): PickupView {
     const root = new THREE.Group();
