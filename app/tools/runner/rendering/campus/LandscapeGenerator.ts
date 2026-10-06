@@ -1,19 +1,24 @@
 import * as THREE from "three";
 
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
 export type LandscapeStyle =
   | "campus"
   | "quadrangle"
   | "walkway"
   | "garden"
   | "sports"
+  | "hostel"
   | "hostels"
   | "gate";
 
 /**
- * Backward-compatible type name used by CampusWorld.ts.
+ * Backward-compatible name used by CampusWorld.ts.
  *
- * CampusWorld currently uses "campus" as its default theme, while
- * the newer landscape system exposes several more specific styles.
+ * CampusWorld contains legacy singular theme names while the newer
+ * environment system uses plural names in some places.
  */
 export type LandscapeTheme = LandscapeStyle;
 
@@ -67,6 +72,24 @@ type MaterialSet = {
   wood: THREE.MeshStandardMaterial;
 };
 
+/**
+ * These are the canonical internal styles.
+ *
+ * "campus" and "hostel" are compatibility aliases and are normalized
+ * before the renderer selects a builder.
+ */
+type CanonicalLandscapeStyle =
+  | "quadrangle"
+  | "walkway"
+  | "garden"
+  | "sports"
+  | "hostels"
+  | "gate";
+
+/* -------------------------------------------------------------------------- */
+/* Defaults                                                                   */
+/* -------------------------------------------------------------------------- */
+
 const DEFAULTS: ResolvedLandscapeOptions = {
   width: 32,
   depth: 64,
@@ -95,6 +118,10 @@ const DEFAULTS: ResolvedLandscapeOptions = {
   seed: 17,
 };
 
+/* -------------------------------------------------------------------------- */
+/* Option handling                                                            */
+/* -------------------------------------------------------------------------- */
+
 function mergeOptions(
   options: LandscapeOptions = {},
 ): ResolvedLandscapeOptions {
@@ -103,6 +130,39 @@ function mergeOptions(
     ...options,
   };
 }
+
+/**
+ * Normalize all legacy/current theme spellings into one internal vocabulary.
+ *
+ * campus  -> quadrangle
+ * hostel  -> hostels
+ */
+function normalizeLandscapeStyle(
+  style: LandscapeStyle,
+): CanonicalLandscapeStyle {
+  switch (style) {
+    case "campus":
+      return "quadrangle";
+
+    case "hostel":
+      return "hostels";
+
+    case "quadrangle":
+    case "walkway":
+    case "garden":
+    case "sports":
+    case "hostels":
+    case "gate":
+      return style;
+
+    default:
+      return "quadrangle";
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Materials                                                                  */
+/* -------------------------------------------------------------------------- */
 
 function createMaterials(
   options: ResolvedLandscapeOptions,
@@ -133,38 +193,48 @@ function createMaterials(
       roughness: 0.82,
     }),
 
-    flowerSecondary: new THREE.MeshStandardMaterial({
-      color: options.flowerSecondaryColor,
-      roughness: 0.82,
-    }),
+    flowerSecondary:
+      new THREE.MeshStandardMaterial({
+        color: options.flowerSecondaryColor,
+        roughness: 0.82,
+      }),
 
-    treeLeaf: new THREE.MeshStandardMaterial({
-      color: options.treeLeafColor,
-      roughness: 1,
-    }),
+    treeLeaf:
+      new THREE.MeshStandardMaterial({
+        color: options.treeLeafColor,
+        roughness: 1,
+      }),
 
-    treeLeafSecondary: new THREE.MeshStandardMaterial({
-      color: options.treeLeafSecondaryColor,
-      roughness: 1,
-    }),
+    treeLeafSecondary:
+      new THREE.MeshStandardMaterial({
+        color: options.treeLeafSecondaryColor,
+        roughness: 1,
+      }),
 
-    treeTrunk: new THREE.MeshStandardMaterial({
-      color: options.treeTrunkColor,
-      roughness: 1,
-    }),
+    treeTrunk:
+      new THREE.MeshStandardMaterial({
+        color: options.treeTrunkColor,
+        roughness: 1,
+      }),
 
-    metal: new THREE.MeshStandardMaterial({
-      color: options.metalColor,
-      metalness: 0.5,
-      roughness: 0.58,
-    }),
+    metal:
+      new THREE.MeshStandardMaterial({
+        color: options.metalColor,
+        metalness: 0.5,
+        roughness: 0.58,
+      }),
 
-    wood: new THREE.MeshStandardMaterial({
-      color: options.woodColor,
-      roughness: 0.9,
-    }),
+    wood:
+      new THREE.MeshStandardMaterial({
+        color: options.woodColor,
+        roughness: 0.9,
+      }),
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Randomness                                                                 */
+/* -------------------------------------------------------------------------- */
 
 function seededRandom(seed: number) {
   let value = Math.floor(seed) || 1;
@@ -179,6 +249,10 @@ function seededRandom(seed: number) {
     return value / 4294967296;
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Basic geometry helpers                                                     */
+/* -------------------------------------------------------------------------- */
 
 function createBox(
   width: number,
@@ -217,6 +291,10 @@ function createGrass(
 
   return grass;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Paths                                                                      */
+/* -------------------------------------------------------------------------- */
 
 function createPath(
   width: number,
@@ -281,13 +359,13 @@ function createCrossPath(
     ),
   );
 
-  const horizontal = createPath(
-    depth,
-    width,
-    materials,
+  group.add(
+    createPath(
+      depth,
+      width,
+      materials,
+    ),
   );
-
-  group.add(horizontal);
 
   group.userData = {
     type: "cross-path",
@@ -320,20 +398,23 @@ function createRadialPath(
     );
 
     path.rotation.y = angle;
+
     group.add(path);
   }
 
-  const centre = new THREE.Mesh(
-    new THREE.CylinderGeometry(
-      radius * 0.18,
-      radius * 0.18,
-      0.06,
-      24,
-    ),
-    materials.path,
-  );
+  const centre =
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        radius * 0.18,
+        radius * 0.18,
+        0.06,
+        24,
+      ),
+      materials.path,
+    );
 
   centre.position.y = 0.03;
+
   group.add(centre);
 
   group.userData = {
@@ -343,6 +424,10 @@ function createRadialPath(
 
   return group;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Hedges                                                                     */
+/* -------------------------------------------------------------------------- */
 
 function createHedgeRow(
   length: number,
@@ -422,6 +507,10 @@ function createHedgeRow(
   return group;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Flowers                                                                    */
+/* -------------------------------------------------------------------------- */
+
 function createFlowerBed(
   width: number,
   depth: number,
@@ -437,6 +526,7 @@ function createFlowerBed(
   );
 
   soil.position.y = 0.035;
+
   group.add(soil);
 
   const flowerCount = Math.max(
@@ -487,16 +577,17 @@ function createFlowerBed(
 
     group.add(stem);
 
-    const flower = new THREE.Mesh(
-      new THREE.SphereGeometry(
-        0.085,
-        7,
-        5,
-      ),
-      random() > 0.5
-        ? materials.flower
-        : materials.flowerSecondary,
-    );
+    const flower =
+      new THREE.Mesh(
+        new THREE.SphereGeometry(
+          0.085,
+          7,
+          5,
+        ),
+        random() > 0.5
+          ? materials.flower
+          : materials.flowerSecondary,
+      );
 
     flower.position.set(
       x,
@@ -518,13 +609,19 @@ function createFlowerBed(
   return group;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Trees                                                                      */
+/* -------------------------------------------------------------------------- */
+
 function createTree(
   variant: TreeVariant,
   materials: MaterialSet,
   seed: number,
 ) {
   const random = seededRandom(seed);
-  const group = new THREE.Group();
+
+  const group =
+    new THREE.Group();
 
   const trunkHeight =
     variant === "narrow"
@@ -538,15 +635,16 @@ function createTree(
       ? 0.15
       : 0.18;
 
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(
-      trunkRadius,
-      trunkRadius * 1.22,
-      trunkHeight,
-      8,
-    ),
-    materials.treeTrunk,
-  );
+  const trunk =
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        trunkRadius,
+        trunkRadius * 1.22,
+        trunkHeight,
+        8,
+      ),
+      materials.treeTrunk,
+    );
 
   trunk.position.y =
     trunkHeight / 2;
@@ -556,14 +654,15 @@ function createTree(
   group.add(trunk);
 
   if (variant === "narrow") {
-    const crown = new THREE.Mesh(
-      new THREE.ConeGeometry(
-        1.05,
-        2.7,
-        9,
-      ),
-      materials.treeLeaf,
-    );
+    const crown =
+      new THREE.Mesh(
+        new THREE.ConeGeometry(
+          1.05,
+          2.7,
+          9,
+        ),
+        materials.treeLeaf,
+      );
 
     crown.position.y =
       trunkHeight + 1.15;
@@ -577,24 +676,27 @@ function createTree(
       i < 5;
       i += 1
     ) {
-      const crown = new THREE.Mesh(
-        new THREE.SphereGeometry(
-          0.75 +
-            random() * 0.3,
-          10,
-          8,
-        ),
-        i % 2 === 0
-          ? materials.treeLeaf
-          : materials.treeLeafSecondary,
-      );
+      const crown =
+        new THREE.Mesh(
+          new THREE.SphereGeometry(
+            0.75 +
+              random() * 0.3,
+            10,
+            8,
+          ),
+          i % 2 === 0
+            ? materials.treeLeaf
+            : materials.treeLeafSecondary,
+        );
 
       crown.position.set(
-        (random() - 0.5) * 1.25,
+        (random() - 0.5) *
+          1.25,
         trunkHeight +
           0.75 +
           random() * 0.9,
-        (random() - 0.5) * 1.25,
+        (random() - 0.5) *
+          1.25,
       );
 
       crown.scale.y =
@@ -606,14 +708,15 @@ function createTree(
       group.add(crown);
     }
   } else {
-    const crown = new THREE.Mesh(
-      new THREE.SphereGeometry(
-        1.25,
-        12,
-        9,
-      ),
-      materials.treeLeaf,
-    );
+    const crown =
+      new THREE.Mesh(
+        new THREE.SphereGeometry(
+          1.25,
+          12,
+          9,
+        ),
+        materials.treeLeaf,
+      );
 
     crown.position.y =
       trunkHeight + 1;
@@ -623,14 +726,15 @@ function createTree(
 
     group.add(crown);
 
-    const secondary = new THREE.Mesh(
-      new THREE.SphereGeometry(
-        0.72,
-        10,
-        8,
-      ),
-      materials.treeLeafSecondary,
-    );
+    const secondary =
+      new THREE.Mesh(
+        new THREE.SphereGeometry(
+          0.72,
+          10,
+          8,
+        ),
+        materials.treeLeafSecondary,
+      );
 
     secondary.position.set(
       0.45,
@@ -664,9 +768,8 @@ function scatterTrees(
     return;
   }
 
-  const random = seededRandom(
-    options.seed,
-  );
+  const random =
+    seededRandom(options.seed);
 
   const count = Math.max(
     0,
@@ -748,10 +851,15 @@ function scatterTrees(
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Benches                                                                    */
+/* -------------------------------------------------------------------------- */
+
 function createBench(
   materials: MaterialSet,
 ) {
-  const group = new THREE.Group();
+  const group =
+    new THREE.Group();
 
   const seat = createBox(
     1.8,
@@ -809,10 +917,15 @@ function createBench(
   return group;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Lamps                                                                      */
+/* -------------------------------------------------------------------------- */
+
 function createLamp(
   materials: MaterialSet,
 ) {
-  const group = new THREE.Group();
+  const group =
+    new THREE.Group();
 
   const pole = createBox(
     0.08,
@@ -872,6 +985,10 @@ function createLamp(
 
 /* -------------------------------------------------------------------------- */
 /* Internal landscape builders                                                */
+/*                                                                            */
+/* IMPORTANT: These intentionally use "Internal" names. The public exports   */
+/* below use the old createXLandscape names expected elsewhere in the app.   */
+/* This prevents duplicate declarations.                                      */
 /* -------------------------------------------------------------------------- */
 
 function createQuadrangleLandscapeInternal(
@@ -1437,7 +1554,7 @@ function createGateLandscapeInternal(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Main public factory                                                        */
+/* Main landscape factory                                                     */
 /* -------------------------------------------------------------------------- */
 
 export function createLandscape(
@@ -1452,11 +1569,15 @@ export function createLandscape(
   const group =
     new THREE.Group();
 
-  group.name =
-    `CampusLandscape:${resolved.style}`;
+  const normalizedStyle =
+    normalizeLandscapeStyle(
+      resolved.style,
+    );
 
-  switch (resolved.style) {
-    case "campus":
+  group.name =
+    `CampusLandscape:${normalizedStyle}`;
+
+  switch (normalizedStyle) {
     case "quadrangle":
       createQuadrangleLandscapeInternal(
         group,
@@ -1516,7 +1637,8 @@ export function createLandscape(
 
   group.userData = {
     type: "landscape",
-    style: resolved.style,
+    style: normalizedStyle,
+    sourceStyle: resolved.style,
     width: resolved.width,
     depth: resolved.depth,
   };
@@ -1525,7 +1647,7 @@ export function createLandscape(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Public compatibility wrappers                                              */
+/* Public compatibility factories                                             */
 /* -------------------------------------------------------------------------- */
 
 export function createCampusLandscape(
