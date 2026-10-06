@@ -143,12 +143,12 @@ function applyPickup(g: Game, pickup: Pickup, beep: (f: number, d?: number) => v
       g.score += 125 * g.multiplier;
       beep(480, 0.09);
       break;
-    case "multiplier":
-      g.multiplier = Math.min(5, g.multiplier + 1);
-      g.multiplierUntil = g.elapsed + MULTIPLIER_DURATION;
-      g.score += 175 * g.multiplier;
-      beep(880, 0.1);
-      break;
+case "multiplier":
+  g.multiplier = Math.min(5, g.multiplier + 1);
+  g.player.multiplierUntil = g.elapsed + MULTIPLIER_DURATION;
+  g.score += 175 * g.multiplier;
+  beep(880, 0.1);
+  break;
     case "boost":
       g.player.boostUntil = g.elapsed + SPEED_BOOST_DURATION;
       g.score += 150 * g.multiplier;
@@ -448,7 +448,7 @@ export default function RunnerPage() {
 
         if (
           g.multiplier > 1 &&
-          g.elapsed >= g.multiplierUntil
+          g.elapsed >= g.player.multiplierUntil
         ) {
           g.multiplier = 1;
         }
