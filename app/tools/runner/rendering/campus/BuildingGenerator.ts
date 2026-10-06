@@ -1215,35 +1215,32 @@ function addBalconies(
       materials.railing,
     );
 
-    const postCount = 4;
+    const postCount: number = 4;
 
-    for (
-      let i = 0;
-      i < postCount;
-      i += 1
-    ) {
-      const t =
-        postCount === 1
-          ? 0.5
-          : i /
-            (postCount - 1);
+for (
+  let i = 0;
+  i < postCount;
+  i += 1
+) {
+  const t =
+    postCount === 1
+      ? 0.5
+      : i /
+        (postCount - 1);
 
-      addBox(
-        parent,
-        0.06,
-        0.9,
-        0.06,
-        x -
-          balconyWidth / 2 +
-          t * balconyWidth,
-        y + 0.46,
-        railingZ,
-        materials.railing,
-      );
-    }
-  }
+  addBox(
+    parent,
+    0.06,
+    0.9,
+    0.06,
+    x -
+      balconyWidth / 2 +
+      t * balconyWidth,
+    y + 0.46,
+    railingZ,
+    materials.railing,
+  );
 }
-
 function addAdministrationFeatures(
   parent: THREE.Group,
   options: ResolvedBuildingOptions,
