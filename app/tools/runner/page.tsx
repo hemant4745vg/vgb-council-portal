@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BEST_KEY,
   BANK_KEY,
-  COLLISION_FRONT,
+  LANE_WIDTH,
   MAGNET_DURATION,
   MULTIPLIER_DURATION,
   SHIELD_DURATION,
@@ -23,13 +23,34 @@ import type {
   Lane,
   Obstacle,
   Pickup,
-  ObstacleKind,
   Phase,
 } from "./game/types";
 import { RunnerScene } from "./rendering/RunnerScene";
 
-const FIXED_DT = 1 / 60;
 const MAX_FRAME_DT = 0.034;
+
+const PLAYER_COLLISION_WIDTH = 0.72;
+const PLAYER_DEPTH = 0.82;
+
+const OBSTACLE_WIDTH_RATIO = 0.82;
+const BLOCK_HEIGHT = 1.15;
+
+const COLLISION_Z_FRONT =
+  PLAYER_DEPTH / 2 + 1.0 / 2;
+const COLLISION_Z_BACK =
+  -COLLISION_Z_FRONT;
+
+const HORIZONTAL_EPSILON = 0.04;
+const VERTICAL_CLEARANCE = 0.08;
+
+const GRAVITY = 18.5;
+const JUMP_HEIGHT = 2.4;
+const JUMP_VELOCITY = Math.sqrt(
+  2 * GRAVITY * JUMP_HEIGHT,
+);
+
+const SLIDE_DURATION = 0.72;
+const INPUT_BUFFER_DURATION = 0.12;
 
 const LANDMARKS = [
   { env: "quadrangle" as const, name: "ACADEMIC QUADRANGLE" },
@@ -104,25 +125,100 @@ function resetRun(g: Game) {
 }
 
 function powerLabel(g: Game) {
-  if (g.player.boostUntil > g.elapsed) return "BOOST";
-  if (g.player.magnetUntil > g.elapsed) return "MAGNET";
-  if (g.player.shield) return "SHIELD";
-  if (g.multiplier > 1) return `×${g.multiplier}`;
-  return "";
+  const active: string[] = [];
+
+  if (g.player.boostUntil > g.elapsed) active.push("BOOST");
+  if (g.player.magnetUntil > g.elapsed) active.push("MAGNET");
+  if (g.player.shield) active.push("SHIELD");
+  if (g.multiplier > 1) active.push(`×${g.multiplier}`);
+
+  return active.join(" · ");
 }
 
-function obstacleCanBeCleared(
+function playerWorldX(g: Game) {
+  return laneX(g.player.lane);
+}
+
+function obstacleWorldX(obstacle: Obstacle) {
+  return laneX(obstacle.lane);
+}
+
+function obstacleHalfWidth() {
+  return (LANE_WIDTH * OBSTACLE_WIDTH_RATIO) / 2;
+}
+
+function horizontalOverlap(
+  playerX: number,
+  obstacleX: number,
+) {
+  const playerHalfWidth =
+    PLAYER_COLLISION_WIDTH / 2;
+
+  return (
+    Math.abs(playerX - obstacleX) <=
+    playerHalfWidth +
+      obstacleHalfWidth() +
+      HORIZONTAL_EPSILON
+  );
+}
+
+function crossedPlayerZ(
+  previousZ: number,
+  currentZ: number,
+) {
+  const minZ = Math.min(previousZ, currentZ);
+  const maxZ = Math.max(previousZ, currentZ);
+
+  return (
+    maxZ >= COLLISION_Z_BACK &&
+    minZ <= COLLISION_Z_FRONT
+  );
+}
+
+function isJumpingHighEnough(
+  player: Game["player"],
+  requiredHeight: number,
+) {
+  return (
+    player.y >=
+    requiredHeight + VERTICAL_CLEARANCE
+  );
+}
+
+function obstacleIsCleared(
   obstacle: Obstacle,
   player: Game["player"],
 ) {
-  if (obstacle.kind === "bar") return player.sliding;
-  if (obstacle.kind === "wall") return false;
-  if (obstacle.kind === "gap") return player.y > 0.8;
-  if (obstacle.kind === "moving") return player.y > 1.15;
-  return player.y > 1.05;
+  switch (obstacle.kind) {
+    case "gap":
+      return player.y > 0.65;
+
+    case "bar":
+      return player.sliding;
+
+    case "wall":
+      return false;
+
+    case "moving":
+      return isJumpingHighEnough(
+        player,
+        BLOCK_HEIGHT,
+      );
+
+    case "block":
+    default:
+      return isJumpingHighEnough(
+        player,
+        BLOCK_HEIGHT,
+      );
+  }
 }
 
-function applyPickup(g: Game, pickup: Pickup, beep: (f: number, d?: number) => void) {
+function applyPickup(
+  g: Game,
+  pickup: Pickup,
+  beep: (f: number, d?: number) => void,
+) {
   pickup.collected = true;
 
   switch (pickup.kind) {
@@ -133,45 +229,84 @@ function applyPickup(g: Game, pickup: Pickup, beep: (f: number, d?: number) => v
       g.comboUntil = g.elapsed + 1.7;
       beep(720, 0.045);
       break;
+
     case "magnet":
-      g.player.magnetUntil = g.elapsed + MAGNET_DURATION;
+      g.player.magnetUntil =
+        g.elapsed + MAGNET_DURATION;
       g.score += 100 * g.multiplier;
       beep(560, 0.08);
       break;
+
     case "shield":
       g.player.shield = true;
       g.score += 125 * g.multiplier;
       beep(480, 0.09);
       break;
-case "multiplier":
-  g.multiplier = Math.min(5, g.multiplier + 1);
-  g.player.multiplierUntil = g.elapsed + MULTIPLIER_DURATION;
-  g.score += 175 * g.multiplier;
-  beep(880, 0.1);
-  break;
+
+    case "multiplier":
+      g.multiplier = Math.min(
+        5,
+        g.multiplier + 1,
+      );
+      g.player.multiplierUntil =
+        g.elapsed + MULTIPLIER_DURATION;
+      g.score += 175 * g.multiplier;
+      beep(880, 0.1);
+      break;
+
     case "boost":
-      g.player.boostUntil = g.elapsed + SPEED_BOOST_DURATION;
+      g.player.boostUntil =
+        g.elapsed + SPEED_BOOST_DURATION;
       g.score += 150 * g.multiplier;
       beep(980, 0.1);
       break;
   }
 }
 
-function collisionCheck(g: Game, finish: () => void, beep: (f: number, d?: number) => void) {
+function collisionCheck(
+  g: Game,
+  previousObstacleZ: Map<number, number>,
+  finish: () => void,
+  beep: (f: number, d?: number) => void,
+) {
+  const playerX = playerWorldX(g);
+
   for (const obstacle of g.obstacles) {
-    if (obstacle.resolved || obstacle.z > COLLISION_FRONT) continue;
+    if (obstacle.resolved) continue;
 
-    obstacle.resolved = true;
+    const previousZ =
+      previousObstacleZ.get(obstacle.id) ??
+      obstacle.z;
 
-    const sameLane = Math.abs(g.player.lane - obstacle.lane) < 0.42;
-    if (!sameLane) {
-      g.combo += 1;
-      g.comboUntil = g.elapsed + 1.7;
-      g.score += 35 * g.multiplier;
+    if (
+      !crossedPlayerZ(
+        previousZ,
+        obstacle.z,
+      )
+    ) {
       continue;
     }
 
-    if (obstacleCanBeCleared(obstacle, g.player)) {
+    const obstacleX =
+      obstacleWorldX(obstacle);
+
+    if (
+      !horizontalOverlap(
+        playerX,
+        obstacleX,
+      )
+    ) {
+      continue;
+    }
+
+    const cleared = obstacleIsCleared(
+      obstacle,
+      g.player,
+    );
+
+    obstacle.resolved = true;
+
+    if (cleared) {
       g.combo += 1;
       g.comboUntil = g.elapsed + 1.7;
       g.score += 60 * g.multiplier;
@@ -192,16 +327,27 @@ function collisionCheck(g: Game, finish: () => void, beep: (f: number, d?: numbe
 }
 
 export default function RunnerPage() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const gameRef = useRef<Game | null>(null);
-  const sceneRef = useRef<RunnerScene | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const touchRef = useRef<{ x: number; y: number } | null>(null);
-  const audioRef = useRef<AudioContext | null>(null);
+  const canvasRef =
+    useRef<HTMLCanvasElement | null>(null);
+  const gameRef =
+    useRef<Game | null>(null);
+  const sceneRef =
+    useRef<RunnerScene | null>(null);
+  const rafRef =
+    useRef<number | null>(null);
+  const touchRef =
+    useRef<{ x: number; y: number } | null>(null);
+  const audioRef =
+    useRef<AudioContext | null>(null);
   const lastHudRef = useRef(0);
 
-  const [phase, setPhase] = useState<Phase>("menu");
+  const laneInputUntilRef = useRef(0);
+  const jumpInputUntilRef = useRef(0);
+
+  const [phase, setPhase] =
+    useState<Phase>("menu");
   const [sound, setSound] = useState(true);
+
   const [hud, setHud] = useState({
     score: 0,
     distance: 0,
@@ -216,8 +362,16 @@ export default function RunnerPage() {
   });
 
   const beep = useCallback(
-    (frequency: number, duration = 0.06) => {
-      if (!sound || typeof window === "undefined") return;
+    (
+      frequency: number,
+      duration = 0.06,
+    ) => {
+      if (
+        !sound ||
+        typeof window === "undefined"
+      ) {
+        return;
+      }
 
       try {
         const AudioCtor =
@@ -230,18 +384,31 @@ export default function RunnerPage() {
 
         if (!AudioCtor) return;
 
-        const audio = audioRef.current ?? new AudioCtor();
+        const audio =
+          audioRef.current ??
+          new AudioCtor();
+
         audioRef.current = audio;
 
-        if (audio.state === "suspended") void audio.resume();
+        if (
+          audio.state === "suspended"
+        ) {
+          void audio.resume();
+        }
 
-        const oscillator = audio.createOscillator();
-        const gain = audio.createGain();
+        const oscillator =
+          audio.createOscillator();
+        const gain =
+          audio.createGain();
 
         oscillator.type = "triangle";
-        oscillator.frequency.value = frequency;
+        oscillator.frequency.value =
+          frequency;
 
-        gain.gain.setValueAtTime(0.0001, audio.currentTime);
+        gain.gain.setValueAtTime(
+          0.0001,
+          audio.currentTime,
+        );
         gain.gain.exponentialRampToValueAtTime(
           0.055,
           audio.currentTime + 0.008,
@@ -254,7 +421,11 @@ export default function RunnerPage() {
         oscillator.connect(gain);
         gain.connect(audio.destination);
         oscillator.start();
-        oscillator.stop(audio.currentTime + duration + 0.01);
+        oscillator.stop(
+          audio.currentTime +
+            duration +
+            0.01,
+        );
       } catch {
         // Audio is intentionally optional.
       }
@@ -278,6 +449,7 @@ export default function RunnerPage() {
       landmark: g.environment.landmark,
       combo: g.combo,
     });
+
     setPhase(g.phase);
   }, []);
 
@@ -286,21 +458,37 @@ export default function RunnerPage() {
     if (!g) return;
 
     resetRun(g);
+    laneInputUntilRef.current = 0;
+    jumpInputUntilRef.current = 0;
+
     setPhase("playing");
     syncHud();
     beep(520, 0.08);
   }, [beep, syncHud]);
 
-  const move = useCallback(
+  const moveLane = useCallback(
     (direction: -1 | 1) => {
       const g = gameRef.current;
-      if (!g || g.phase !== "playing") return;
+      if (
+        !g ||
+        g.phase !== "playing"
+      ) {
+        return;
+      }
 
-      g.player.targetLane = clamp(
-        g.player.targetLane + direction,
+      const nextLane = clamp(
+        g.player.targetLane +
+          direction,
         -1,
         1,
-      ) as Lane;
+      );
+
+      g.player.targetLane =
+        nextLane as Lane;
+
+      laneInputUntilRef.current =
+        g.elapsed +
+        INPUT_BUFFER_DURATION;
 
       beep(190, 0.035);
     },
@@ -309,28 +497,60 @@ export default function RunnerPage() {
 
   const jump = useCallback(() => {
     const g = gameRef.current;
-    if (!g || g.phase !== "playing") return;
-    if (g.player.jumping || g.player.sliding) return;
+    if (
+      !g ||
+      g.phase !== "playing"
+    ) {
+      return;
+    }
+
+    if (
+      g.player.jumping ||
+      g.player.sliding
+    ) {
+      return;
+    }
 
     g.player.jumping = true;
-    g.player.verticalVelocity = 7.2;
-    g.player.y = 0.05;
+    g.player.verticalVelocity =
+      JUMP_VELOCITY;
+    g.player.y = 0.01;
+
+    jumpInputUntilRef.current =
+      g.elapsed +
+      INPUT_BUFFER_DURATION;
+
     beep(430, 0.06);
   }, [beep]);
 
   const slide = useCallback(() => {
     const g = gameRef.current;
-    if (!g || g.phase !== "playing") return;
+    if (
+      !g ||
+      g.phase !== "playing"
+    ) {
+      return;
+    }
+
     if (g.player.jumping) return;
 
     g.player.sliding = true;
-    g.player.slideUntil = g.elapsed + 0.72;
+    g.player.slideUntil =
+      g.elapsed + SLIDE_DURATION;
+
     beep(145, 0.055);
   }, [beep]);
 
   const togglePause = useCallback(() => {
     const g = gameRef.current;
-    if (!g || (g.phase !== "playing" && g.phase !== "paused")) return;
+
+    if (
+      !g ||
+      (g.phase !== "playing" &&
+        g.phase !== "paused")
+    ) {
+      return;
+    }
 
     if (g.phase === "playing") {
       g.phase = "paused";
@@ -343,40 +563,72 @@ export default function RunnerPage() {
   }, []);
 
   useEffect(() => {
-    const best = readStorage(BEST_KEY);
-    const bank = readStorage(BANK_KEY);
-    const game = freshGame(best, bank);
+    const best =
+      readStorage(BEST_KEY);
+    const bank =
+      readStorage(BANK_KEY);
+
+    const game =
+      freshGame(best, bank);
+
     gameRef.current = game;
     syncHud();
 
-    const canvas = canvasRef.current;
+    const canvas =
+      canvasRef.current;
+
     if (!canvas) return;
 
-    const scene = new RunnerScene(canvas);
+    const scene =
+      new RunnerScene(canvas);
+
     sceneRef.current = scene;
 
     const resize = () => {
-      const rect = canvas.getBoundingClientRect();
+      const rect =
+        canvas.getBoundingClientRect();
+
       scene.resize(
         Math.max(320, rect.width),
         Math.max(500, rect.height),
       );
     };
 
-    const observer = new ResizeObserver(resize);
+    const observer =
+      new ResizeObserver(resize);
+
     observer.observe(canvas);
     resize();
 
     const finish = () => {
-      const g = gameRef.current;
-      if (!g || g.phase !== "playing") return;
+      const g =
+        gameRef.current;
+
+      if (
+        !g ||
+        g.phase !== "playing"
+      ) {
+        return;
+      }
 
       g.phase = "gameover";
-      g.best = Math.max(g.best, Math.floor(g.score));
+
+      g.best = Math.max(
+        g.best,
+        Math.floor(g.score),
+      );
+
       g.bankCoins += g.runCoins;
 
-      writeStorage(BEST_KEY, g.best);
-      writeStorage(BANK_KEY, g.bankCoins);
+      writeStorage(
+        BEST_KEY,
+        g.best,
+      );
+
+      writeStorage(
+        BANK_KEY,
+        g.bankCoins,
+      );
 
       g.camera.shake = 0.45;
       g.flash = 0.22;
@@ -387,14 +639,19 @@ export default function RunnerPage() {
     };
 
     const tick = (now: number) => {
-      const g = gameRef.current;
+      const g =
+        gameRef.current;
+
       if (!g) {
-        rafRef.current = requestAnimationFrame(tick);
+        rafRef.current =
+          requestAnimationFrame(tick);
         return;
       }
 
       const dt = clamp(
-        (now - (g.last || now)) / 1000,
+        (now -
+          (g.last || now)) /
+          1000,
         0,
         MAX_FRAME_DT,
       );
@@ -403,34 +660,68 @@ export default function RunnerPage() {
         g.last = now;
         g.elapsed += dt;
 
-        const baseSpeed = Math.min(
-          MAX_SPEED,
-          START_SPEED + g.elapsed * SPEED_ACCELERATION,
-        );
+        const baseSpeed =
+          Math.min(
+            MAX_SPEED,
+            START_SPEED +
+              g.distance * 0.045,
+          );
 
         g.targetSpeed =
-          g.player.boostUntil > g.elapsed
-            ? Math.min(MAX_SPEED * 1.18, baseSpeed * 1.42)
+          g.player.boostUntil >
+          g.elapsed
+            ? Math.min(
+                MAX_SPEED * 1.18,
+                baseSpeed * 1.42,
+              )
             : baseSpeed;
 
         g.speed +=
-          (g.targetSpeed - g.speed) *
-          (1 - Math.pow(0.001, dt));
+          (g.targetSpeed -
+            g.speed) *
+          (1 -
+            Math.pow(
+              0.001,
+              dt,
+            ));
 
-        g.distance += g.speed * dt;
-        g.score += g.speed * dt * 0.055 * g.multiplier;
+        g.distance +=
+          g.speed * dt;
+
+        g.score +=
+          g.speed *
+          dt *
+          0.055 *
+          g.multiplier;
+
+        const laneBlend =
+          1 - Math.exp(-14 * dt);
 
         g.player.lane +=
-          (g.player.targetLane - g.player.lane) *
-          (1 - Math.pow(0.00008, dt));
+          (g.player.targetLane -
+            g.player.lane) *
+          laneBlend;
 
-        if (Math.abs(g.player.lane - g.player.targetLane) < 0.012) {
-          g.player.lane = g.player.targetLane;
+        if (
+          Math.abs(
+            g.player.lane -
+              g.player.targetLane,
+          ) < 0.008
+        ) {
+          g.player.lane =
+            g.player.targetLane;
         }
 
-        if (g.player.jumping || g.player.y > 0) {
-          g.player.verticalVelocity -= 18.5 * dt;
-          g.player.y += g.player.verticalVelocity * dt;
+        if (
+          g.player.jumping ||
+          g.player.y > 0
+        ) {
+          g.player.verticalVelocity -=
+            GRAVITY * dt;
+
+          g.player.y +=
+            g.player.verticalVelocity *
+            dt;
 
           if (g.player.y <= 0) {
             g.player.y = 0;
@@ -441,164 +732,300 @@ export default function RunnerPage() {
 
         if (
           g.player.sliding &&
-          g.elapsed >= g.player.slideUntil
+          g.elapsed >=
+            g.player.slideUntil
         ) {
           g.player.sliding = false;
         }
 
         if (
           g.multiplier > 1 &&
-          g.elapsed >= g.player.multiplierUntil
+          g.elapsed >=
+            g.player.multiplierUntil
         ) {
           g.multiplier = 1;
         }
 
         if (
           g.combo > 0 &&
-          g.elapsed >= g.comboUntil
+          g.elapsed >=
+            g.comboUntil
         ) {
           g.combo = 0;
         }
 
         g.spawnTimer -= dt;
-        if (g.spawnTimer <= 0) {
+
+        if (
+          g.spawnTimer <= 0
+        ) {
           spawnObstacleSet(g);
         }
 
         g.pickupTimer -= dt;
-        if (g.pickupTimer <= 0) {
+
+        if (
+          g.pickupTimer <= 0
+        ) {
           spawnPickupSet(g);
         }
 
+        const previousObstacleZ =
+          new Map<number, number>();
+
         for (const obstacle of g.obstacles) {
-          obstacle.z -= g.speed * dt;
+          previousObstacleZ.set(
+            obstacle.id,
+            obstacle.z,
+          );
+
+          obstacle.z -=
+            g.speed * dt;
         }
 
         for (const pickup of g.pickups) {
-          pickup.z -= g.speed * dt;
+          pickup.z -=
+            g.speed * dt;
 
           if (
             !pickup.collected &&
-            g.player.magnetUntil > g.elapsed &&
+            g.player.magnetUntil >
+              g.elapsed &&
             pickup.kind === "coin" &&
             pickup.z < 28 &&
             pickup.z > -45
           ) {
-            const laneDelta = Math.abs(
-              g.player.lane - pickup.lane,
-            );
+            const laneDelta =
+              Math.abs(
+                g.player.lane -
+                  pickup.lane,
+              );
 
-            if (laneDelta < 1.2) {
-              pickup.lane =
-                Math.abs(g.player.lane - pickup.lane) < 0.35
-                  ? pickup.lane
-                  : g.player.lane > pickup.lane
-                    ? Math.min(1, pickup.lane + 0.08) as Lane
-                    : Math.max(-1, pickup.lane - 0.08) as Lane;
+            if (
+              laneDelta < 1.2
+            ) {
+              const targetLane =
+                g.player.lane;
+
+              if (
+                Math.abs(
+                  g.player.lane -
+                    pickup.lane,
+                ) > 0.05
+              ) {
+                pickup.lane =
+                  (
+                    pickup.lane +
+                    (
+                      targetLane -
+                      pickup.lane
+                    ) *
+                      Math.min(
+                        1,
+                        dt * 7,
+                      )
+                  ) as Lane;
+              }
             }
           }
         }
 
         for (const pickup of g.pickups) {
-          if (pickup.collected) continue;
+          if (pickup.collected) {
+            continue;
+          }
 
-          const laneDelta = Math.abs(
-            g.player.lane - pickup.lane,
-          );
+          const pickupX =
+            laneX(pickup.lane);
+
+          const playerX =
+            playerWorldX(g);
+
+          const horizontalDistance =
+            Math.abs(
+              playerX -
+                pickupX,
+            );
 
           if (
-            pickup.z <= 2.4 &&
-            pickup.z >= -2.4 &&
-            laneDelta < 0.44
+            pickup.z <= 1.8 &&
+            pickup.z >= -1.8 &&
+            horizontalDistance <
+              PLAYER_COLLISION_WIDTH *
+                0.7
           ) {
-            applyPickup(g, pickup, beep);
+            applyPickup(
+              g,
+              pickup,
+              beep,
+            );
           }
         }
 
-        collisionCheck(g, finish, beep);
+        collisionCheck(
+          g,
+          previousObstacleZ,
+          finish,
+          beep,
+        );
 
-        g.obstacles = g.obstacles.filter(
-          (o) => o.z > -32 && !o.resolved,
-        );
-        g.pickups = g.pickups.filter(
-          (p) => p.z > -32 && !p.collected,
-        );
+        for (const obstacle of g.obstacles) {
+          if (
+            !obstacle.resolved &&
+            obstacle.z <
+              -COLLISION_Z_FRONT
+          ) {
+            obstacle.resolved = true;
+            g.combo += 1;
+            g.comboUntil =
+              g.elapsed + 1.7;
+            g.score +=
+              35 *
+              g.multiplier;
+          }
+        }
+
+        g.obstacles =
+          g.obstacles.filter(
+            (o) => o.z > -32,
+          );
+
+        g.pickups =
+          g.pickups.filter(
+            (p) =>
+              p.z > -32 &&
+              !p.collected,
+          );
 
         g.environment.distanceInEnvironment +=
           g.speed * dt;
 
-        if (g.environment.distanceInEnvironment >= 700) {
+        if (
+          g.environment
+            .distanceInEnvironment >=
+          700
+        ) {
           g.environment.distanceInEnvironment = 0;
 
-          const currentIndex = LANDMARKS.findIndex(
-            (item) =>
-              item.env === g.environment.current,
-          );
+          const currentIndex =
+            LANDMARKS.findIndex(
+              (item) =>
+                item.env ===
+                g.environment.current,
+            );
+
           const next =
             LANDMARKS[
-              (currentIndex + 1) % LANDMARKS.length
+              (currentIndex + 1) %
+                LANDMARKS.length
             ];
 
-          g.environment.current = next.env;
-          g.environment.landmark = next.name;
-          g.environment.landmarkTimer = 2.2;
-          g.environment.transition = 1;
+          g.environment.current =
+            next.env;
+
+          g.environment.landmark =
+            next.name;
+
+          g.environment.landmarkTimer =
+            2.2;
+
+          g.environment.transition =
+            1;
+
           beep(640, 0.075);
         }
 
-        g.environment.landmarkTimer = Math.max(
-          0,
-          g.environment.landmarkTimer - dt,
-        );
-        g.environment.transition = Math.max(
-          0,
-          g.environment.transition - dt * 0.55,
-        );
+        g.environment.landmarkTimer =
+          Math.max(
+            0,
+            g.environment.landmarkTimer -
+              dt,
+          );
 
-        if (g.distance >= g.milestone) {
-          g.score += 300 * g.multiplier;
+        g.environment.transition =
+          Math.max(
+            0,
+            g.environment.transition -
+              dt * 0.55,
+          );
+
+        if (
+          g.distance >=
+          g.milestone
+        ) {
+          g.score +=
+            300 *
+            g.multiplier;
+
           g.milestone += 250;
           g.flash = 0.1;
+
           beep(880, 0.08);
         }
 
-        g.flash = Math.max(0, g.flash - dt * 1.8);
-        g.camera.shake = Math.max(
+        g.flash = Math.max(
           0,
-          g.camera.shake - dt * 1.8,
+          g.flash - dt * 1.8,
         );
 
-        g.camera.targetFov = clamp(
-          62 + (g.speed - START_SPEED) * 0.23,
-          62,
-          76,
-        );
-      } else if (g.phase === "paused") {
+        g.camera.shake =
+          Math.max(
+            0,
+            g.camera.shake -
+              dt * 1.8,
+          );
+
+        g.camera.targetFov =
+          clamp(
+            62 +
+              (g.speed -
+                START_SPEED) *
+                0.23,
+            62,
+            76,
+          );
+      } else if (
+        g.phase === "paused"
+      ) {
         g.last = now;
       } else {
         g.last = now;
       }
 
-      scene.update(g, dt, now);
-      scene.render();
+      scene.update(
+        g,
+        dt,
+        now,
+      );
 
-      if (now - lastHudRef.current > 90) {
+      if (
+        now -
+          lastHudRef.current >
+        90
+      ) {
         lastHudRef.current = now;
         syncHud();
       }
 
-      rafRef.current = requestAnimationFrame(tick);
+      rafRef.current =
+        requestAnimationFrame(tick);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    rafRef.current =
+      requestAnimationFrame(tick);
 
     return () => {
       observer.disconnect();
+
       if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
+        cancelAnimationFrame(
+          rafRef.current,
+        );
       }
+
       scene.dispose();
       sceneRef.current = null;
+
       if (audioRef.current) {
         void audioRef.current.close();
         audioRef.current = null;
@@ -607,8 +1034,11 @@ export default function RunnerPage() {
   }, [beep, syncHud]);
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
+    const onKey = (
+      event: KeyboardEvent,
+    ) => {
+      const key =
+        event.key.toLowerCase();
 
       if (
         [
@@ -622,41 +1052,64 @@ export default function RunnerPage() {
         event.preventDefault();
       }
 
-      if (key === "arrowleft" || key === "a") {
-        move(-1);
-      } else if (key === "arrowright" || key === "d") {
-        move(1);
+      if (
+        key === "arrowleft" ||
+        key === "a"
+      ) {
+        moveLane(-1);
+      } else if (
+        key === "arrowright" ||
+        key === "d"
+      ) {
+        moveLane(1);
       } else if (
         key === "arrowup" ||
         key === "w" ||
         key === " "
       ) {
-        if (phase === "menu" || phase === "gameover") {
+        if (
+          phase === "menu" ||
+          phase === "gameover"
+        ) {
           start();
         } else {
           jump();
         }
-      } else if (key === "arrowdown" || key === "s") {
+      } else if (
+        key === "arrowdown" ||
+        key === "s"
+      ) {
         slide();
-      } else if (key === "p" || key === "escape") {
+      } else if (
+        key === "p" ||
+        key === "escape"
+      ) {
         togglePause();
       } else if (
         key === "enter" &&
-        (phase === "menu" || phase === "gameover")
+        (
+          phase === "menu" ||
+          phase === "gameover"
+        )
       ) {
         start();
       }
     };
 
-    window.addEventListener("keydown", onKey, {
-      passive: false,
-    });
+    window.addEventListener(
+      "keydown",
+      onKey,
+      { passive: false },
+    );
 
     return () =>
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(
+        "keydown",
+        onKey,
+      );
   }, [
     jump,
-    move,
+    moveLane,
     phase,
     slide,
     start,
@@ -679,27 +1132,45 @@ export default function RunnerPage() {
   const pointerUp = (
     event: React.PointerEvent<HTMLCanvasElement>,
   ) => {
-    const startPoint = touchRef.current;
+    const startPoint =
+      touchRef.current;
+
     touchRef.current = null;
 
     if (!startPoint) return;
 
-    const dx = event.clientX - startPoint.x;
-    const dy = event.clientY - startPoint.y;
+    const dx =
+      event.clientX -
+      startPoint.x;
+
+    const dy =
+      event.clientY -
+      startPoint.y;
+
     const ax = Math.abs(dx);
     const ay = Math.abs(dy);
 
-    if (Math.max(ax, ay) < 28) {
-      if (phase === "menu" || phase === "gameover") {
+    if (
+      Math.max(ax, ay) < 28
+    ) {
+      if (
+        phase === "menu" ||
+        phase === "gameover"
+      ) {
         start();
-      } else if (phase === "playing") {
+      } else if (
+        phase === "playing"
+      ) {
         jump();
       }
+
       return;
     }
 
     if (ax > ay) {
-      move(dx > 0 ? 1 : -1);
+      moveLane(
+        dx > 0 ? 1 : -1,
+      );
     } else if (dy < 0) {
       jump();
     } else {
@@ -712,31 +1183,51 @@ export default function RunnerPage() {
       <section className="runner-frame">
         <header className="topbar">
           <div className="brand">
-            <div className="brand-mark">VGB</div>
+            <div className="brand-mark">
+              VGB
+            </div>
+
             <div>
-              <strong>RUNNER 3D</strong>
-              <span>VIDYAGYAN CAMPUS</span>
+              <strong>
+                RUNNER 3D
+              </strong>
+              <span>
+                VIDYAGYAN CAMPUS
+              </span>
             </div>
           </div>
 
           <div className="top-actions">
             <div className="top-stat">
               <span>BEST</span>
-              <b>{hud.best.toLocaleString()}</b>
+              <b>
+                {hud.best.toLocaleString()}
+              </b>
             </div>
+
             <div className="top-stat">
               <span>BANK</span>
-              <b>◆ {hud.bank}</b>
+              <b>
+                ◆ {hud.bank}
+              </b>
             </div>
+
             <button
               className="icon-btn"
-              onClick={() => setSound((value) => !value)}
+              onClick={() =>
+                setSound(
+                  (value) => !value,
+                )
+              }
               aria-label={
-                sound ? "Mute sound" : "Enable sound"
+                sound
+                  ? "Mute sound"
+                  : "Enable sound"
               }
             >
               {sound ? "🔊" : "🔇"}
             </button>
+
             <button
               className="icon-btn"
               onClick={togglePause}
@@ -750,7 +1241,9 @@ export default function RunnerPage() {
                   : "Pause game"
               }
             >
-              {phase === "paused" ? "▶" : "Ⅱ"}
+              {phase === "paused"
+                ? "▶"
+                : "Ⅱ"}
             </button>
           </div>
         </header>
@@ -763,32 +1256,48 @@ export default function RunnerPage() {
             aria-label="VGB Runner 3D game canvas"
           />
 
-          <div className="hud" aria-live="polite">
+          <div
+            className="hud"
+            aria-live="polite"
+          >
             <div className="metric">
               <small>SCORE</small>
-              <strong>{hud.score.toLocaleString()}</strong>
+              <strong>
+                {hud.score.toLocaleString()}
+              </strong>
             </div>
+
             <div className="metric center">
               <small>DISTANCE</small>
-              <strong>{hud.distance}m</strong>
+              <strong>
+                {hud.distance}m
+              </strong>
             </div>
+
             <div className="metric">
               <small>TOKENS</small>
-              <strong>◆ {hud.coins}</strong>
+              <strong>
+                ◆ {hud.coins}
+              </strong>
             </div>
+
             <div className="metric right">
               <small>SPEED</small>
-              <strong>{hud.speed}</strong>
+              <strong>
+                {hud.speed}
+              </strong>
             </div>
           </div>
 
-          {(hud.power || hud.combo >= 2) && (
+          {(hud.power ||
+            hud.combo >= 2) && (
             <div className="status-row">
               {hud.power && (
                 <span className="power-pill">
                   {hud.power}
                 </span>
               )}
+
               {hud.combo >= 2 && (
                 <span className="combo-pill">
                   COMBO ×{hud.combo}
@@ -798,7 +1307,8 @@ export default function RunnerPage() {
           )}
 
           {phase === "playing" &&
-            hud.landmark !== "ACADEMIC QUADRANGLE" && (
+            hud.landmark !==
+              "ACADEMIC QUADRANGLE" && (
               <div className="landmark-chip">
                 {hud.landmark}
               </div>
@@ -806,25 +1316,32 @@ export default function RunnerPage() {
 
           <div className="mobile-controls">
             <button
-              onPointerDown={() => move(-1)}
+              onPointerDown={() =>
+                moveLane(-1)
+              }
               aria-label="Move left"
             >
               ‹
             </button>
+
             <button
               onPointerDown={jump}
               aria-label="Jump"
             >
               ↑
             </button>
+
             <button
               onPointerDown={slide}
               aria-label="Slide"
             >
               ↓
             </button>
+
             <button
-              onPointerDown={() => move(1)}
+              onPointerDown={() =>
+                moveLane(1)
+              }
               aria-label="Move right"
             >
               ›
@@ -837,28 +1354,35 @@ export default function RunnerPage() {
                 <div className="eyebrow">
                   VGB ARCADE · 3D ENDLESS RUN
                 </div>
+
                 <h1>
                   RUN THE
                   <br />
                   <em>CAMPUS.</em>
                 </h1>
+
                 <p>
-                  A real-time 3D endless runner through the
-                  VidyaGyan campus. Three lanes, authored
-                  obstacle patterns, power-ups and a world
+                  A real-time 3D endless runner
+                  through the VidyaGyan campus.
+                  Three lanes, authored obstacle
+                  patterns, power-ups and a world
                   that keeps moving.
                 </p>
+
                 <button
                   className="primary"
                   onClick={start}
                 >
-                  START RUN <span>→</span>
+                  START RUN{" "}
+                  <span>→</span>
                 </button>
+
                 <div className="controls">
                   <span>← →</span> LANES
                   <span>↑ / SPACE</span> JUMP
                   <span>↓</span> SLIDE
                 </div>
+
                 <div className="touch-note">
                   Swipe on the track · tap to jump
                 </div>
@@ -872,17 +1396,24 @@ export default function RunnerPage() {
                 <div className="eyebrow">
                   RUN PAUSED
                 </div>
-                <h2>TRACK FROZEN.</h2>
+
+                <h2>
+                  TRACK FROZEN.
+                </h2>
+
                 <p>
-                  The simulation is paused. No imaginary
-                  campus administrator is moving the
+                  The simulation is paused.
+                  No imaginary campus
+                  administrator is moving the
                   obstacles while you are away.
                 </p>
+
                 <button
                   className="primary"
                   onClick={togglePause}
                 >
-                  RESUME <span>▶</span>
+                  RESUME{" "}
+                  <span>▶</span>
                 </button>
               </div>
             </div>
@@ -894,6 +1425,7 @@ export default function RunnerPage() {
                 <div className="eyebrow">
                   RUN COMPLETE
                 </div>
+
                 <h2>
                   RUN
                   <br />
@@ -903,19 +1435,30 @@ export default function RunnerPage() {
                 <div className="result-grid">
                   <div>
                     <span>SCORE</span>
-                    <b>{hud.score.toLocaleString()}</b>
+                    <b>
+                      {hud.score.toLocaleString()}
+                    </b>
                   </div>
+
                   <div>
                     <span>DISTANCE</span>
-                    <b>{hud.distance}m</b>
+                    <b>
+                      {hud.distance}m
+                    </b>
                   </div>
+
                   <div>
                     <span>TOKENS</span>
-                    <b>◆ {hud.coins}</b>
+                    <b>
+                      ◆ {hud.coins}
+                    </b>
                   </div>
+
                   <div>
                     <span>BEST</span>
-                    <b>{hud.best.toLocaleString()}</b>
+                    <b>
+                      {hud.best.toLocaleString()}
+                    </b>
                   </div>
                 </div>
 
@@ -923,7 +1466,8 @@ export default function RunnerPage() {
                   className="primary"
                   onClick={start}
                 >
-                  RUN AGAIN <span>↻</span>
+                  RUN AGAIN{" "}
+                  <span>↻</span>
                 </button>
               </div>
             </div>
@@ -931,7 +1475,10 @@ export default function RunnerPage() {
         </div>
 
         <footer>
-          <span>VGB RUNNER · CAMPUS 3D</span>
+          <span>
+            VGB RUNNER · CAMPUS 3D
+          </span>
+
           <span>
             THREE LANES · REAL-TIME 3D · PROCEDURAL TRACK
           </span>
