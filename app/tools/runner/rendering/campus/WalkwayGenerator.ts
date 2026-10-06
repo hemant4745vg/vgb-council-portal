@@ -7,29 +7,81 @@ export type WalkwayStyle =
   | "connector";
 
 export type WalkwayOptions = {
-  length?: number;
   width?: number;
+  length?: number;
   height?: number;
   style?: WalkwayStyle;
-  columns?: number;
-  roofColor?: number;
-  columnColor?: number;
-  floorColor?: number;
+  name?: string;
+
   wallColor?: number;
+  trimColor?: number;
+  roofColor?: number;
+  floorColor?: number;
+
+  columnSpacing?: number;
+  columns?: boolean;
+  roof?: boolean;
+  railings?: boolean;
 };
 
-const DEFAULTS = {
-  roof: 0xb98b4d,
-  column: 0x8c4937,
-  floor: 0xc9b98f,
-  wall: 0xe4d7b5,
-  window: 0x263b3d,
-  metal: 0x39434a,
+type ResolvedWalkwayOptions = {
+  width: number;
+  length: number;
+  height: number;
+  style: WalkwayStyle;
+  name: string;
+
+  wallColor: number;
+  trimColor: number;
+  roofColor: number;
+  floorColor: number;
+
+  columnSpacing: number;
+  columns: boolean;
+  roof: boolean;
+  railings: boolean;
 };
 
-function material(
+type WalkwayMaterials = {
+  wall: THREE.MeshStandardMaterial;
+  wallDark: THREE.MeshStandardMaterial;
+  trim: THREE.MeshStandardMaterial;
+  trimDark: THREE.MeshStandardMaterial;
+
+  roof: THREE.MeshStandardMaterial;
+  roofDark: THREE.MeshStandardMaterial;
+
+  floor: THREE.MeshStandardMaterial;
+  floorDark: THREE.MeshStandardMaterial;
+
+  concrete: THREE.MeshStandardMaterial;
+  metal: THREE.MeshStandardMaterial;
+  glass: THREE.MeshStandardMaterial;
+  planter: THREE.MeshStandardMaterial;
+};
+
+const DEFAULTS: ResolvedWalkwayOptions = {
+  width: 3.4,
+  length: 18,
+  height: 3.2,
+
+  style: "covered",
+  name: "COVERED WALKWAY",
+
+  wallColor: 0x8c4937,
+  trimColor: 0xe4d7b5,
+  roofColor: 0xb98b4d,
+  floorColor: 0xb7a88d,
+
+  columnSpacing: 3.2,
+  columns: true,
+  roof: true,
+  railings: false,
+};
+
+function createMaterial(
   color: number,
-  roughness = 0.85,
+  roughness = 0.82,
   metalness = 0,
 ) {
   return new THREE.MeshStandardMaterial({
@@ -39,519 +91,1472 @@ function material(
   });
 }
 
-function addBox(
-  parent: THREE.Group,
-  size: THREE.Vector3Tuple,
-  position: THREE.Vector3Tuple,
-  mat: THREE.Material,
+function darkenColor(
+  color: number,
+  amount: number,
 ) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(...size),
-    mat,
+  const c = new THREE.Color(color);
+
+  c.multiplyScalar(
+    Math.max(
+      0,
+      1 - amount,
+    ),
   );
 
-  mesh.position.set(...position);
+  return c.getHex();
+}
+
+function lightenColor(
+  color: number,
+  amount: number,
+) {
+  const c = new THREE.Color(color);
+
+  c.lerp(
+    new THREE.Color(0xffffff),
+    THREE.MathUtils.clamp(
+      amount,
+      0,
+      1,
+    ),
+  );
+
+  return c.getHex();
+}
+
+function makeMaterials(
+  options: ResolvedWalkwayOptions,
+): WalkwayMaterials {
+  return {
+    wall: createMaterial(
+      options.wallColor,
+      0.88,
+    ),
+
+    wallDark: createMaterial(
+      darkenColor(
+        options.wallColor,
+        0.18,
+      ),
+      0.92,
+    ),
+
+    trim: createMaterial(
+      options.trimColor,
+      0.78,
+    ),
+
+    trimDark: createMaterial(
+      darkenColor(
+        options.trimColor,
+        0.12,
+      ),
+      0.84,
+    ),
+
+    roof: createMaterial(
+      options.roofColor,
+      0.82,
+    ),
+
+    roofDark: createMaterial(
+      darkenColor(
+        options.roofColor,
+        0.17,
+      ),
+      0.9,
+    ),
+
+    floor: createMaterial(
+      options.floorColor,
+      0.93,
+    ),
+
+    floorDark: createMaterial(
+      darkenColor(
+        options.floorColor,
+        0.18,
+      ),
+      0.96,
+    ),
+
+    concrete: createMaterial(
+      0xb8ad96,
+      0.94,
+    ),
+
+    metal: createMaterial(
+      0x554c3d,
+      0.62,
+      0.16,
+    ),
+
+    glass: createMaterial(
+      0x2d4648,
+      0.28,
+      0.08,
+    ),
+
+    planter: createMaterial(
+      0x766653,
+      0.9,
+    ),
+  };
+}
+
+function createMesh(
+  geometry: THREE.BufferGeometry,
+  material: THREE.Material,
+) {
+  const mesh =
+    new THREE.Mesh(
+      geometry,
+      material,
+    );
+
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+
+  return mesh;
+}
+
+function createBox(
+  width: number,
+  height: number,
+  depth: number,
+  material: THREE.Material,
+) {
+  return createMesh(
+    new THREE.BoxGeometry(
+      width,
+      height,
+      depth,
+    ),
+    material,
+  );
+}
+
+function addBox(
+  parent: THREE.Group,
+  width: number,
+  height: number,
+  depth: number,
+  x: number,
+  y: number,
+  z: number,
+  material: THREE.Material,
+) {
+  const mesh = createBox(
+    width,
+    height,
+    depth,
+    material,
+  );
+
+  mesh.position.set(
+    x,
+    y,
+    z,
+  );
 
   parent.add(mesh);
 
   return mesh;
 }
 
-function mark(
-  object: THREE.Object3D,
-  type: string,
-) {
-  object.userData.type = type;
-
-  object.traverse((child) => {
-    child.userData.type = type;
-
-    if (child instanceof THREE.Mesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-    }
-  });
-
-  return object;
-}
-
-function createColumn(
+function addColumn(
   parent: THREE.Group,
   x: number,
+  y: number,
   z: number,
   height: number,
-  mat: THREE.Material,
+  materials: WalkwayMaterials,
+  scale = 1,
 ) {
-  addBox(
-    parent,
-    [0.42, height, 0.42],
-    [x, height / 2, z],
-    mat,
-  );
+  const width =
+    0.38 * scale;
+
+  const depth =
+    0.38 * scale;
 
   addBox(
     parent,
-    [0.58, 0.16, 0.58],
-    [x, height - 0.08, z],
-    mat,
+    width,
+    height,
+    depth,
+    x,
+    y + height / 2,
+    z,
+    materials.trim,
   );
 
+  // Capital.
   addBox(
     parent,
-    [0.58, 0.14, 0.58],
-    [x, 0.07, z],
-    mat,
+    width + 0.16 * scale,
+    0.14 * scale,
+    depth + 0.16 * scale,
+    x,
+    y + height - 0.07 * scale,
+    z,
+    materials.trim,
+  );
+
+  // Base.
+  addBox(
+    parent,
+    width + 0.12 * scale,
+    0.11 * scale,
+    depth + 0.12 * scale,
+    x,
+    y + 0.055 * scale,
+    z,
+    materials.trimDark,
   );
 }
 
-function createRoof(
+function addFloor(
   parent: THREE.Group,
-  length: number,
   width: number,
-  height: number,
-  mat: THREE.Material,
+  length: number,
+  materials: WalkwayMaterials,
 ) {
-  const roof = new THREE.Group();
-
-  const slab = addBox(
-    roof,
-    [
-      length + 0.7,
-      0.18,
-      width + 0.7,
-    ],
-    [0, height, 0],
-    mat,
+  // Raised walkway slab.
+  addBox(
+    parent,
+    width,
+    0.18,
+    length,
+    0,
+    0.42,
+    0,
+    materials.floor,
   );
 
-  slab.castShadow = true;
+  // Darker underside.
+  addBox(
+    parent,
+    width + 0.12,
+    0.08,
+    length + 0.1,
+    0,
+    0.31,
+    0,
+    materials.floorDark,
+  );
+
+  // Outer edge strips.
+  addBox(
+    parent,
+    0.12,
+    0.12,
+    length,
+    -width / 2 +
+      0.08,
+    0.52,
+    0,
+    materials.trimDark,
+  );
+
+  addBox(
+    parent,
+    0.12,
+    0.12,
+    length,
+    width / 2 -
+      0.08,
+    0.52,
+    0,
+    materials.trimDark,
+  );
+}
+
+function addRoof(
+  parent: THREE.Group,
+  width: number,
+  length: number,
+  roofY: number,
+  materials: WalkwayMaterials,
+) {
+  const roofWidth =
+    width + 0.7;
+
+  const roofDepth =
+    length + 0.65;
 
   /*
-   * Small projecting fascia gives the roof a deeper
-   * architectural silhouette instead of looking like
-   * a floating rectangular slab.
+   * The roof is deliberately a shallow pitched canopy rather than
+   * a completely flat rectangle. At runner speed this creates a
+   * readable warm roof silhouette without making the corridor look
+   * like a separate building.
    */
+  const halfWidth =
+    roofWidth / 2;
+
+  const angle =
+    THREE.MathUtils.degToRad(
+      8,
+    );
+
+  const rise =
+    halfWidth *
+    Math.tan(angle);
+
+  const slopeLength =
+    halfWidth /
+    Math.cos(angle);
+
+  const thickness =
+    0.18;
+
+  const left =
+    createBox(
+      slopeLength,
+      thickness,
+      roofDepth,
+      materials.roof,
+    );
+
+  left.position.set(
+    -halfWidth / 2,
+    roofY +
+      rise / 2,
+    0,
+  );
+
+  left.rotation.z =
+    angle;
+
+  parent.add(left);
+
+  const right =
+    createBox(
+      slopeLength,
+      thickness,
+      roofDepth,
+      materials.roof,
+    );
+
+  right.position.set(
+    halfWidth / 2,
+    roofY +
+      rise / 2,
+    0,
+  );
+
+  right.rotation.z =
+    -angle;
+
+  parent.add(right);
+
+  // Central ridge.
   addBox(
-    roof,
-    [length + 1.0, 0.28, 0.18],
-    [0, height - 0.12, width / 2 + 0.32],
-    mat,
+    parent,
+    0.18,
+    0.18,
+    roofDepth,
+    0,
+    roofY +
+      rise +
+      0.02,
+    0,
+    materials.roofDark,
+  );
+
+  // Front fascia.
+  addBox(
+    parent,
+    roofWidth,
+    0.18,
+    0.16,
+    0,
+    roofY +
+      0.04,
+    -roofDepth / 2,
+    materials.roofDark,
+  );
+
+  // Rear fascia.
+  addBox(
+    parent,
+    roofWidth,
+    0.18,
+    0.16,
+    0,
+    roofY +
+      0.04,
+    roofDepth / 2,
+    materials.roofDark,
+  );
+
+  // Side eave trims.
+  addBox(
+    parent,
+    0.16,
+    0.18,
+    roofDepth,
+    -halfWidth,
+    roofY +
+      0.02,
+    0,
+    materials.roofDark,
   );
 
   addBox(
-    roof,
-    [length + 1.0, 0.28, 0.18],
-    [0, height - 0.12, -width / 2 - 0.32],
-    mat,
+    parent,
+    0.16,
+    0.18,
+    roofDepth,
+    halfWidth,
+    roofY +
+      0.02,
+    0,
+    materials.roofDark,
   );
 
-  parent.add(roof);
-
-  return roof;
+  return roofY + rise;
 }
 
-function createFloor(
+function addRoofSupports(
   parent: THREE.Group,
-  length: number,
   width: number,
-  mat: THREE.Material,
-) {
-  addBox(
-    parent,
-    [length, 0.12, width],
-    [0, 0.06, 0],
-    mat,
-  );
-}
-
-function createWallBand(
-  parent: THREE.Group,
   length: number,
-  height: number,
-  z: number,
-  mat: THREE.Material,
+  roofY: number,
+  materials: WalkwayMaterials,
 ) {
-  addBox(
-    parent,
-    [length, 0.18, 0.18],
-    [0, height, z],
-    mat,
-  );
-}
-
-function createRail(
-  parent: THREE.Group,
-  length: number,
-  height: number,
-  z: number,
-  mat: THREE.Material,
-) {
-  addBox(
-    parent,
-    [length, 0.08, 0.08],
-    [0, height, z],
-    mat,
-  );
-
-  const spacing = 1.6;
+  /*
+   * Small diagonal-looking support blocks under the roof.
+   * These are intentionally represented as simple geometry for
+   * performance rather than expensive custom beams.
+   */
+  const count =
+    Math.max(
+      2,
+      Math.floor(
+        length / 3.5,
+      ),
+    );
 
   for (
-    let x = -length / 2;
-    x <= length / 2;
-    x += spacing
+    let i = 0;
+    i <= count;
+    i += 1
   ) {
-    addBox(
-      parent,
-      [0.06, height, 0.06],
-      [x, height / 2, z],
-      mat,
-    );
+    const t =
+      count === 0
+        ? 0.5
+        : i / count;
+
+    const z =
+      -length / 2 +
+      t * length;
+
+    for (
+      const x of [
+        -width / 2,
+        width / 2,
+      ]
+    ) {
+      addBox(
+        parent,
+        0.12,
+        0.52,
+        0.12,
+        x,
+        roofY -
+          0.25,
+        z,
+        materials.trimDark,
+      );
+    }
   }
 }
 
-function createWindowModule(
+function addBayDivider(
+  parent: THREE.Group,
+  width: number,
+  z: number,
+  height: number,
+  materials: WalkwayMaterials,
+) {
+  const wallWidth =
+    0.13;
+
+  // Rear structural divider.
+  addBox(
+    parent,
+    wallWidth,
+    height,
+    0.16,
+    -width / 2 +
+      0.08,
+    height / 2 +
+      0.42,
+    z,
+    materials.trimDark,
+  );
+
+  addBox(
+    parent,
+    wallWidth,
+    height,
+    0.16,
+    width / 2 -
+      0.08,
+    height / 2 +
+      0.42,
+    z,
+    materials.trimDark,
+  );
+}
+
+function addWallWindow(
   parent: THREE.Group,
   x: number,
   y: number,
   z: number,
   rotationY: number,
+  materials: WalkwayMaterials,
+  width = 1.35,
+  height = 1.65,
 ) {
-  const frame = material(
-    DEFAULTS.wall,
-  );
+  const group =
+    new THREE.Group();
 
-  const glass = material(
-    DEFAULTS.window,
-    0.3,
-    0.15,
-  );
+  group.rotation.y =
+    rotationY;
 
-  const window = new THREE.Group();
-
-  addBox(
-    window,
-    [0.92, 1.15, 0.08],
-    [0, 0, 0],
-    frame,
+  group.position.set(
+    x,
+    y,
+    z,
   );
 
   addBox(
-    window,
-    [0.72, 0.9, 0.04],
-    [0, 0, -0.045],
-    glass,
+    group,
+    width + 0.18,
+    height + 0.18,
+    0.12,
+    0,
+    0,
+    0,
+    materials.trim,
   );
 
   addBox(
-    window,
-    [0.06, 0.9, 0.06],
-    [0, 0, -0.075],
-    frame,
+    group,
+    width,
+    height,
+    0.07,
+    0,
+    0,
+    -0.09,
+    materials.glass,
   );
 
   addBox(
-    window,
-    [0.72, 0.06, 0.06],
-    [0, 0, -0.075],
-    frame,
+    group,
+    0.08,
+    height,
+    0.14,
+    0,
+    0,
+    -0.14,
+    materials.trimDark,
   );
 
-  window.position.set(x, y, z);
-  window.rotation.y = rotationY;
+  addBox(
+    group,
+    width,
+    0.08,
+    0.14,
+    0,
+    0,
+    -0.14,
+    materials.trimDark,
+  );
 
-  parent.add(window);
+  parent.add(group);
+
+  return group;
 }
 
-function addCoveredSide(
+function addRearWall(
   parent: THREE.Group,
-  length: number,
   width: number,
+  length: number,
   height: number,
-  columns: number,
-  side: number,
-  columnMat: THREE.Material,
+  materials: WalkwayMaterials,
 ) {
-  const z = side * (width / 2 - 0.25);
+  /*
+   * Covered corridors are attached to buildings in the VGB-style
+   * layout. A shallow rear wall prevents the corridor from reading
+   * as an isolated bus shelter.
+   */
+  const wallZ =
+    length / 2 -
+    0.08;
 
-  for (let i = 0; i < columns; i++) {
+  addBox(
+    parent,
+    width,
+    height,
+    0.18,
+    0,
+    height / 2 +
+      0.42,
+    wallZ,
+    materials.wall,
+  );
+
+  // Cream wall base.
+  addBox(
+    parent,
+    width + 0.05,
+    0.18,
+    0.22,
+    0,
+    0.55,
+    wallZ -
+      0.04,
+    materials.trimDark,
+  );
+
+  // Upper trim.
+  addBox(
+    parent,
+    width + 0.05,
+    0.16,
+    0.22,
+    0,
+    height +
+      0.34,
+    wallZ -
+      0.04,
+    materials.trim,
+  );
+
+  const windowCount =
+    Math.max(
+      2,
+      Math.floor(
+        length / 4,
+      ),
+    );
+
+  /*
+   * Windows are distributed along the corridor's rear-facing plane.
+   * Because the corridor is built along Z, the windows sit on the
+   * long rear wall and face toward the runner.
+   */
+  for (
+    let i = 0;
+    i < windowCount;
+    i += 1
+  ) {
     const t =
-      columns <= 1
+      windowCount === 1
         ? 0.5
-        : i / (columns - 1);
+        : i /
+          (windowCount - 1);
 
     const x =
-      -length / 2 +
-      t * length;
+      -width / 2 +
+      1.0 +
+      t *
+        Math.max(
+          0.1,
+          width - 2.0,
+        );
 
-    createColumn(
+    addWallWindow(
       parent,
       x,
-      z,
-      height,
-      columnMat,
+      Math.min(
+        height -
+          0.65,
+        1.9,
+      ),
+      wallZ -
+        0.12,
+      Math.PI,
+      materials,
+      1.15,
+      1.4,
     );
   }
 }
 
-function addWarmWall(
+function addCoveredCorridor(
   parent: THREE.Group,
-  length: number,
-  height: number,
-  z: number,
-  wallMat: THREE.Material,
-) {
-  addBox(
-    parent,
-    [length, height, 0.14],
-    [0, height / 2, z],
-    wallMat,
-  );
-
-  createWallBand(
-    parent,
-    length,
-    height - 0.18,
-    z - 0.08,
-    wallMat,
-  );
-}
-
-export function createWalkway(
-  options: WalkwayOptions = {},
+  options: ResolvedWalkwayOptions,
+  materials: WalkwayMaterials,
 ) {
   const {
-    length = 18,
-    width = 3.6,
-    height = 3.2,
-    style = "covered",
-    columns = 6,
-    roofColor = DEFAULTS.roof,
-    columnColor = DEFAULTS.column,
-    floorColor = DEFAULTS.floor,
-    wallColor = DEFAULTS.wall,
+    width,
+    length,
+    height,
+    columnSpacing,
   } = options;
 
-  const root = new THREE.Group();
-
-  root.name = `Walkway:${style}`;
-
-  root.userData.type =
-    "campus-walkway";
-
-  root.userData.style = style;
-
-  const roofMat = material(
-    roofColor,
-    0.78,
-  );
-
-  const columnMat = material(
-    columnColor,
-    0.9,
-  );
-
-  const floorMat = material(
-    floorColor,
-    0.9,
-  );
-
-  const wallMat = material(
-    wallColor,
-    0.88,
-  );
-
-  const metalMat = material(
-    DEFAULTS.metal,
-    0.6,
-    0.3,
-  );
-
-  createFloor(
-    root,
-    length,
+  addFloor(
+    parent,
     width,
-    floorMat,
+    length,
+    materials,
   );
 
-  if (style === "open") {
-    addCoveredSide(
-      root,
-      length,
-      width,
-      height,
-      columns,
-      -1,
-      columnMat,
-    );
+  if (
+    options.columns
+  ) {
+    const bayCount =
+      Math.max(
+        1,
+        Math.round(
+          length /
+            columnSpacing,
+        ),
+      );
 
-    createRoof(
-      root,
-      length,
-      width,
-      height,
-      roofMat,
-    );
-  }
+    const spacing =
+      length /
+      bayCount;
 
-  if (style === "covered") {
-    addCoveredSide(
-      root,
-      length,
-      width,
-      height,
-      columns,
-      -1,
-      columnMat,
-    );
-
-    addWarmWall(
-      root,
-      length,
-      height,
-      width / 2 - 0.05,
-      wallMat,
-    );
-
-    for (let i = 0; i < 5; i++) {
-      const x =
+    /*
+     * Columns on the open/front edge.
+     *
+     * The rear edge is intentionally kept visually lighter because
+     * this corridor is meant to merge into the building façade.
+     */
+    for (
+      let i = 0;
+      i <= bayCount;
+      i += 1
+    ) {
+      const z =
         -length / 2 +
-        1.8 +
-        i *
-          ((length - 3.6) / 4);
+        i * spacing;
 
-      createWindowModule(
-        root,
-        x,
-        height * 0.58,
-        width / 2 - 0.14,
-        0,
+      addColumn(
+        parent,
+        -width / 2,
+        0.5,
+        z,
+        height -
+          0.42,
+        materials,
       );
     }
 
-    createRoof(
-      root,
-      length,
-      width,
-      height,
-      roofMat,
-    );
-  }
+    // Rear architectural posts.
+    for (
+      let i = 0;
+      i <= bayCount;
+      i += 1
+    ) {
+      const z =
+        -length / 2 +
+        i * spacing;
 
-  if (style === "courtyard") {
-    addCoveredSide(
-      root,
-      length,
-      width,
-      height,
-      columns,
-      -1,
-      columnMat,
-    );
+      addColumn(
+        parent,
+        width / 2,
+        0.5,
+        z,
+        height -
+          0.42,
+        materials,
+        0.82,
+      );
+    }
 
-    addCoveredSide(
-      root,
-      length,
+    // Horizontal top beam.
+    addBox(
+      parent,
       width,
-      height,
-      columns,
-      1,
-      columnMat,
-    );
-
-    createRoof(
-      root,
-      length,
-      width,
-      height,
-      roofMat,
-    );
-
-    createRail(
-      root,
-      length,
-      1.05,
+      0.22,
+      0.24,
       0,
-      metalMat,
+      height +
+        0.32,
+      0,
+      materials.trimDark,
     );
   }
 
-  if (style === "connector") {
-    addCoveredSide(
-      root,
-      length,
+  if (
+    options.roof
+  ) {
+    addRoof(
+      parent,
       width,
-      height,
-      columns,
-      -1,
-      columnMat,
+      length,
+      height +
+        0.28,
+      materials,
     );
 
-    addCoveredSide(
-      root,
-      length,
+    addRoofSupports(
+      parent,
       width,
-      height,
-      columns,
+      length,
+      height +
+        0.28,
+      materials,
+    );
+  }
+
+  addRearWall(
+    parent,
+    width,
+    length,
+    height -
+      0.25,
+    materials,
+  );
+
+  // Bay articulation on the outer side.
+  const bayCount =
+    Math.max(
       1,
-      columnMat,
+      Math.round(
+        length /
+          columnSpacing,
+      ),
     );
 
-    createRoof(
-      root,
-      length,
+  for (
+    let i = 1;
+    i < bayCount;
+    i += 1
+  ) {
+    const z =
+      -length / 2 +
+      (length * i) /
+        bayCount;
+
+    addBayDivider(
+      parent,
       width,
-      height,
-      roofMat,
+      z,
+      height -
+        0.45,
+      materials,
     );
+  }
+
+  if (
+    options.railings
+  ) {
+    addRailings(
+      parent,
+      width,
+      length,
+      materials,
+    );
+  }
+}
+
+function addRailings(
+  parent: THREE.Group,
+  width: number,
+  length: number,
+  materials: WalkwayMaterials,
+) {
+  const railZ =
+    -width / 2 +
+    0.14;
+
+  const railHeight =
+    0.88;
+
+  addBox(
+    parent,
+    0.07,
+    0.07,
+    length,
+    railZ,
+    1.3,
+    0,
+    materials.metal,
+  );
+
+  addBox(
+    parent,
+    0.07,
+    0.07,
+    length,
+    railZ,
+    0.58,
+    0,
+    materials.metal,
+  );
+
+  const count =
+    Math.max(
+      3,
+      Math.floor(
+        length / 2.8,
+      ),
+    );
+
+  for (
+    let i = 0;
+    i <= count;
+    i += 1
+  ) {
+    const z =
+      -length / 2 +
+      (length * i) /
+        count;
 
     addBox(
-      root,
-      [length, 0.1, 0.12],
-      [0, height - 0.32, 0],
-      wallMat,
+      parent,
+      0.07,
+      railHeight,
+      0.07,
+      railZ,
+      0.88,
+      z,
+      materials.metal,
+    );
+  }
+}
+
+function addOpenWalkway(
+  parent: THREE.Group,
+  options: ResolvedWalkwayOptions,
+  materials: WalkwayMaterials,
+) {
+  const {
+    width,
+    length,
+  } = options;
+
+  addFloor(
+    parent,
+    width,
+    length,
+    materials,
+  );
+
+  /*
+   * Open walkways are intentionally wider and lighter. They provide
+   * transition space between buildings and landscaped areas.
+   */
+  addBox(
+    parent,
+    width - 0.3,
+    0.05,
+    length - 0.2,
+    0,
+    0.53,
+    0,
+    materials.trim,
+  );
+
+  // Low edge kerbs.
+  addBox(
+    parent,
+    0.16,
+    0.18,
+    length,
+    -width / 2 -
+      0.03,
+    0.52,
+    0,
+    materials.concrete,
+  );
+
+  addBox(
+    parent,
+    0.16,
+    0.18,
+    length,
+    width / 2 +
+      0.03,
+    0.52,
+    0,
+    materials.concrete,
+  );
+
+  // Occasional slim shade supports, without a full roof.
+  const count =
+    Math.max(
+      2,
+      Math.floor(
+        length /
+          Math.max(
+            4,
+            options.columnSpacing *
+              1.5,
+          ),
+      ),
+    );
+
+  for (
+    let i = 0;
+    i <= count;
+    i += 1
+  ) {
+    const z =
+      -length / 2 +
+      (length * i) /
+        count;
+
+    addColumn(
+      parent,
+      -width / 2 +
+        0.08,
+      0.53,
+      z,
+      1.8,
+      materials,
+      0.7,
+    );
+  }
+}
+
+function addCourtyardWalkway(
+  parent: THREE.Group,
+  options: ResolvedWalkwayOptions,
+  materials: WalkwayMaterials,
+) {
+  const width =
+    Math.max(
+      options.width,
+      4.4,
+    );
+
+  const length =
+    options.length;
+
+  addFloor(
+    parent,
+    width,
+    length,
+    materials,
+  );
+
+  /*
+   * Courtyard walkways use a more ceremonial border pattern.
+   */
+  addBox(
+    parent,
+    width -
+      0.42,
+    0.07,
+    length -
+      0.3,
+    0,
+    0.55,
+    0,
+    materials.trim,
+  );
+
+  // Low cream parapets.
+  addBox(
+    parent,
+    0.22,
+    0.72,
+    length,
+    -width / 2 +
+      0.11,
+    0.82,
+    0,
+    materials.trim,
+  );
+
+  addBox(
+    parent,
+    0.22,
+    0.72,
+    length,
+    width / 2 -
+      0.11,
+    0.82,
+    0,
+    materials.trim,
+  );
+
+  // Open upper rhythm.
+  const bayCount =
+    Math.max(
+      2,
+      Math.floor(
+        length / 3.8,
+      ),
+    );
+
+  for (
+    let i = 0;
+    i <= bayCount;
+    i += 1
+  ) {
+    const z =
+      -length / 2 +
+      (length * i) /
+        bayCount;
+
+    addColumn(
+      parent,
+      -width / 2 +
+        0.12,
+      0.53,
+      z,
+      2.25,
+      materials,
+      0.82,
+    );
+
+    addColumn(
+      parent,
+      width / 2 -
+        0.12,
+      0.53,
+      z,
+      2.25,
+      materials,
+      0.82,
     );
   }
 
-  return mark(
-    root,
-    "campus-walkway",
+  /*
+   * A light pergola-style roof makes the courtyard variant distinct
+   * without visually competing with the main covered corridor.
+   */
+  addBox(
+    parent,
+    width + 0.2,
+    0.14,
+    length,
+    0,
+    2.82,
+    0,
+    materials.roof,
+  );
+
+  addBox(
+    parent,
+    width + 0.3,
+    0.1,
+    length + 0.15,
+    0,
+    2.72,
+    0,
+    materials.roofDark,
   );
 }
 
+function addConnectorWalkway(
+  parent: THREE.Group,
+  options: ResolvedWalkwayOptions,
+  materials: WalkwayMaterials,
+) {
+  const width =
+    Math.max(
+      2.5,
+      options.width * 0.82,
+    );
+
+  const length =
+    options.length;
+
+  addFloor(
+    parent,
+    width,
+    length,
+    materials,
+  );
+
+  /*
+   * Connector corridors are intentionally compact. They should read
+   * as practical links between larger architectural masses.
+   */
+  addBox(
+    parent,
+    0.18,
+    1.9,
+    length,
+    -width / 2 +
+      0.12,
+    1.45,
+    0,
+    materials.wall,
+  );
+
+  addBox(
+    parent,
+    0.18,
+    1.9,
+    length,
+    width / 2 -
+      0.12,
+    1.45,
+    0,
+    materials.wall,
+  );
+
+  const bayCount =
+    Math.max(
+      2,
+      Math.floor(
+        length /
+          Math.max(
+            3,
+            options.columnSpacing,
+          ),
+      ),
+    );
+
+  for (
+    let i = 0;
+    i <= bayCount;
+    i += 1
+  ) {
+    const z =
+      -length / 2 +
+      (length * i) /
+        bayCount;
+
+    addBox(
+      parent,
+      0.25,
+      2.25,
+      0.22,
+      -width / 2,
+      1.58,
+      z,
+      materials.trim,
+    );
+
+    addBox(
+      parent,
+      0.25,
+      2.25,
+      0.22,
+      width / 2,
+      1.58,
+      z,
+      materials.trim,
+    );
+  }
+
+  if (
+    options.roof
+  ) {
+    addBox(
+      parent,
+      width + 0.45,
+      0.18,
+      length + 0.5,
+      0,
+      2.78,
+      0,
+      materials.roof,
+    );
+
+    addBox(
+      parent,
+      width + 0.55,
+      0.09,
+      length + 0.6,
+      0,
+      2.67,
+      0,
+      materials.roofDark,
+    );
+  }
+}
+
+function addWalkwayDetails(
+  parent: THREE.Group,
+  options: ResolvedWalkwayOptions,
+  materials: WalkwayMaterials,
+) {
+  /*
+   * Small planters are deliberately sparse. They provide scale and
+   * campus identity without turning every corridor into a garden shop.
+   */
+  if (
+    options.style ===
+      "covered" ||
+    options.style ===
+      "courtyard"
+  ) {
+    const positions = [
+      -options.length * 0.36,
+      options.length * 0.36,
+    ];
+
+    for (
+      const z of positions
+    ) {
+      addBox(
+        parent,
+        0.72,
+        0.42,
+        0.72,
+        -options.width / 2 -
+          0.5,
+        0.65,
+        z,
+        materials.planter,
+      );
+
+      addBox(
+        parent,
+        0.54,
+        0.22,
+        0.54,
+        -options.width / 2 -
+          0.5,
+        0.96,
+        z,
+        materials.trimDark,
+      );
+    }
+  }
+}
+
+export function createWalkway(
+  input: WalkwayOptions = {},
+) {
+  const options: ResolvedWalkwayOptions = {
+    ...DEFAULTS,
+    ...input,
+    name:
+      input.name ??
+      DEFAULTS.name,
+  };
+
+  const group =
+    new THREE.Group();
+
+  group.name =
+    options.name;
+
+  const materials =
+    makeMaterials(
+      options,
+    );
+
+  switch (
+    options.style
+  ) {
+    case "open":
+      addOpenWalkway(
+        group,
+        options,
+        materials,
+      );
+      break;
+
+    case "courtyard":
+      addCourtyardWalkway(
+        group,
+        options,
+        materials,
+      );
+      break;
+
+    case "connector":
+      addConnectorWalkway(
+        group,
+        options,
+        materials,
+      );
+      break;
+
+    case "covered":
+    default:
+      addCoveredCorridor(
+        group,
+        options,
+        materials,
+      );
+      break;
+  }
+
+  addWalkwayDetails(
+    group,
+    options,
+    materials,
+  );
+
+  group.userData = {
+    type: "campus-walkway",
+    style: options.style,
+    width: options.width,
+    length: options.length,
+    height: options.height,
+    columnSpacing:
+      options.columnSpacing,
+  };
+
+  group.traverse(
+    (object) => {
+      if (
+        object instanceof
+        THREE.Mesh
+      ) {
+        object.castShadow =
+          true;
+
+        object.receiveShadow =
+          true;
+      }
+    },
+  );
+
+  return group;
+}
+
 export function createCoveredWalkway(
-  options: Omit<
-    WalkwayOptions,
-    "style"
-  > = {},
+  overrides: Partial<WalkwayOptions> = {},
 ) {
   return createWalkway({
-    ...options,
+    width: 3.5,
+    length: 20,
+    height: 3.2,
     style: "covered",
+    name: "COVERED WALKWAY",
+    columns: true,
+    roof: true,
+    railings: false,
+    ...overrides,
   });
 }
 
 export function createCourtyardWalkway(
-  options: Omit<
-    WalkwayOptions,
-    "style"
-  > = {},
+  overrides: Partial<WalkwayOptions> = {},
 ) {
   return createWalkway({
-    ...options,
+    width: 4.6,
+    length: 18,
+    height: 3.0,
     style: "courtyard",
+    name: "COURTYARD WALKWAY",
+    columns: true,
+    roof: true,
+    railings: false,
+    ...overrides,
   });
 }
 
 export function createConnectorWalkway(
-  options: Omit<
-    WalkwayOptions,
-    "style"
-  > = {},
+  overrides: Partial<WalkwayOptions> = {},
 ) {
   return createWalkway({
-    ...options,
+    width: 2.8,
+    length: 14,
+    height: 2.8,
     style: "connector",
+    name: "CAMPUS CONNECTOR",
+    columns: true,
+    roof: true,
+    railings: false,
+    ...overrides,
   });
 }
