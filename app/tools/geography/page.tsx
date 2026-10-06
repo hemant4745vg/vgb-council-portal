@@ -13,6 +13,8 @@ import {
 type MapScope = "India" | "World";
 type Layer = "Political" | "Physical" | "Rivers" | "Climate" | "Resources";
 type Mode = "Explore" | "Practice";
+type GeographyTool = "Map" | "Practical" | "Data" | "GIS" | "Simulations" | "Practice";
+type PracticalTool = "Scale" | "Time" | "Projection" | "Topo" | "Remote Sensing";
 type PracticeMode = "Locate" | "Identify" | "Mark" | "Quiz";
 type PracticeLevel = "Class 11" | "Class 12" | "All";
 type Coordinates = [number, number];
@@ -283,6 +285,30 @@ export default function GeographyLabPage() {
   const [scope, setScope] = useState<MapScope>("India");
   const [layer, setLayer] = useState<Layer>("Political");
   const [mode, setMode] = useState<Mode>("Explore");
+  const [activeTool, setActiveTool] = useState<GeographyTool>("Map");
+  const [practicalTool, setPracticalTool] = useState<PracticalTool>("Scale");
+  const [scaleRf, setScaleRf] = useState(50000);
+  const [scaleCm, setScaleCm] = useState(7.4);
+  const [longitudeA, setLongitudeA] = useState(82.5);
+  const [longitudeB, setLongitudeB] = useState(75);
+  const [projectionLat, setProjectionLat] = useState(30);
+  const [topoContour, setTopoContour] = useState(20);
+  const [topoContours, setTopoContours] = useState(6);
+  const [remoteBand, setRemoteBand] = useState("Near-infrared");
+  const [dataText, setDataText] = useState(`State,Population
+Uttar Pradesh,199.8
+Maharashtra,112.4
+Bihar,104.1
+West Bengal,91.3
+Madhya Pradesh,72.6`);
+  const [dataMode, setDataMode] = useState("Statistics");
+  const [gisLayers, setGisLayers] = useState(["Population", "Rivers"]);
+  const [gisBuffer, setGisBuffer] = useState(20);
+  const [simulation, setSimulation] = useState("Plate Tectonics");
+  const [plateMotion, setPlateMotion] = useState(50);
+  const [riverEnergy, setRiverEnergy] = useState(65);
+  const [birthRate, setBirthRate] = useState(22);
+  const [deathRate, setDeathRate] = useState(8);
   const [selected, setSelected] = useState<GeoFeature | null>(null);
   const [search, setSearch] = useState("");
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("Locate");
@@ -324,6 +350,56 @@ export default function GeographyLabPage() {
     setPracticeIndex(0);
     setPracticeResult("idle");
   }, [practiceLevel, practiceMode]);
+
+  const parsedData = useMemo(() => {
+    const rows = dataText.trim().split(/\n+/).map((row) => row.split(",").map((cell) => cell.trim()));
+    const values = rows.slice(1).map((row) => Number(row[1])).filter((n) => Number.isFinite(n));
+    const sorted = [...values].sort((a, b) => a - b);
+    const mean = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+    const median = sorted.length ? (sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2) : 0;
+    const frequencies = values.reduce<Record<string, number>>((acc, n) => { acc[n] = (acc[n] || 0) + 1; return acc; }, {});
+    const maxFreq = Math.max(0, ...(Object.values(frequencies) as number[]));
+    const modeValue = maxFreq > 1 ? Object.keys(frequencies).filter((k) => frequencies[k] === maxFreq).map(Number) : [];
+    return { rows, values, mean, median, modeValue };
+  }, [dataText]);
+
+  function toggleGisLayer(name: string) { setGisLayers((layers) => layers.includes(name) ? layers.filter((x) => x !== name) : [...layers, name]); }
+
+  function renderPracticalLab() {
+    const groundKm = (scaleCm * scaleRf) / 100000;
+    const timeDifference = Math.abs(longitudeA - longitudeB) / 15;
+    const relief = topoContour * topoContours;
+    return <section className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{(["Scale", "Time", "Projection", "Topo", "Remote Sensing"] as PracticalTool[]).map((item) => <button key={item} onClick={() => setPracticalTool(item)} className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold ${practicalTool === item ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-700"}`}>{item}</button>)}</div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          {practicalTool === "Scale" && <><div className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-600">Map Scale Lab</div><h2 className="mt-1 text-2xl font-semibold">Convert and reason with scale</h2><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className="text-sm font-semibold">RF denominator<input type="number" min="1" value={scaleRf} onChange={(e) => setScaleRf(Number(e.target.value) || 1)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3" /></label><label className="text-sm font-semibold">Map distance (cm)<input type="number" min="0" step="0.1" value={scaleCm} onChange={(e) => setScaleCm(Number(e.target.value) || 0)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3" /></label></div><div className="mt-6 rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Ground distance</div><div className="mt-1 text-3xl font-semibold">{groundKm.toFixed(3)} km</div><div className="mt-2 text-xs text-slate-500">At 1:{scaleRf.toLocaleString()}, 1 cm represents {(scaleRf / 100000).toFixed(3)} km.</div></div></>}
+          {practicalTool === "Time" && <><div className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-600">Latitude, Longitude & Time</div><h2 className="mt-1 text-2xl font-semibold">Longitude-time calculator</h2><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className="text-sm font-semibold">Place A longitude<input type="number" value={longitudeA} onChange={(e) => setLongitudeA(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3" /></label><label className="text-sm font-semibold">Place B longitude<input type="number" value={longitudeB} onChange={(e) => setLongitudeB(Number(e.target.value))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3" /></label></div><div className="mt-6 rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Time difference</div><div className="mt-1 text-3xl font-semibold">{timeDifference.toFixed(2)} hours</div><p className="mt-2 text-xs leading-5 text-slate-500">15° of longitude corresponds to one hour of local-time difference.</p></div></>}
+          {practicalTool === "Projection" && <><div className="text-[10px] font-bold uppercase tracking-[.18em] text-violet-600">Map Projection Lab</div><h2 className="mt-1 text-2xl font-semibold">Reason about projection distortion</h2><input type="range" min="0" max="80" value={projectionLat} onChange={(e) => setProjectionLat(Number(e.target.value))} className="mt-8 w-full" /><div className="mt-2 text-xs text-slate-500">Test latitude: {projectionLat}°</div><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs text-slate-500">Mercator</div><div className="mt-1 font-semibold">Useful for direction and local shape</div><p className="mt-2 text-xs leading-5 text-slate-500">Area distortion increases strongly toward the poles.</p></div><div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs text-slate-500">Conical · one standard parallel</div><div className="mt-1 font-semibold">Best around its standard parallel</div><p className="mt-2 text-xs leading-5 text-slate-500">Useful for reasoning about mid-latitude regions.</p></div></div></>}
+          {practicalTool === "Topo" && <><div className="text-[10px] font-bold uppercase tracking-[.18em] text-amber-600">Topographical Map Lab</div><h2 className="mt-1 text-2xl font-semibold">Contour and relief reasoning</h2><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className="text-sm font-semibold">Contour interval (m)<input type="number" min="1" value={topoContour} onChange={(e) => setTopoContour(Number(e.target.value) || 1)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3" /></label><label className="text-sm font-semibold">Contours crossed<input type="number" min="1" value={topoContours} onChange={(e) => setTopoContours(Number(e.target.value) || 1)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3" /></label></div><div className="mt-6 rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Elevation change</div><div className="mt-1 text-3xl font-semibold">{relief} m</div><p className="mt-2 text-xs text-slate-500">Combine contour interval with contour spacing to infer relief and slope.</p></div></>}
+          {practicalTool === "Remote Sensing" && <><div className="text-[10px] font-bold uppercase tracking-[.18em] text-cyan-600">Remote Sensing Lab</div><h2 className="mt-1 text-2xl font-semibold">Interpret spectral information</h2><div className="mt-6 flex flex-wrap gap-2">{["Visible red", "Near-infrared", "Shortwave infrared", "Microwave"].map((band) => <button key={band} onClick={() => setRemoteBand(band)} className={`rounded-xl px-3 py-2 text-xs font-semibold ${remoteBand === band ? "bg-cyan-600 text-white" : "border border-slate-200 bg-slate-50"}`}>{band}</button>)}</div><div className="mt-6 rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Selected band</div><div className="mt-1 text-2xl font-semibold">{remoteBand}</div><p className="mt-2 text-sm leading-6 text-slate-500">Use spectral response as evidence when distinguishing land cover, and understand the acquisition → sensor → data → interpretation workflow.</p></div></>}
+        </div>
+        <aside className="rounded-3xl bg-slate-950 p-6 text-white"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Practical Work I</div><h3 className="mt-2 text-xl font-semibold">Class XI</h3><div className="mt-4 space-y-3 text-sm text-slate-300">{["Introduction to Maps", "Map Scale", "Latitude, Longitude & Time", "Map Projections", "Topographical Maps", "Remote Sensing"].map((x, i) => <div key={x} className="flex gap-3"><span className="text-slate-500">{String(i + 1).padStart(2, "0")}</span><span>{x}</span></div>)}</div></aside>
+      </div>
+    </section>;
+  }
+
+  function renderDataLab() {
+    const max = Math.max(...parsedData.values, 1);
+    const frequency = parsedData.values.reduce<Record<string, number>>((a, n) => { a[n] = (a[n] || 0) + 1; return a; }, {});
+    return <section className="space-y-5"><div className="grid gap-5 lg:grid-cols-[.9fr_1.1fr]"><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-indigo-600">GeoData Lab · Class XII</div><h2 className="mt-1 text-2xl font-semibold">Process your own data</h2><textarea value={dataText} onChange={(e) => setDataText(e.target.value)} className="mt-5 h-64 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 outline-none" /><div className="mt-3 flex flex-wrap gap-2">{["Statistics", "Bar preview", "Frequency"].map((x) => <button key={x} onClick={() => setDataMode(x)} className={`rounded-xl px-3 py-2 text-xs font-semibold ${dataMode === x ? "bg-slate-950 text-white" : "border border-slate-200"}`}>{x}</button>)}</div></div><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Output</div><h3 className="mt-1 text-xl font-semibold">{dataMode}</h3>{dataMode === "Statistics" && <div className="mt-6 grid gap-3 sm:grid-cols-3">{[["Mean", parsedData.mean.toFixed(2)], ["Median", parsedData.median.toFixed(2)], ["Mode", parsedData.modeValue.length ? parsedData.modeValue.join(", ") : "None"]].map(([k,v]) => <div key={k} className="rounded-2xl bg-slate-50 p-4"><div className="text-xs text-slate-500">{k}</div><div className="mt-1 text-2xl font-semibold">{v}</div></div>)}</div>}{dataMode === "Bar preview" && <div className="mt-6 space-y-3">{parsedData.rows.slice(1).map((row, i) => { const value = Number(row[1]); return <div key={i}><div className="mb-1 flex justify-between text-xs"><span>{row[0]}</span><span>{Number.isFinite(value) ? value : "—"}</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-slate-900" style={{ width: `${Math.max(2, (value / max) * 100)}%` }} /></div></div>})}</div>}{dataMode === "Frequency" && <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">{Object.entries(frequency).map(([value,freq]) => <div key={value} className="rounded-2xl border border-slate-200 p-4"><div className="text-xs text-slate-500">Value</div><div className="text-lg font-semibold">{value}</div><div className="mt-1 text-xs text-slate-500">Frequency: {freq}</div></div>)}</div>}</div></div><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Next layer</div><h3 className="mt-1 text-xl font-semibold">Graphs & thematic maps</h3><p className="mt-2 text-sm leading-6 text-slate-500">This data workspace is the foundation for line graphs, polygraphs, bar diagrams, pie diagrams, dot maps, choropleth maps and isopleth maps.</p></div></section>;
+  }
+
+  function renderGISLab() {
+    return <section className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]"><aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">GIS Layers</div><div className="mt-3 space-y-2">{["Population", "Rivers", "Roads", "Rainfall", "Forest"].map((name) => <button key={name} onClick={() => toggleGisLayer(name)} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm font-semibold ${gisLayers.includes(name) ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-600"}`}><span>{name}</span><span>{gisLayers.includes(name) ? "ON" : "OFF"}</span></button>)}</div><label className="mt-6 block text-xs font-semibold text-slate-600">Buffer distance: {gisBuffer} km<input type="range" min="5" max="100" step="5" value={gisBuffer} onChange={(e) => setGisBuffer(Number(e.target.value))} className="mt-3 w-full" /></label></aside><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-violet-600">Spatial Information Technology · Class XII</div><h2 className="mt-1 text-2xl font-semibold">Think in layers</h2><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Active layers</div><div className="mt-1 text-2xl font-semibold">{gisLayers.length}</div></div><div className="rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Buffer query</div><div className="mt-1 text-2xl font-semibold">{gisBuffer} km</div></div></div><div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-5"><div className="text-sm font-semibold">Overlay analysis</div><p className="mt-2 text-sm leading-6 text-slate-500">{gisLayers.length >= 2 ? `Overlay query: ${gisLayers.join(" + ")}` : "Turn on at least two layers to form an overlay query."}</p></div></div></section>;
+  }
+
+  function renderSimulations() {
+    const plateLabel = plateMotion < 33 ? "Convergent tendency" : plateMotion > 66 ? "Divergent tendency" : "Transform / lateral tendency";
+    const riverLabel = riverEnergy < 33 ? "Deposition dominates" : riverEnergy > 66 ? "Erosion dominates" : "Balanced transport";
+    const demographicStage = birthRate > 30 && deathRate > 20 ? "Stage I · high stationary" : birthRate > 20 && deathRate < 15 ? "Stage II · early expanding" : birthRate > 12 ? "Stage III · late expanding" : "Stage IV · low stationary";
+    return <section className="space-y-5"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{["Plate Tectonics", "River Evolution", "Atmosphere", "Population"].map((x) => <button key={x} onClick={() => setSimulation(x)} className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold ${simulation === x ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white"}`}>{x}</button>)}</div><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Interactive model</div><h2 className="mt-1 text-2xl font-semibold">{simulation}</h2>{simulation === "Plate Tectonics" && <><p className="mt-2 text-sm text-slate-500">Change relative plate motion and reason about boundary behaviour.</p><input type="range" min="0" max="100" value={plateMotion} onChange={(e) => setPlateMotion(Number(e.target.value))} className="mt-8 w-full" /><div className="mt-5 rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Model interpretation</div><div className="mt-1 text-xl font-semibold">{plateLabel}</div></div></>}{simulation === "River Evolution" && <><p className="mt-2 text-sm text-slate-500">Use channel energy to explore erosion, transport and deposition.</p><input type="range" min="0" max="100" value={riverEnergy} onChange={(e) => setRiverEnergy(Number(e.target.value))} className="mt-8 w-full" /><div className="mt-5 rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Dominant process</div><div className="mt-1 text-xl font-semibold">{riverLabel}</div></div></>}{simulation === "Atmosphere" && <div className="mt-8 grid grid-cols-3 gap-2 text-center text-xs font-semibold"><div className="rounded-2xl bg-slate-50 p-5">Hadley<br/><span className="font-normal text-slate-500">0–30°</span></div><div className="rounded-2xl bg-slate-50 p-5">Ferrel<br/><span className="font-normal text-slate-500">30–60°</span></div><div className="rounded-2xl bg-slate-50 p-5">Polar<br/><span className="font-normal text-slate-500">60–90°</span></div></div>}{simulation === "Population" && <><p className="mt-2 text-sm text-slate-500">Change birth and death rates to explore demographic-transition regimes.</p><div className="mt-6 grid gap-5 sm:grid-cols-2"><label className="text-sm font-semibold">Birth rate: {birthRate}<input type="range" min="5" max="45" value={birthRate} onChange={(e) => setBirthRate(Number(e.target.value))} className="mt-3 w-full" /></label><label className="text-sm font-semibold">Death rate: {deathRate}<input type="range" min="2" max="35" value={deathRate} onChange={(e) => setDeathRate(Number(e.target.value))} className="mt-3 w-full" /></label></div><div className="mt-6 rounded-2xl bg-slate-50 p-5"><div className="text-xs text-slate-500">Model stage</div><div className="mt-1 text-xl font-semibold">{demographicStage}</div></div></>}</div></section>;
+  }
 
   function resetPractice() {
     setScore(0);
@@ -423,15 +499,12 @@ export default function GeographyLabPage() {
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Explore physical, political and economic geography, then practise CBSE map-work through spatial interaction.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {(["India", "World"] as MapScope[]).map((item) => (
-                <button key={item} onClick={() => setScope(item)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${scope === item ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-700"}`}>{item}</button>
-              ))}
-              <button onClick={() => setMode(mode === "Explore" ? "Practice" : "Explore")} className={`rounded-xl px-4 py-2 text-sm font-semibold ${mode === "Practice" ? "bg-emerald-600 text-white" : "border border-slate-200 bg-white text-slate-700"}`}>{mode === "Practice" ? "Map Explorer" : "Map Practice"}</button>
+              {(["Map", "Practical", "Data", "GIS", "Simulations", "Practice"] as GeographyTool[]).map((item) => <button key={item} onClick={() => { setActiveTool(item); if (item === "Practice") setMode("Practice"); else if (item === "Map") setMode("Explore"); }} className={`rounded-xl px-3 py-2 text-xs font-semibold ${activeTool === item ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-700"}`}>{item}</button>)}
             </div>
           </div>
         </header>
 
-        {mode === "Explore" ? (
+        {activeTool === "Map" && (mode === "Explore" ? (
           <section className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)_320px]">
             <aside className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Layers</div>
@@ -562,7 +635,13 @@ export default function GeographyLabPage() {
               </div>
             )}
           </section>
-        )}
+        ))}
+
+        {activeTool === "Practical" && renderPracticalLab()}
+        {activeTool === "Data" && renderDataLab()}
+        {activeTool === "GIS" && renderGISLab()}
+        {activeTool === "Simulations" && renderSimulations()}
+        {activeTool === "Practice" && <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-600">CBSE Map Practice</div><div className="mt-1 text-sm text-slate-500">The practice engine is preserved from the original map module. Switch to Map to explore locations.</div></div><button onClick={() => { setActiveTool("Map"); setMode("Practice"); }} className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Open practice map</button></div></div>}
       </div>
     </main>
   );
