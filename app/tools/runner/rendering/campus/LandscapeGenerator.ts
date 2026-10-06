@@ -8,6 +8,11 @@ export type LandscapeStyle =
   | "hostels"
   | "gate";
 
+/**
+ * Backward-compatible alias used by CampusWorld.ts.
+ */
+export type LandscapeTheme = LandscapeStyle;
+
 export type TreeVariant =
   | "round"
   | "narrow"
@@ -825,7 +830,7 @@ function createLamp(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Internal environment builders                                              */
+/* Internal landscape builders                                                 */
 /* -------------------------------------------------------------------------- */
 
 function createQuadrangleLandscapeInternal(
@@ -1333,19 +1338,17 @@ function createGateLandscapeInternal(
     }
   }
 
-  const avenueOptions = {
-    ...options,
-    treeCount: Math.max(
-      6,
-      Math.floor(
-        options.treeCount * 0.8,
-      ),
-    ),
-  };
-
   scatterTrees(
     group,
-    avenueOptions,
+    {
+      ...options,
+      treeCount: Math.max(
+        6,
+        Math.floor(
+          options.treeCount * 0.8,
+        ),
+      ),
+    },
     materials,
   );
 
@@ -1374,7 +1377,7 @@ function createGateLandscapeInternal(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Public factory                                                              */
+/* Main public factory                                                         */
 /* -------------------------------------------------------------------------- */
 
 export function createLandscape(
@@ -1454,15 +1457,13 @@ export function createLandscape(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Public style-specific wrappers                                              */
+/* Public compatibility wrappers                                              */
 /* -------------------------------------------------------------------------- */
 
 export function createCampusLandscape(
   options: LandscapeOptions = {},
 ) {
-  return createLandscape(
-    options,
-  );
+  return createLandscape(options);
 }
 
 export function createQuadrangleLandscape(
