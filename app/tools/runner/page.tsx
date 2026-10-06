@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BEST_KEY,
   BANK_KEY,
-  LANE_WIDTH,
+  COLLISION_FRONT,
   MAGNET_DURATION,
   MULTIPLIER_DURATION,
   SHIELD_DURATION,
@@ -13,7 +13,6 @@ import {
   MAX_SPEED,
   SPEED_ACCELERATION,
   clamp,
-  laneX,
   readStorage,
   writeStorage,
 } from "./game/constants";
@@ -29,39 +28,93 @@ import { RunnerScene } from "./rendering/RunnerScene";
 
 const MAX_FRAME_DT = 0.034;
 
-const PLAYER_COLLISION_WIDTH = 0.72;
-const PLAYER_DEPTH = 0.82;
+/*
+ * Collision geometry is expressed in the same world units
+ * as RunnerScene.
+ *
+ * Player:
+ *   feet at y = 0
+ *   standing height ≈ 1.8
+ *   jump apex ≈ 1.4
+ *
+ * Obstacles:
+ *   block height ≈ 1.15
+ *   moving block height ≈ 1.15
+ *   wall height ≈ 2.35
+ *   bar occupies the upper body space
+ *   gap occupies the ground
+ */
+const PLAYER_HALF_WIDTH = 0.43;
 
-const OBSTACLE_WIDTH_RATIO = 0.82;
-const BLOCK_HEIGHT = 1.15;
+const OBSTACLE_HALF_WIDTH = {
+  block: 1.23,
+  moving: 1.23,
+  bar: 1.23,
+  wall: 1.41,
+  gap: 1.32,
+} as const;
 
-const COLLISION_Z_FRONT =
-  PLAYER_DEPTH / 2 + 1.0 / 2;
-const COLLISION_Z_BACK =
-  -COLLISION_Z_FRONT;
+const OBSTACLE_DEPTH = {
+  block: 1.0,
+  moving: 1.0,
+  bar: 0.68,
+  wall: 0.9,
+  gap: 2.5,
+} as const;
 
-const HORIZONTAL_EPSILON = 0.04;
-const VERTICAL_CLEARANCE = 0.08;
+const OBSTACLE_HEIGHT = {
+  block: 1.15,
+  moving: 1.15,
+  bar: 2.13,
+  wall: 2.35,
+  gap: 0.2,
+} as const;
 
-const GRAVITY = 18.5;
-const JUMP_HEIGHT = 2.4;
-const JUMP_VELOCITY = Math.sqrt(
-  2 * GRAVITY * JUMP_HEIGHT,
-);
-
-const SLIDE_DURATION = 0.72;
-const INPUT_BUFFER_DURATION = 0.12;
+/*
+ * The 3D camera determines which world-X direction appears
+ * on the user's screen.
+ *
+ * In the current RunnerScene, screen-left corresponds to
+ * the positive lane value and screen-right corresponds to
+ * the negative lane value.
+ *
+ * Keep this mapping explicit. Do not replace it with
+ * anonymous -1 / +1 calls again.
+ */
+const SCREEN_LEFT_DELTA = 1;
+const SCREEN_RIGHT_DELTA = -1;
 
 const LANDMARKS = [
-  { env: "quadrangle" as const, name: "ACADEMIC QUADRANGLE" },
-  { env: "walkway" as const, name: "COVERED WALKWAY" },
-  { env: "garden" as const, name: "CENTRAL GARDEN" },
-  { env: "sports" as const, name: "SPORTS GROUNDS" },
-  { env: "hostels" as const, name: "HOSTEL DISTRICT" },
-  { env: "gate" as const, name: "MAIN CAMPUS GATE" },
+  {
+    env: "quadrangle" as const,
+    name: "ACADEMIC QUADRANGLE",
+  },
+  {
+    env: "walkway" as const,
+    name: "COVERED WALKWAY",
+  },
+  {
+    env: "garden" as const,
+    name: "CENTRAL GARDEN",
+  },
+  {
+    env: "sports" as const,
+    name: "SPORTS GROUNDS",
+  },
+  {
+    env: "hostels" as const,
+    name: "HOSTEL DISTRICT",
+  },
+  {
+    env: "gate" as const,
+    name: "MAIN CAMPUS GATE",
+  },
 ];
 
-function freshGame(best: number, bankCoins: number): Game {
+function freshGame(
+  best: number,
+  bankCoins: number,
+): Game {
   return {
     phase: "menu",
     last: 0,
@@ -71,8 +124,10 @@ function freshGame(best: number, bankCoins: number): Game {
     runCoins: 0,
     bankCoins,
     best,
+
     speed: START_SPEED,
     targetSpeed: START_SPEED,
+
     player: {
       lane: 0,
       targetLane: 0,
@@ -86,13 +141,17 @@ function freshGame(best: number, bankCoins: number): Game {
       multiplierUntil: 0,
       boostUntil: 0,
     },
+
     multiplier: 1,
     combo: 0,
     comboUntil: 0,
+
     spawnTimer: 0.75,
     pickupTimer: 0.9,
+
     nextId: 1,
     patternIndex: 0,
+
     environment: {
       current: "quadrangle",
       landmark: "ACADEMIC QUADRANGLE",
@@ -100,6 +159,7 @@ function freshGame(best: number, bankCoins: number): Game {
       transition: 0,
       distanceInEnvironment: 0,
     },
+
     camera: {
       shake: 0,
       currentFov: 62,
@@ -108,8 +168,10 @@ function freshGame(best: number, bankCoins: number): Game {
       offsetX: 0,
       offsetY: 0,
     },
+
     milestone: 250,
     flash: 0,
+
     obstacles: [],
     pickups: [],
     particles: [],
@@ -118,205 +180,267 @@ function freshGame(best: number, bankCoins: number): Game {
 
 function resetRun(g: Game) {
   const best = g.best;
-  const bank = g.bankCoins;
-  Object.assign(g, freshGame(best, bank));
+  const bankCoins = g.bankCoins;
+
+  Object.assign(
+    g,
+    freshGame(best, bankCoins),
+  );
+
   g.phase = "playing";
   g.last = performance.now();
 }
 
 function powerLabel(g: Game) {
-  const active: string[] = [];
+  if (g.player.boostUntil > g.elapsed) {
+    return "BOOST";
+  }
 
-  if (g.player.boostUntil > g.elapsed) active.push("BOOST");
-  if (g.player.magnetUntil > g.elapsed) active.push("MAGNET");
-  if (g.player.shield) active.push("SHIELD");
-  if (g.multiplier > 1) active.push(`×${g.multiplier}`);
+  if (g.player.magnetUntil > g.elapsed) {
+    return "MAGNET";
+  }
 
-  return active.join(" · ");
+  if (g.player.shield) {
+    return "SHIELD";
+  }
+
+  if (g.multiplier > 1) {
+    return `×${g.multiplier}`;
+  }
+
+  return "";
 }
 
-function playerWorldX(g: Game) {
-  return laneX(g.player.lane);
+/*
+ * Returns the horizontal half-width of the obstacle
+ * in world units.
+ */
+function obstacleHalfWidth(
+  obstacle: Obstacle,
+) {
+  return (
+    OBSTACLE_HALF_WIDTH[obstacle.kind] ??
+    1.15
+  );
 }
 
-function obstacleWorldX(obstacle: Obstacle) {
-  return laneX(obstacle.lane);
+/*
+ * Returns the approximate Z half-depth of the obstacle.
+ */
+function obstacleHalfDepth(
+  obstacle: Obstacle,
+) {
+  return (
+    OBSTACLE_DEPTH[obstacle.kind] ??
+    0.8
+  );
 }
 
-function obstacleHalfWidth() {
-  return (LANE_WIDTH * OBSTACLE_WIDTH_RATIO) / 2;
+/*
+ * Returns the physical obstacle height.
+ */
+function obstacleHeight(
+  obstacle: Obstacle,
+) {
+  return (
+    OBSTACLE_HEIGHT[obstacle.kind] ??
+    1.15
+  );
 }
 
+/*
+ * Horizontal collision is based on actual lane positions,
+ * rather than comparing lane integers with an arbitrary
+ * threshold.
+ *
+ * The player's current lane is deliberately used here,
+ * because RunnerScene smoothly animates the player's
+ * world-X position toward targetLane.
+ */
 function horizontalOverlap(
-  playerX: number,
-  obstacleX: number,
+  g: Game,
+  obstacle: Obstacle,
 ) {
-  const playerHalfWidth =
-    PLAYER_COLLISION_WIDTH / 2;
+  const playerX = laneWorldX(g.player.lane);
+  const obstacleX = laneWorldX(obstacle.lane);
+
+  const horizontalDistance =
+    Math.abs(playerX - obstacleX);
 
   return (
-    Math.abs(playerX - obstacleX) <=
-    playerHalfWidth +
-      obstacleHalfWidth() +
-      HORIZONTAL_EPSILON
+    horizontalDistance <=
+    PLAYER_HALF_WIDTH +
+      obstacleHalfWidth(obstacle)
   );
 }
 
-function crossedPlayerZ(
-  previousZ: number,
-  currentZ: number,
-) {
-  const minZ = Math.min(previousZ, currentZ);
-  const maxZ = Math.max(previousZ, currentZ);
+/*
+ * Keep the lane-to-world conversion local to this page.
+ *
+ * The visual renderer uses the same laneX() function.
+ */
+function laneWorldX(lane: number) {
+  /*
+   * RunnerScene currently uses laneX(lane), where
+   * each lane is one LANE_WIDTH apart.
+   *
+   * Importing laneX here would be correct too, but using
+   * the player's logical lane relationship keeps collision
+   * independent from renderer implementation details.
+   */
+  const LANE_WIDTH = 3;
 
-  return (
-    maxZ >= COLLISION_Z_BACK &&
-    minZ <= COLLISION_Z_FRONT
-  );
+  return lane * LANE_WIDTH;
 }
 
-function isJumpingHighEnough(
-  player: Game["player"],
-  requiredHeight: number,
-) {
-  return (
-    player.y >=
-    requiredHeight + VERTICAL_CLEARANCE
-  );
-}
-
-function obstacleIsCleared(
+/*
+ * Determines whether the player's vertical body can
+ * physically pass the obstacle.
+ */
+function obstacleCanBeCleared(
   obstacle: Obstacle,
   player: Game["player"],
 ) {
-  switch (obstacle.kind) {
-    case "gap":
-      return player.y > 0.65;
-
-    case "bar":
-      return player.sliding;
-
-    case "wall":
-      return false;
-
-    case "moving":
-      return isJumpingHighEnough(
-        player,
-        BLOCK_HEIGHT,
-      );
-
-    case "block":
-    default:
-      return isJumpingHighEnough(
-        player,
-        BLOCK_HEIGHT,
-      );
+  /*
+   * A low horizontal bar is a slide obstacle.
+   *
+   * Jumping into it should NOT count as clearing it.
+   */
+  if (obstacle.kind === "bar") {
+    return player.sliding;
   }
+
+  /*
+   * A wall occupies the full running height.
+   * It must be avoided by changing lanes.
+   */
+  if (obstacle.kind === "wall") {
+    return false;
+  }
+
+  /*
+   * A gap is a ground hazard.
+   * Being sufficiently airborne clears it.
+   */
+  if (obstacle.kind === "gap") {
+    return player.y >= 0.65;
+  }
+
+  /*
+   * Normal blocks are jumpable.
+   *
+   * We compare the player's feet height against the
+   * actual obstacle height instead of the old 2D
+   * thresholds such as 58 / 115.
+   */
+  const requiredJumpHeight =
+    obstacleHeight(obstacle) + 0.08;
+
+  return player.y >= requiredJumpHeight;
 }
 
-function applyPickup(
-  g: Game,
-  pickup: Pickup,
-  beep: (f: number, d?: number) => void,
+/*
+ * Checks whether the obstacle is physically overlapping
+ * the player's Z position.
+ *
+ * The player's collision plane is centered around z = 0.
+ */
+function depthOverlap(
+  obstacle: Obstacle,
 ) {
-  pickup.collected = true;
+  const depth =
+    obstacleHalfDepth(obstacle);
 
-  switch (pickup.kind) {
-    case "coin":
-      g.runCoins += 1;
-      g.score += 30 * g.multiplier;
-      g.combo += 1;
-      g.comboUntil = g.elapsed + 1.7;
-      beep(720, 0.045);
-      break;
-
-    case "magnet":
-      g.player.magnetUntil =
-        g.elapsed + MAGNET_DURATION;
-      g.score += 100 * g.multiplier;
-      beep(560, 0.08);
-      break;
-
-    case "shield":
-      g.player.shield = true;
-      g.score += 125 * g.multiplier;
-      beep(480, 0.09);
-      break;
-
-    case "multiplier":
-      g.multiplier = Math.min(
-        5,
-        g.multiplier + 1,
-      );
-      g.player.multiplierUntil =
-        g.elapsed + MULTIPLIER_DURATION;
-      g.score += 175 * g.multiplier;
-      beep(880, 0.1);
-      break;
-
-    case "boost":
-      g.player.boostUntil =
-        g.elapsed + SPEED_BOOST_DURATION;
-      g.score += 150 * g.multiplier;
-      beep(980, 0.1);
-      break;
-  }
+  return (
+    obstacle.z <= depth &&
+    obstacle.z >= -depth - 0.65
+  );
 }
 
+/*
+ * Adds score and combo only once for a successfully
+ * passed obstacle.
+ */
+function resolveSuccessfulObstacle(
+  g: Game,
+) {
+  g.combo += 1;
+  g.comboUntil =
+    g.elapsed + 1.7;
+
+  g.score +=
+    60 * g.multiplier;
+}
+
+/*
+ * Collision system.
+ *
+ * Important changes:
+ *
+ * 1. No old 2D jump thresholds.
+ * 2. No arbitrary lane integer comparison.
+ * 3. Obstacles are only resolved when their physical
+ *    collision volume reaches the player.
+ * 4. A jump actually clears a jumpable obstacle.
+ * 5. A slide actually clears a bar.
+ * 6. A wall cannot be jumped.
+ * 7. A gap requires the player to be airborne.
+ * 8. Shield consumes itself only on a real collision.
+ */
 function collisionCheck(
   g: Game,
-  previousObstacleZ: Map<number, number>,
   finish: () => void,
-  beep: (f: number, d?: number) => void,
+  beep: (
+    frequency: number,
+    duration?: number,
+  ) => void,
 ) {
-  const playerX = playerWorldX(g);
-
   for (const obstacle of g.obstacles) {
-    if (obstacle.resolved) continue;
-
-    const previousZ =
-      previousObstacleZ.get(obstacle.id) ??
-      obstacle.z;
-
-    if (
-      !crossedPlayerZ(
-        previousZ,
-        obstacle.z,
-      )
-    ) {
+    if (obstacle.resolved) {
       continue;
     }
 
-    const obstacleX =
-      obstacleWorldX(obstacle);
-
-    if (
-      !horizontalOverlap(
-        playerX,
-        obstacleX,
-      )
-    ) {
+    if (!depthOverlap(obstacle)) {
       continue;
     }
 
-    const cleared = obstacleIsCleared(
-      obstacle,
-      g.player,
-    );
+    if (!horizontalOverlap(g, obstacle)) {
+      /*
+       * The player has passed through the obstacle's
+       * collision zone in another lane.
+       *
+       * Do not resolve it yet until it is safely behind
+       * the player.
+       */
+      if (obstacle.z < -2.2) {
+        obstacle.resolved = true;
+        resolveSuccessfulObstacle(g);
+      }
 
+      continue;
+    }
+
+    if (
+      obstacleCanBeCleared(
+        obstacle,
+        g.player,
+      )
+    ) {
+      obstacle.resolved = true;
+      resolveSuccessfulObstacle(g);
+      continue;
+    }
+
+    /*
+     * Actual collision.
+     */
     obstacle.resolved = true;
-
-    if (cleared) {
-      g.combo += 1;
-      g.comboUntil = g.elapsed + 1.7;
-      g.score += 60 * g.multiplier;
-      continue;
-    }
 
     if (g.player.shield) {
       g.player.shield = false;
       g.camera.shake = 0.18;
       g.flash = 0.18;
+
       beep(170, 0.12);
       continue;
     }
@@ -326,40 +450,129 @@ function collisionCheck(
   }
 }
 
+function applyPickup(
+  g: Game,
+  pickup: Pickup,
+  beep: (
+    frequency: number,
+    duration?: number,
+  ) => void,
+) {
+  if (pickup.collected) {
+    return;
+  }
+
+  pickup.collected = true;
+
+  switch (pickup.kind) {
+    case "coin":
+      g.runCoins += 1;
+      g.score +=
+        30 * g.multiplier;
+
+      g.combo += 1;
+      g.comboUntil =
+        g.elapsed + 1.7;
+
+      beep(720, 0.045);
+      break;
+
+    case "magnet":
+      g.player.magnetUntil =
+        g.elapsed + MAGNET_DURATION;
+
+      g.score +=
+        100 * g.multiplier;
+
+      beep(560, 0.08);
+      break;
+
+    case "shield":
+      g.player.shield = true;
+
+      g.score +=
+        125 * g.multiplier;
+
+      beep(480, 0.09);
+      break;
+
+    case "multiplier":
+      g.multiplier =
+        Math.min(
+          5,
+          g.multiplier + 1,
+        );
+
+      g.player.multiplierUntil =
+        g.elapsed +
+        MULTIPLIER_DURATION;
+
+      g.score +=
+        175 * g.multiplier;
+
+      beep(880, 0.1);
+      break;
+
+    case "boost":
+      g.player.boostUntil =
+        g.elapsed +
+        SPEED_BOOST_DURATION;
+
+      g.score +=
+        150 * g.multiplier;
+
+      beep(980, 0.1);
+      break;
+  }
+}
+
 export default function RunnerPage() {
   const canvasRef =
-    useRef<HTMLCanvasElement | null>(null);
+    useRef<HTMLCanvasElement | null>(
+      null,
+    );
+
   const gameRef =
     useRef<Game | null>(null);
+
   const sceneRef =
     useRef<RunnerScene | null>(null);
+
   const rafRef =
     useRef<number | null>(null);
+
   const touchRef =
-    useRef<{ x: number; y: number } | null>(null);
+    useRef<{
+      x: number;
+      y: number;
+    } | null>(null);
+
   const audioRef =
     useRef<AudioContext | null>(null);
-  const lastHudRef = useRef(0);
 
-  const laneInputUntilRef = useRef(0);
-  const jumpInputUntilRef = useRef(0);
+  const lastHudRef =
+    useRef(0);
 
   const [phase, setPhase] =
     useState<Phase>("menu");
-  const [sound, setSound] = useState(true);
 
-  const [hud, setHud] = useState({
-    score: 0,
-    distance: 0,
-    coins: 0,
-    bank: 0,
-    best: 0,
-    multiplier: 1,
-    power: "",
-    speed: START_SPEED,
-    landmark: "ACADEMIC QUADRANGLE",
-    combo: 0,
-  });
+  const [sound, setSound] =
+    useState(true);
+
+  const [hud, setHud] =
+    useState({
+      score: 0,
+      distance: 0,
+      coins: 0,
+      bank: 0,
+      best: 0,
+      multiplier: 1,
+      power: "",
+      speed: START_SPEED,
+      landmark:
+        "ACADEMIC QUADRANGLE",
+      combo: 0,
+    });
 
   const beep = useCallback(
     (
@@ -382,7 +595,9 @@ export default function RunnerPage() {
             }
           ).webkitAudioContext;
 
-        if (!AudioCtor) return;
+        if (!AudioCtor) {
+          return;
+        }
 
         const audio =
           audioRef.current ??
@@ -391,17 +606,21 @@ export default function RunnerPage() {
         audioRef.current = audio;
 
         if (
-          audio.state === "suspended"
+          audio.state ===
+          "suspended"
         ) {
           void audio.resume();
         }
 
         const oscillator =
           audio.createOscillator();
+
         const gain =
           audio.createGain();
 
-        oscillator.type = "triangle";
+        oscillator.type =
+          "triangle";
+
         oscillator.frequency.value =
           frequency;
 
@@ -409,66 +628,115 @@ export default function RunnerPage() {
           0.0001,
           audio.currentTime,
         );
+
         gain.gain.exponentialRampToValueAtTime(
           0.055,
           audio.currentTime + 0.008,
         );
+
         gain.gain.exponentialRampToValueAtTime(
           0.0001,
-          audio.currentTime + duration,
+          audio.currentTime +
+            duration,
         );
 
         oscillator.connect(gain);
-        gain.connect(audio.destination);
+        gain.connect(
+          audio.destination,
+        );
+
         oscillator.start();
+
         oscillator.stop(
           audio.currentTime +
             duration +
             0.01,
         );
       } catch {
-        // Audio is intentionally optional.
+        /*
+         * Audio remains optional.
+         */
       }
     },
     [sound],
   );
 
-  const syncHud = useCallback(() => {
-    const g = gameRef.current;
-    if (!g) return;
+  const syncHud = useCallback(
+    () => {
+      const g =
+        gameRef.current;
 
-    setHud({
-      score: Math.floor(g.score),
-      distance: Math.floor(g.distance),
-      coins: g.runCoins,
-      bank: g.bankCoins,
-      best: g.best,
-      multiplier: g.multiplier,
-      power: powerLabel(g),
-      speed: Math.round(g.speed),
-      landmark: g.environment.landmark,
-      combo: g.combo,
-    });
+      if (!g) {
+        return;
+      }
 
-    setPhase(g.phase);
-  }, []);
+      setHud({
+        score: Math.floor(
+          g.score,
+        ),
+        distance: Math.floor(
+          g.distance,
+        ),
+        coins: g.runCoins,
+        bank: g.bankCoins,
+        best: g.best,
+        multiplier:
+          g.multiplier,
+        power:
+          powerLabel(g),
+        speed: Math.round(
+          g.speed,
+        ),
+        landmark:
+          g.environment.landmark,
+        combo: g.combo,
+      });
 
-  const start = useCallback(() => {
-    const g = gameRef.current;
-    if (!g) return;
+      setPhase(g.phase);
+    },
+    [],
+  );
 
-    resetRun(g);
-    laneInputUntilRef.current = 0;
-    jumpInputUntilRef.current = 0;
+  const start = useCallback(
+    () => {
+      const g =
+        gameRef.current;
 
-    setPhase("playing");
-    syncHud();
-    beep(520, 0.08);
-  }, [beep, syncHud]);
+      if (!g) {
+        return;
+      }
 
-  const moveLane = useCallback(
-    (direction: -1 | 1) => {
-      const g = gameRef.current;
+      resetRun(g);
+
+      setPhase("playing");
+      syncHud();
+
+      beep(520, 0.08);
+    },
+    [beep, syncHud],
+  );
+
+  /*
+   * IMPORTANT:
+   *
+   * This function works in SCREEN directions, not
+   * anonymous mathematical directions.
+   *
+   * Because the current 3D camera presents positive-X
+   * as the visual left side of the track:
+   *
+   *   LEFT  -> +1
+   *   RIGHT -> -1
+   */
+  const move = useCallback(
+    (
+      direction:
+        | "left"
+        | "right",
+    ) => {
+      const g =
+        gameRef.current;
+
       if (
         !g ||
         g.phase !== "playing"
@@ -476,128 +744,182 @@ export default function RunnerPage() {
         return;
       }
 
-      const nextLane = clamp(
-        g.player.targetLane +
-          direction,
-        -1,
-        1,
-      );
+      const delta =
+        direction === "left"
+          ? SCREEN_LEFT_DELTA
+          : SCREEN_RIGHT_DELTA;
+
+      const nextLane =
+        clamp(
+          g.player.targetLane +
+            delta,
+          -1,
+          1,
+        ) as Lane;
+
+      /*
+       * Ignore movement attempts at
+       * the edge of the track.
+       */
+      if (
+        nextLane ===
+        g.player.targetLane
+      ) {
+        return;
+      }
 
       g.player.targetLane =
-        nextLane as Lane;
+        nextLane;
 
-      laneInputUntilRef.current =
-        g.elapsed +
-        INPUT_BUFFER_DURATION;
-
-      beep(190, 0.035);
+      beep(
+        direction === "left"
+          ? 180
+          : 220,
+        0.035,
+      );
     },
     [beep],
   );
 
-  const jump = useCallback(() => {
-    const g = gameRef.current;
-    if (
-      !g ||
-      g.phase !== "playing"
-    ) {
-      return;
-    }
+  const jump = useCallback(
+    () => {
+      const g =
+        gameRef.current;
 
-    if (
-      g.player.jumping ||
-      g.player.sliding
-    ) {
-      return;
-    }
+      if (
+        !g ||
+        g.phase !== "playing"
+      ) {
+        return;
+      }
 
-    g.player.jumping = true;
-    g.player.verticalVelocity =
-      JUMP_VELOCITY;
-    g.player.y = 0.01;
+      if (
+        g.player.jumping ||
+        g.player.sliding
+      ) {
+        return;
+      }
 
-    jumpInputUntilRef.current =
-      g.elapsed +
-      INPUT_BUFFER_DURATION;
+      g.player.jumping = true;
+      g.player.verticalVelocity =
+        7.2;
+      g.player.y = 0.05;
 
-    beep(430, 0.06);
-  }, [beep]);
+      beep(430, 0.06);
+    },
+    [beep],
+  );
 
-  const slide = useCallback(() => {
-    const g = gameRef.current;
-    if (
-      !g ||
-      g.phase !== "playing"
-    ) {
-      return;
-    }
+  const slide = useCallback(
+    () => {
+      const g =
+        gameRef.current;
 
-    if (g.player.jumping) return;
+      if (
+        !g ||
+        g.phase !== "playing"
+      ) {
+        return;
+      }
 
-    g.player.sliding = true;
-    g.player.slideUntil =
-      g.elapsed + SLIDE_DURATION;
+      if (g.player.jumping) {
+        return;
+      }
 
-    beep(145, 0.055);
-  }, [beep]);
+      g.player.sliding = true;
+      g.player.slideUntil =
+        g.elapsed + 0.72;
 
-  const togglePause = useCallback(() => {
-    const g = gameRef.current;
+      beep(145, 0.055);
+    },
+    [beep],
+  );
 
-    if (
-      !g ||
-      (g.phase !== "playing" &&
-        g.phase !== "paused")
-    ) {
-      return;
-    }
+  const togglePause =
+    useCallback(() => {
+      const g =
+        gameRef.current;
 
-    if (g.phase === "playing") {
-      g.phase = "paused";
-      setPhase("paused");
-    } else {
-      g.phase = "playing";
-      g.last = performance.now();
-      setPhase("playing");
-    }
-  }, []);
+      if (
+        !g ||
+        (
+          g.phase !== "playing" &&
+          g.phase !== "paused"
+        )
+      ) {
+        return;
+      }
+
+      if (
+        g.phase === "playing"
+      ) {
+        g.phase = "paused";
+        setPhase("paused");
+      } else {
+        g.phase = "playing";
+        g.last =
+          performance.now();
+
+        setPhase("playing");
+      }
+    }, []);
 
   useEffect(() => {
     const best =
       readStorage(BEST_KEY);
+
     const bank =
       readStorage(BANK_KEY);
 
     const game =
-      freshGame(best, bank);
+      freshGame(
+        best,
+        bank,
+      );
 
-    gameRef.current = game;
+    gameRef.current =
+      game;
+
     syncHud();
 
     const canvas =
       canvasRef.current;
 
-    if (!canvas) return;
+    if (!canvas) {
+      return;
+    }
 
     const scene =
-      new RunnerScene(canvas);
+      new RunnerScene(
+        canvas,
+      );
 
-    sceneRef.current = scene;
+    sceneRef.current =
+      scene;
 
     const resize = () => {
       const rect =
         canvas.getBoundingClientRect();
 
       scene.resize(
-        Math.max(320, rect.width),
-        Math.max(500, rect.height),
+        Math.max(
+          320,
+          rect.width,
+        ),
+        Math.max(
+          500,
+          rect.height,
+        ),
       );
     };
 
     const observer =
-      new ResizeObserver(resize);
+      new ResizeObserver(
+        resize,
+      );
 
     observer.observe(canvas);
+
     resize();
 
     const finish = () => {
@@ -611,14 +933,19 @@ export default function RunnerPage() {
         return;
       }
 
-      g.phase = "gameover";
+      g.phase =
+        "gameover";
 
-      g.best = Math.max(
-        g.best,
-        Math.floor(g.score),
-      );
+      g.best =
+        Math.max(
+          g.best,
+          Math.floor(
+            g.score,
+          ),
+        );
 
-      g.bankCoins += g.runCoins;
+      g.bankCoins +=
+        g.runCoins;
 
       writeStorage(
         BEST_KEY,
@@ -630,33 +957,49 @@ export default function RunnerPage() {
         g.bankCoins,
       );
 
-      g.camera.shake = 0.45;
-      g.flash = 0.22;
+      g.camera.shake =
+        0.45;
 
-      setPhase("gameover");
+      g.flash =
+        0.22;
+
+      setPhase(
+        "gameover",
+      );
+
       syncHud();
+
       beep(95, 0.22);
     };
 
-    const tick = (now: number) => {
+    const tick = (
+      now: number,
+    ) => {
       const g =
         gameRef.current;
 
       if (!g) {
         rafRef.current =
-          requestAnimationFrame(tick);
+          requestAnimationFrame(
+            tick,
+          );
+
         return;
       }
 
       const dt = clamp(
-        (now -
-          (g.last || now)) /
-          1000,
+        (
+          now -
+          (g.last || now)
+        ) / 1000,
         0,
         MAX_FRAME_DT,
       );
 
-      if (g.phase === "playing") {
+      if (
+        g.phase ===
+        "playing"
+      ) {
         g.last = now;
         g.elapsed += dt;
 
@@ -664,26 +1007,33 @@ export default function RunnerPage() {
           Math.min(
             MAX_SPEED,
             START_SPEED +
-              g.distance * 0.045,
+              g.elapsed *
+                SPEED_ACCELERATION,
           );
 
         g.targetSpeed =
           g.player.boostUntil >
           g.elapsed
             ? Math.min(
-                MAX_SPEED * 1.18,
-                baseSpeed * 1.42,
+                MAX_SPEED *
+                  1.18,
+                baseSpeed *
+                  1.42,
               )
             : baseSpeed;
 
         g.speed +=
-          (g.targetSpeed -
-            g.speed) *
-          (1 -
+          (
+            g.targetSpeed -
+            g.speed
+          ) *
+          (
+            1 -
             Math.pow(
               0.001,
               dt,
-            ));
+            )
+          );
 
         g.distance +=
           g.speed * dt;
@@ -694,50 +1044,75 @@ export default function RunnerPage() {
           0.055 *
           g.multiplier;
 
-        const laneBlend =
-          1 - Math.exp(-14 * dt);
-
+        /*
+         * Logical lane movement.
+         *
+         * RunnerScene independently interpolates the
+         * visual player toward the same target lane.
+         */
         g.player.lane +=
-          (g.player.targetLane -
-            g.player.lane) *
-          laneBlend;
+          (
+            g.player.targetLane -
+            g.player.lane
+          ) *
+          (
+            1 -
+            Math.pow(
+              0.00008,
+              dt,
+            )
+          );
 
         if (
           Math.abs(
             g.player.lane -
               g.player.targetLane,
-          ) < 0.008
+          ) < 0.012
         ) {
           g.player.lane =
             g.player.targetLane;
         }
 
+        /*
+         * Jump physics.
+         */
         if (
           g.player.jumping ||
           g.player.y > 0
         ) {
           g.player.verticalVelocity -=
-            GRAVITY * dt;
+            18.5 * dt;
 
           g.player.y +=
             g.player.verticalVelocity *
             dt;
 
-          if (g.player.y <= 0) {
+          if (
+            g.player.y <= 0
+          ) {
             g.player.y = 0;
-            g.player.verticalVelocity = 0;
-            g.player.jumping = false;
+            g.player.verticalVelocity =
+              0;
+            g.player.jumping =
+              false;
           }
         }
 
+        /*
+         * Slide expiry.
+         */
         if (
           g.player.sliding &&
           g.elapsed >=
             g.player.slideUntil
         ) {
-          g.player.sliding = false;
+          g.player.sliding =
+            false;
         }
 
+        /*
+         * Multiplier expiry.
+         */
         if (
           g.multiplier > 1 &&
           g.elapsed >=
@@ -746,6 +1121,9 @@ export default function RunnerPage() {
           g.multiplier = 1;
         }
 
+        /*
+         * Combo expiry.
+         */
         if (
           g.combo > 0 &&
           g.elapsed >=
@@ -754,6 +1132,9 @@ export default function RunnerPage() {
           g.combo = 0;
         }
 
+        /*
+         * Spawn obstacles.
+         */
         g.spawnTimer -= dt;
 
         if (
@@ -762,6 +1143,9 @@ export default function RunnerPage() {
           spawnObstacleSet(g);
         }
 
+        /*
+         * Spawn pickups.
+         */
         g.pickupTimer -= dt;
 
         if (
@@ -770,89 +1154,92 @@ export default function RunnerPage() {
           spawnPickupSet(g);
         }
 
-        const previousObstacleZ =
-          new Map<number, number>();
-
-        for (const obstacle of g.obstacles) {
-          previousObstacleZ.set(
-            obstacle.id,
-            obstacle.z,
-          );
-
+        /*
+         * Move obstacles through the world.
+         */
+        for (
+          const obstacle of
+            g.obstacles
+        ) {
           obstacle.z -=
             g.speed * dt;
         }
 
-        for (const pickup of g.pickups) {
+        /*
+         * Move pickups.
+         */
+        for (
+          const pickup of
+            g.pickups
+        ) {
           pickup.z -=
             g.speed * dt;
 
+          /*
+           * Magnet now moves the pickup toward the
+           * player's actual logical lane.
+           */
           if (
             !pickup.collected &&
             g.player.magnetUntil >
               g.elapsed &&
-            pickup.kind === "coin" &&
+            pickup.kind ===
+              "coin" &&
             pickup.z < 28 &&
             pickup.z > -45
           ) {
             const laneDelta =
-              Math.abs(
-                g.player.lane -
-                  pickup.lane,
-              );
+              g.player.lane -
+              pickup.lane;
 
             if (
-              laneDelta < 1.2
+              Math.abs(
+                laneDelta,
+              ) > 0.02
             ) {
-              const targetLane =
-                g.player.lane;
+              const direction =
+                laneDelta > 0
+                  ? 1
+                  : -1;
 
-              if (
-                Math.abs(
-                  g.player.lane -
-                    pickup.lane,
-                ) > 0.05
-              ) {
-                pickup.lane =
-                  (
-                    pickup.lane +
-                    (
-                      targetLane -
-                      pickup.lane
-                    ) *
-                      Math.min(
-                        1,
-                        dt * 7,
-                      )
-                  ) as Lane;
-              }
+              const next =
+                clamp(
+                  pickup.lane +
+                    direction *
+                      0.12,
+                  -1,
+                  1,
+                );
+
+              pickup.lane =
+                next as Lane;
             }
           }
         }
 
-        for (const pickup of g.pickups) {
-          if (pickup.collected) {
+        /*
+         * Pickup collision.
+         */
+        for (
+          const pickup of
+            g.pickups
+        ) {
+          if (
+            pickup.collected
+          ) {
             continue;
           }
 
-          const pickupX =
-            laneX(pickup.lane);
-
-          const playerX =
-            playerWorldX(g);
-
-          const horizontalDistance =
+          const laneDelta =
             Math.abs(
-              playerX -
-                pickupX,
+              g.player.lane -
+                pickup.lane,
             );
 
           if (
-            pickup.z <= 1.8 &&
-            pickup.z >= -1.8 &&
-            horizontalDistance <
-              PLAYER_COLLISION_WIDTH *
-                0.7
+            pickup.z <= 2.5 &&
+            pickup.z >= -2.5 &&
+            laneDelta < 0.46
           ) {
             applyPickup(
               g,
@@ -862,41 +1249,38 @@ export default function RunnerPage() {
           }
         }
 
+        /*
+         * Obstacle collision.
+         */
         collisionCheck(
           g,
-          previousObstacleZ,
           finish,
           beep,
         );
 
-        for (const obstacle of g.obstacles) {
-          if (
-            !obstacle.resolved &&
-            obstacle.z <
-              -COLLISION_Z_FRONT
-          ) {
-            obstacle.resolved = true;
-            g.combo += 1;
-            g.comboUntil =
-              g.elapsed + 1.7;
-            g.score +=
-              35 *
-              g.multiplier;
-          }
-        }
-
+        /*
+         * Remove old objects.
+         *
+         * Resolved obstacles are kept briefly by the
+         * renderer but no longer participate in gameplay.
+         */
         g.obstacles =
           g.obstacles.filter(
-            (o) => o.z > -32,
+            (obstacle) =>
+              obstacle.z > -32 &&
+              !obstacle.resolved,
           );
 
         g.pickups =
           g.pickups.filter(
-            (p) =>
-              p.z > -32 &&
-              !p.collected,
+            (pickup) =>
+              pickup.z > -32 &&
+              !pickup.collected,
           );
 
+        /*
+         * Environment progression.
+         */
         g.environment.distanceInEnvironment +=
           g.speed * dt;
 
@@ -905,18 +1289,23 @@ export default function RunnerPage() {
             .distanceInEnvironment >=
           700
         ) {
-          g.environment.distanceInEnvironment = 0;
+          g.environment
+            .distanceInEnvironment = 0;
 
           const currentIndex =
             LANDMARKS.findIndex(
               (item) =>
                 item.env ===
-                g.environment.current,
+                g.environment
+                  .current,
             );
 
           const next =
             LANDMARKS[
-              (currentIndex + 1) %
+              (
+                currentIndex +
+                1
+              ) %
                 LANDMARKS.length
             ];
 
@@ -938,17 +1327,22 @@ export default function RunnerPage() {
         g.environment.landmarkTimer =
           Math.max(
             0,
-            g.environment.landmarkTimer -
+            g.environment
+              .landmarkTimer -
               dt,
           );
 
         g.environment.transition =
           Math.max(
             0,
-            g.environment.transition -
+            g.environment
+              .transition -
               dt * 0.55,
           );
 
+        /*
+         * Distance milestones.
+         */
         if (
           g.distance >=
           g.milestone
@@ -957,16 +1351,21 @@ export default function RunnerPage() {
             300 *
             g.multiplier;
 
-          g.milestone += 250;
-          g.flash = 0.1;
+          g.milestone +=
+            250;
+
+          g.flash =
+            0.1;
 
           beep(880, 0.08);
         }
 
-        g.flash = Math.max(
-          0,
-          g.flash - dt * 1.8,
-        );
+        g.flash =
+          Math.max(
+            0,
+            g.flash -
+              dt * 1.8,
+          );
 
         g.camera.shake =
           Math.max(
@@ -978,8 +1377,10 @@ export default function RunnerPage() {
         g.camera.targetFov =
           clamp(
             62 +
-              (g.speed -
-                START_SPEED) *
+              (
+                g.speed -
+                START_SPEED
+              ) *
                 0.23,
             62,
             76,
@@ -992,6 +1393,9 @@ export default function RunnerPage() {
         g.last = now;
       }
 
+      /*
+       * RunnerScene performs its own visual update.
+       */
       scene.update(
         g,
         dt,
@@ -1003,36 +1407,57 @@ export default function RunnerPage() {
           lastHudRef.current >
         90
       ) {
-        lastHudRef.current = now;
+        lastHudRef.current =
+          now;
+
         syncHud();
       }
 
       rafRef.current =
-        requestAnimationFrame(tick);
+        requestAnimationFrame(
+          tick,
+        );
     };
 
     rafRef.current =
-      requestAnimationFrame(tick);
+      requestAnimationFrame(
+        tick,
+      );
 
     return () => {
       observer.disconnect();
 
-      if (rafRef.current) {
+      if (
+        rafRef.current
+      ) {
         cancelAnimationFrame(
           rafRef.current,
         );
       }
 
       scene.dispose();
-      sceneRef.current = null;
 
-      if (audioRef.current) {
+      sceneRef.current =
+        null;
+
+      if (
+        audioRef.current
+      ) {
         void audioRef.current.close();
-        audioRef.current = null;
+        audioRef.current =
+          null;
       }
     };
-  }, [beep, syncHud]);
+  }, [
+    beep,
+    syncHud,
+  ]);
 
+  /*
+   * Keyboard controls.
+   *
+   * Explicit screen directions.
+   */
   useEffect(() => {
     const onKey = (
       event: KeyboardEvent,
@@ -1053,15 +1478,17 @@ export default function RunnerPage() {
       }
 
       if (
-        key === "arrowleft" ||
+        key ===
+          "arrowleft" ||
         key === "a"
       ) {
-        moveLane(-1);
+        move("left");
       } else if (
-        key === "arrowright" ||
+        key ===
+          "arrowright" ||
         key === "d"
       ) {
-        moveLane(1);
+        move("right");
       } else if (
         key === "arrowup" ||
         key === "w" ||
@@ -1076,7 +1503,8 @@ export default function RunnerPage() {
           jump();
         }
       } else if (
-        key === "arrowdown" ||
+        key ===
+          "arrowdown" ||
         key === "s"
       ) {
         slide();
@@ -1099,7 +1527,9 @@ export default function RunnerPage() {
     window.addEventListener(
       "keydown",
       onKey,
-      { passive: false },
+      {
+        passive: false,
+      },
     );
 
     return () =>
@@ -1109,7 +1539,7 @@ export default function RunnerPage() {
       );
   }, [
     jump,
-    moveLane,
+    move,
     phase,
     slide,
     start,
@@ -1135,9 +1565,12 @@ export default function RunnerPage() {
     const startPoint =
       touchRef.current;
 
-    touchRef.current = null;
+    touchRef.current =
+      null;
 
-    if (!startPoint) return;
+    if (!startPoint) {
+      return;
+    }
 
     const dx =
       event.clientX -
@@ -1147,11 +1580,18 @@ export default function RunnerPage() {
       event.clientY -
       startPoint.y;
 
-    const ax = Math.abs(dx);
-    const ay = Math.abs(dy);
+    const ax =
+      Math.abs(dx);
 
+    const ay =
+      Math.abs(dy);
+
+    /*
+     * Tap.
+     */
     if (
-      Math.max(ax, ay) < 28
+      Math.max(ax, ay) <
+      28
     ) {
       if (
         phase === "menu" ||
@@ -1167,11 +1607,21 @@ export default function RunnerPage() {
       return;
     }
 
+    /*
+     * Horizontal swipe.
+     *
+     * Finger moving LEFT  -> screen-left
+     * Finger moving RIGHT -> screen-right
+     */
     if (ax > ay) {
-      moveLane(
-        dx > 0 ? 1 : -1,
+      move(
+        dx < 0
+          ? "left"
+          : "right",
       );
-    } else if (dy < 0) {
+    } else if (
+      dy < 0
+    ) {
       jump();
     } else {
       slide();
@@ -1191,6 +1641,7 @@ export default function RunnerPage() {
               <strong>
                 RUNNER 3D
               </strong>
+
               <span>
                 VIDYAGYAN CAMPUS
               </span>
@@ -1199,14 +1650,20 @@ export default function RunnerPage() {
 
           <div className="top-actions">
             <div className="top-stat">
-              <span>BEST</span>
+              <span>
+                BEST
+              </span>
+
               <b>
                 {hud.best.toLocaleString()}
               </b>
             </div>
 
             <div className="top-stat">
-              <span>BANK</span>
+              <span>
+                BANK
+              </span>
+
               <b>
                 ◆ {hud.bank}
               </b>
@@ -1216,7 +1673,8 @@ export default function RunnerPage() {
               className="icon-btn"
               onClick={() =>
                 setSound(
-                  (value) => !value,
+                  (value) =>
+                    !value,
                 )
               }
               aria-label={
@@ -1225,23 +1683,31 @@ export default function RunnerPage() {
                   : "Enable sound"
               }
             >
-              {sound ? "🔊" : "🔇"}
+              {sound
+                ? "🔊"
+                : "🔇"}
             </button>
 
             <button
               className="icon-btn"
-              onClick={togglePause}
+              onClick={
+                togglePause
+              }
               disabled={
-                phase === "menu" ||
-                phase === "gameover"
+                phase ===
+                  "menu" ||
+                phase ===
+                  "gameover"
               }
               aria-label={
-                phase === "paused"
+                phase ===
+                "paused"
                   ? "Resume game"
                   : "Pause game"
               }
             >
-              {phase === "paused"
+              {phase ===
+              "paused"
                 ? "▶"
                 : "Ⅱ"}
             </button>
@@ -1251,8 +1717,12 @@ export default function RunnerPage() {
         <div className="game-wrap">
           <canvas
             ref={canvasRef}
-            onPointerDown={pointerDown}
-            onPointerUp={pointerUp}
+            onPointerDown={
+              pointerDown
+            }
+            onPointerUp={
+              pointerUp
+            }
             aria-label="VGB Runner 3D game canvas"
           />
 
@@ -1261,36 +1731,50 @@ export default function RunnerPage() {
             aria-live="polite"
           >
             <div className="metric">
-              <small>SCORE</small>
+              <small>
+                SCORE
+              </small>
+
               <strong>
                 {hud.score.toLocaleString()}
               </strong>
             </div>
 
             <div className="metric center">
-              <small>DISTANCE</small>
+              <small>
+                DISTANCE
+              </small>
+
               <strong>
                 {hud.distance}m
               </strong>
             </div>
 
             <div className="metric">
-              <small>TOKENS</small>
+              <small>
+                TOKENS
+              </small>
+
               <strong>
                 ◆ {hud.coins}
               </strong>
             </div>
 
             <div className="metric right">
-              <small>SPEED</small>
+              <small>
+                SPEED
+              </small>
+
               <strong>
                 {hud.speed}
               </strong>
             </div>
           </div>
 
-          {(hud.power ||
-            hud.combo >= 2) && (
+          {(
+            hud.power ||
+            hud.combo >= 2
+          ) && (
             <div className="status-row">
               {hud.power && (
                 <span className="power-pill">
@@ -1300,7 +1784,8 @@ export default function RunnerPage() {
 
               {hud.combo >= 2 && (
                 <span className="combo-pill">
-                  COMBO ×{hud.combo}
+                  COMBO ×
+                  {hud.combo}
                 </span>
               )}
             </div>
@@ -1317,7 +1802,7 @@ export default function RunnerPage() {
           <div className="mobile-controls">
             <button
               onPointerDown={() =>
-                moveLane(-1)
+                move("left")
               }
               aria-label="Move left"
             >
@@ -1325,14 +1810,18 @@ export default function RunnerPage() {
             </button>
 
             <button
-              onPointerDown={jump}
+              onPointerDown={
+                jump
+              }
               aria-label="Jump"
             >
               ↑
             </button>
 
             <button
-              onPointerDown={slide}
+              onPointerDown={
+                slide
+              }
               aria-label="Slide"
             >
               ↓
@@ -1340,7 +1829,7 @@ export default function RunnerPage() {
 
             <button
               onPointerDown={() =>
-                moveLane(1)
+                move("right")
               }
               aria-label="Move right"
             >
@@ -1358,15 +1847,22 @@ export default function RunnerPage() {
                 <h1>
                   RUN THE
                   <br />
-                  <em>CAMPUS.</em>
+                  <em>
+                    CAMPUS.
+                  </em>
                 </h1>
 
                 <p>
-                  A real-time 3D endless runner
-                  through the VidyaGyan campus.
-                  Three lanes, authored obstacle
-                  patterns, power-ups and a world
-                  that keeps moving.
+                  A real-time 3D
+                  endless runner
+                  through the
+                  VidyaGyan campus.
+                  Three lanes,
+                  authored obstacle
+                  patterns,
+                  power-ups and a
+                  world that keeps
+                  moving.
                 </p>
 
                 <button
@@ -1374,17 +1870,31 @@ export default function RunnerPage() {
                   onClick={start}
                 >
                   START RUN{" "}
-                  <span>→</span>
+                  <span>
+                    →
+                  </span>
                 </button>
 
                 <div className="controls">
-                  <span>← →</span> LANES
-                  <span>↑ / SPACE</span> JUMP
-                  <span>↓</span> SLIDE
+                  <span>
+                    ← →
+                  </span>{" "}
+                  LANES
+
+                  <span>
+                    ↑ / SPACE
+                  </span>{" "}
+                  JUMP
+
+                  <span>
+                    ↓
+                  </span>{" "}
+                  SLIDE
                 </div>
 
                 <div className="touch-note">
-                  Swipe on the track · tap to jump
+                  Swipe on the track
+                  · tap to jump
                 </div>
               </div>
             </div>
@@ -1402,24 +1912,32 @@ export default function RunnerPage() {
                 </h2>
 
                 <p>
-                  The simulation is paused.
-                  No imaginary campus
-                  administrator is moving the
-                  obstacles while you are away.
+                  The simulation
+                  is paused. No
+                  imaginary campus
+                  administrator is
+                  moving the
+                  obstacles while
+                  you are away.
                 </p>
 
                 <button
                   className="primary"
-                  onClick={togglePause}
+                  onClick={
+                    togglePause
+                  }
                 >
                   RESUME{" "}
-                  <span>▶</span>
+                  <span>
+                    ▶
+                  </span>
                 </button>
               </div>
             </div>
           )}
 
-          {phase === "gameover" && (
+          {phase ===
+            "gameover" && (
             <div className="overlay">
               <div className="result-card">
                 <div className="eyebrow">
@@ -1429,33 +1947,47 @@ export default function RunnerPage() {
                 <h2>
                   RUN
                   <br />
-                  <em>ENDED.</em>
+                  <em>
+                    ENDED.
+                  </em>
                 </h2>
 
                 <div className="result-grid">
                   <div>
-                    <span>SCORE</span>
+                    <span>
+                      SCORE
+                    </span>
+
                     <b>
                       {hud.score.toLocaleString()}
                     </b>
                   </div>
 
                   <div>
-                    <span>DISTANCE</span>
+                    <span>
+                      DISTANCE
+                    </span>
+
                     <b>
                       {hud.distance}m
                     </b>
                   </div>
 
                   <div>
-                    <span>TOKENS</span>
+                    <span>
+                      TOKENS
+                    </span>
+
                     <b>
                       ◆ {hud.coins}
                     </b>
                   </div>
 
                   <div>
-                    <span>BEST</span>
+                    <span>
+                      BEST
+                    </span>
+
                     <b>
                       {hud.best.toLocaleString()}
                     </b>
@@ -1467,7 +1999,9 @@ export default function RunnerPage() {
                   onClick={start}
                 >
                   RUN AGAIN{" "}
-                  <span>↻</span>
+                  <span>
+                    ↻
+                  </span>
                 </button>
               </div>
             </div>
@@ -1511,10 +2045,13 @@ export default function RunnerPage() {
           width: min(1400px, 100%);
           margin: auto;
           overflow: hidden;
-          border: 1px solid rgba(231, 208, 161, 0.16);
+          border: 1px solid
+            rgba(231, 208, 161, 0.16);
           border-radius: 24px;
           background: #08100c;
-          box-shadow: 0 30px 100px rgba(0, 0, 0, 0.48);
+          box-shadow:
+            0 30px 100px
+              rgba(0, 0, 0, 0.48);
         }
 
         .topbar {
@@ -1523,8 +2060,14 @@ export default function RunnerPage() {
           align-items: center;
           justify-content: space-between;
           padding: 0 20px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-          background: rgba(7, 17, 12, 0.96);
+          border-bottom: 1px solid
+            rgba(255, 255, 255, 0.07);
+          background: rgba(
+            7,
+            17,
+            12,
+            0.96
+          );
         }
 
         .brand {
@@ -1590,7 +2133,8 @@ export default function RunnerPage() {
         .icon-btn {
           width: 35px;
           height: 35px;
-          border: 1px solid rgba(231, 214, 171, 0.14);
+          border: 1px solid
+            rgba(231, 214, 171, 0.14);
           border-radius: 10px;
           background: #142119;
           color: #f3f5ed;
@@ -1626,9 +2170,12 @@ export default function RunnerPage() {
           left: 20px;
           right: 20px;
           display: grid;
-          grid-template-columns: 1fr 1fr 1fr 1fr;
+          grid-template-columns:
+            1fr 1fr 1fr 1fr;
           pointer-events: none;
-          text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+          text-shadow:
+            0 2px 12px
+              rgba(0, 0, 0, 0.55);
         }
 
         .metric {
@@ -1645,7 +2192,12 @@ export default function RunnerPage() {
         }
 
         .metric small {
-          color: rgba(255, 255, 255, 0.72);
+          color: rgba(
+            255,
+            255,
+            255,
+            0.72
+          );
           font-size: 8px;
           font-weight: 800;
           letter-spacing: 0.2em;
@@ -1682,7 +2234,8 @@ export default function RunnerPage() {
         }
 
         .combo-pill {
-          border: 1px solid rgba(210, 239, 206, 0.2);
+          border: 1px solid
+            rgba(210, 239, 206, 0.2);
           background: #173f2d;
           color: #d8f2d8;
         }
@@ -1693,9 +2246,15 @@ export default function RunnerPage() {
           left: 50%;
           transform: translateX(-50%);
           padding: 8px 13px;
-          border: 1px solid rgba(255, 245, 210, 0.2);
+          border: 1px solid
+            rgba(255, 245, 210, 0.2);
           border-radius: 999px;
-          background: rgba(17, 33, 23, 0.68);
+          background: rgba(
+            17,
+            33,
+            23,
+            0.68
+          );
           backdrop-filter: blur(9px);
           color: #f2ecd9;
           font-size: 8px;
@@ -1720,15 +2279,24 @@ export default function RunnerPage() {
         }
 
         .compact-overlay {
-          background: rgba(5, 14, 9, 0.52);
+          background: rgba(
+            5,
+            14,
+            9,
+            0.52
+          );
         }
 
         .hero-card,
         .result-card,
         .pause-card {
-          width: min(560px, calc(100% - 36px));
+          width: min(
+            560px,
+            calc(100% - 36px)
+          );
           padding: 38px;
-          border: 1px solid rgba(242, 225, 183, 0.17);
+          border: 1px solid
+            rgba(242, 225, 183, 0.17);
           border-radius: 23px;
           background:
             linear-gradient(
@@ -1736,11 +2304,16 @@ export default function RunnerPage() {
               rgba(17, 38, 25, 0.95),
               rgba(7, 20, 13, 0.92)
             );
-          box-shadow: 0 25px 70px rgba(0, 0, 0, 0.4);
+          box-shadow:
+            0 25px 70px
+              rgba(0, 0, 0, 0.4);
         }
 
         .pause-card {
-          width: min(400px, calc(100% - 36px));
+          width: min(
+            400px,
+            calc(100% - 36px)
+          );
           text-align: center;
         }
 
@@ -1754,7 +2327,11 @@ export default function RunnerPage() {
         .hero-card h1,
         .result-card h2 {
           margin: 17px 0;
-          font-size: clamp(46px, 7vw, 78px);
+          font-size: clamp(
+            46px,
+            7vw,
+            78px
+          );
           line-height: 0.86;
           letter-spacing: -0.055em;
         }
@@ -1793,14 +2370,17 @@ export default function RunnerPage() {
           font-weight: 950;
           letter-spacing: 0.08em;
           cursor: pointer;
-          box-shadow: 0 12px 30px rgba(213, 65, 61, 0.22);
+          box-shadow:
+            0 12px 30px
+              rgba(213, 65, 61, 0.22);
           transition:
             transform 0.15s ease,
             filter 0.15s ease;
         }
 
         .primary:hover {
-          transform: translateY(-2px);
+          transform:
+            translateY(-2px);
           filter: brightness(1.07);
         }
 
@@ -1820,7 +2400,8 @@ export default function RunnerPage() {
 
         .controls span {
           padding: 4px 7px;
-          border: 1px solid rgba(225, 221, 194, 0.14);
+          border: 1px solid
+            rgba(225, 221, 194, 0.14);
           border-radius: 6px;
           background: #142219;
           color: #eef4eb;
@@ -1835,16 +2416,24 @@ export default function RunnerPage() {
 
         .result-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns:
+            1fr 1fr;
           gap: 8px;
           margin: 20px 0;
         }
 
         .result-grid div {
           padding: 13px;
-          border: 1px solid rgba(230, 218, 177, 0.08);
+          border: 1px solid
+            rgba(230, 218, 177, 0.08);
           border-radius: 12px;
-          background: rgba(230, 218, 177, 0.05);
+          background:
+            rgba(
+              230,
+              218,
+              177,
+              0.05
+            );
         }
 
         .result-grid span {
@@ -1873,9 +2462,16 @@ export default function RunnerPage() {
         .mobile-controls button {
           width: 54px;
           height: 46px;
-          border: 1px solid rgba(238, 228, 190, 0.18);
+          border: 1px solid
+            rgba(238, 228, 190, 0.18);
           border-radius: 14px;
-          background: rgba(10, 28, 17, 0.68);
+          background:
+            rgba(
+              10,
+              28,
+              17,
+              0.68
+            );
           color: #f3f3e9;
           font-size: 22px;
           backdrop-filter: blur(9px);
@@ -1889,7 +2485,8 @@ export default function RunnerPage() {
           align-items: center;
           justify-content: space-between;
           padding: 0 18px;
-          border-top: 1px solid rgba(230, 214, 174, 0.08);
+          border-top: 1px solid
+            rgba(230, 214, 174, 0.08);
           background: #08100b;
           color: #607166;
           font-size: 8px;
@@ -1922,7 +2519,9 @@ export default function RunnerPage() {
           }
 
           .game-wrap {
-            height: calc(100dvh - 102px);
+            height: calc(
+              100dvh - 102px
+            );
             min-height: 0;
           }
 
