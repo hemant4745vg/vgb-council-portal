@@ -579,8 +579,6 @@ export default function RunnerPage() {
         g.last = now;
       }
 
-      scene.syncObstacles(g.obstacles);
-      scene.syncPickups(g.pickups, now);
       scene.update(g, dt, now);
       scene.render();
 
