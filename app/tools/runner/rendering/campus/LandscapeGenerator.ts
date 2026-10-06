@@ -8,194 +8,182 @@ export type LandscapeStyle =
   | "hostels"
   | "gate";
 
+export type TreeVariant =
+  | "round"
+  | "narrow"
+  | "cluster";
+
 export type LandscapeOptions = {
-  style?: LandscapeStyle;
   width?: number;
   depth?: number;
+  style?: LandscapeStyle;
+
   grassColor?: number;
   pathColor?: number;
   kerbColor?: number;
   hedgeColor?: number;
   flowerColor?: number;
-  treeCount?: number;
+  flowerSecondaryColor?: number;
+  treeLeafColor?: number;
+  treeLeafSecondaryColor?: number;
+  treeTrunkColor?: number;
+  metalColor?: number;
+  woodColor?: number;
+
+  includePaths?: boolean;
+  includeHedges?: boolean;
+  includeFlowers?: boolean;
+  includeTrees?: boolean;
   includeBenches?: boolean;
   includeLamps?: boolean;
-  includeHedges?: boolean;
-  includePaths?: boolean;
+
+  treeCount?: number;
   seed?: number;
 };
 
+type ResolvedLandscapeOptions =
+  Required<LandscapeOptions>;
+
 type MaterialSet = {
   grass: THREE.MeshStandardMaterial;
-  grassLight: THREE.MeshStandardMaterial;
   path: THREE.MeshStandardMaterial;
-  pathEdge: THREE.MeshStandardMaterial;
+  kerb: THREE.MeshStandardMaterial;
   hedge: THREE.MeshStandardMaterial;
-  hedgeDark: THREE.MeshStandardMaterial;
   flower: THREE.MeshStandardMaterial;
-  trunk: THREE.MeshStandardMaterial;
-  foliage: THREE.MeshStandardMaterial;
-  foliageDark: THREE.MeshStandardMaterial;
+  flowerSecondary: THREE.MeshStandardMaterial;
+  treeLeaf: THREE.MeshStandardMaterial;
+  treeLeafSecondary: THREE.MeshStandardMaterial;
+  treeTrunk: THREE.MeshStandardMaterial;
   metal: THREE.MeshStandardMaterial;
   wood: THREE.MeshStandardMaterial;
 };
 
-const DEFAULTS: Required<LandscapeOptions> = {
+const DEFAULTS: ResolvedLandscapeOptions = {
+  width: 32,
+  depth: 64,
   style: "quadrangle",
-  width: 28,
-  depth: 70,
-  grassColor: 0x6d9654,
-  pathColor: 0xb98755,
-  kerbColor: 0xd9c59c,
-  hedgeColor: 0x42683d,
-  flowerColor: 0xc96b4c,
-  treeCount: 8,
+
+  grassColor: 0x4f7f45,
+  pathColor: 0xc6b79a,
+  kerbColor: 0xb8ad97,
+  hedgeColor: 0x315d32,
+  flowerColor: 0xd75d65,
+  flowerSecondaryColor: 0xf0c85a,
+  treeLeafColor: 0x3e7040,
+  treeLeafSecondaryColor: 0x5b8b4b,
+  treeTrunkColor: 0x68452e,
+  metalColor: 0x39434a,
+  woodColor: 0x765239,
+
+  includePaths: true,
+  includeHedges: true,
+  includeFlowers: true,
+  includeTrees: true,
   includeBenches: true,
   includeLamps: false,
-  includeHedges: true,
-  includePaths: true,
+
+  treeCount: 8,
   seed: 17,
 };
 
-function mergeOptions(options: LandscapeOptions = {}): Required<LandscapeOptions> {
+function mergeOptions(
+  options: LandscapeOptions = {},
+): ResolvedLandscapeOptions {
   return {
     ...DEFAULTS,
     ...options,
   };
 }
 
-function box(
+function createMaterials(
+  options: ResolvedLandscapeOptions,
+): MaterialSet {
+  return {
+    grass: new THREE.MeshStandardMaterial({
+      color: options.grassColor,
+      roughness: 1,
+    }),
+
+    path: new THREE.MeshStandardMaterial({
+      color: options.pathColor,
+      roughness: 0.92,
+    }),
+
+    kerb: new THREE.MeshStandardMaterial({
+      color: options.kerbColor,
+      roughness: 0.86,
+    }),
+
+    hedge: new THREE.MeshStandardMaterial({
+      color: options.hedgeColor,
+      roughness: 1,
+    }),
+
+    flower: new THREE.MeshStandardMaterial({
+      color: options.flowerColor,
+      roughness: 0.82,
+    }),
+
+    flowerSecondary: new THREE.MeshStandardMaterial({
+      color: options.flowerSecondaryColor,
+      roughness: 0.82,
+    }),
+
+    treeLeaf: new THREE.MeshStandardMaterial({
+      color: options.treeLeafColor,
+      roughness: 1,
+    }),
+
+    treeLeafSecondary: new THREE.MeshStandardMaterial({
+      color: options.treeLeafSecondaryColor,
+      roughness: 1,
+    }),
+
+    treeTrunk: new THREE.MeshStandardMaterial({
+      color: options.treeTrunkColor,
+      roughness: 1,
+    }),
+
+    metal: new THREE.MeshStandardMaterial({
+      color: options.metalColor,
+      metalness: 0.5,
+      roughness: 0.58,
+    }),
+
+    wood: new THREE.MeshStandardMaterial({
+      color: options.woodColor,
+      roughness: 0.9,
+    }),
+  };
+}
+
+function seededRandom(seed: number) {
+  let value = Math.floor(seed) || 1;
+
+  return () => {
+    value = (
+      value * 1664525 +
+      1013904223
+    ) >>> 0;
+
+    return value / 4294967296;
+  };
+}
+
+function createBox(
   width: number,
   height: number,
   depth: number,
   material: THREE.Material,
 ) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(width, height, depth),
-    material,
-  );
-
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-
-  return mesh;
-}
-
-function cylinder(
-  radiusTop: number,
-  radiusBottom: number,
-  height: number,
-  material: THREE.Material,
-  radialSegments = 8,
-) {
-  const mesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(
-      radiusTop,
-      radiusBottom,
+  return new THREE.Mesh(
+    new THREE.BoxGeometry(
+      width,
       height,
-      radialSegments,
+      depth,
     ),
     material,
   );
-
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-
-  return mesh;
-}
-
-function sphere(
-  radius: number,
-  material: THREE.Material,
-  widthSegments = 10,
-  heightSegments = 7,
-) {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(
-      radius,
-      widthSegments,
-      heightSegments,
-    ),
-    material,
-  );
-
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-
-  return mesh;
-}
-
-function createMaterials(options: Required<LandscapeOptions>): MaterialSet {
-  return {
-    grass: new THREE.MeshStandardMaterial({
-      color: options.grassColor,
-      roughness: 0.96,
-    }),
-
-    grassLight: new THREE.MeshStandardMaterial({
-      color: new THREE.Color(options.grassColor).offsetHSL(
-        0,
-        -0.03,
-        0.06,
-      ),
-      roughness: 0.98,
-    }),
-
-    path: new THREE.MeshStandardMaterial({
-      color: options.pathColor,
-      roughness: 0.88,
-    }),
-
-    pathEdge: new THREE.MeshStandardMaterial({
-      color: options.kerbColor,
-      roughness: 0.9,
-    }),
-
-    hedge: new THREE.MeshStandardMaterial({
-      color: options.hedgeColor,
-      roughness: 0.95,
-    }),
-
-    hedgeDark: new THREE.MeshStandardMaterial({
-      color: new THREE.Color(options.hedgeColor).offsetHSL(
-        0,
-        0,
-        -0.08,
-      ),
-      roughness: 0.98,
-    }),
-
-    flower: new THREE.MeshStandardMaterial({
-      color: options.flowerColor,
-      roughness: 0.8,
-    }),
-
-    trunk: new THREE.MeshStandardMaterial({
-      color: 0x65452f,
-      roughness: 1,
-    }),
-
-    foliage: new THREE.MeshStandardMaterial({
-      color: 0x547c43,
-      roughness: 0.96,
-    }),
-
-    foliageDark: new THREE.MeshStandardMaterial({
-      color: 0x3e6338,
-      roughness: 0.98,
-    }),
-
-    metal: new THREE.MeshStandardMaterial({
-      color: 0x45443e,
-      metalness: 0.5,
-      roughness: 0.6,
-    }),
-
-    wood: new THREE.MeshStandardMaterial({
-      color: 0x6f4c35,
-      roughness: 0.86,
-    }),
-  };
 }
 
 function createGrass(
@@ -203,28 +191,21 @@ function createGrass(
   depth: number,
   materials: MaterialSet,
 ) {
-  const group = new THREE.Group();
-  group.name = "LandscapeGrass";
-
-  const base = box(width, 0.16, depth, materials.grass);
-  base.position.y = -0.08;
-  group.add(base);
-
-  /*
-   * Slightly smaller inset areas break up the perfectly uniform
-   * computer-generated lawn without turning it into visual noise.
-   */
-  const inset = box(
-    Math.max(2, width - 1.2),
-    0.025,
-    Math.max(2, depth - 1.2),
-    materials.grassLight,
+  const grass = createBox(
+    width,
+    0.16,
+    depth,
+    materials.grass,
   );
 
-  inset.position.y = 0.01;
-  group.add(inset);
+  grass.position.y = -0.08;
+  grass.receiveShadow = true;
 
-  return group;
+  grass.userData = {
+    type: "grass",
+  };
+
+  return grass;
 }
 
 function createPath(
@@ -233,36 +214,44 @@ function createPath(
   materials: MaterialSet,
 ) {
   const group = new THREE.Group();
-  group.name = "LandscapePath";
 
-  const surface = box(
-    Math.max(1.8, width),
-    0.07,
+  const surface = createBox(
+    width,
+    0.08,
     depth,
     materials.path,
   );
 
-  surface.position.y = 0.035;
+  surface.position.y = 0.01;
+  surface.receiveShadow = true;
+
   group.add(surface);
 
-  const leftKerb = box(
-    0.14,
-    0.11,
+  const kerbThickness = 0.08;
+  const kerbHeight = 0.12;
+
+  for (const side of [-1, 1]) {
+    const kerb = createBox(
+      kerbThickness,
+      kerbHeight,
+      depth,
+      materials.kerb,
+    );
+
+    kerb.position.set(
+      side * (width / 2),
+      kerbHeight / 2,
+      0,
+    );
+
+    group.add(kerb);
+  }
+
+  group.userData = {
+    type: "path",
+    width,
     depth,
-    materials.pathEdge,
-  );
-
-  leftKerb.position.set(
-    -width / 2 - 0.07,
-    0.055,
-    0,
-  );
-
-  group.add(leftKerb);
-
-  const rightKerb = leftKerb.clone();
-  rightKerb.position.x = width / 2 + 0.07;
-  group.add(rightKerb);
+  };
 
   return group;
 }
@@ -273,7 +262,14 @@ function createCrossPath(
   materials: MaterialSet,
 ) {
   const group = new THREE.Group();
-  group.name = "LandscapeCrossPath";
+
+  group.add(
+    createPath(
+      width,
+      depth,
+      materials,
+    ),
+  );
 
   const horizontal = createPath(
     depth,
@@ -281,76 +277,54 @@ function createCrossPath(
     materials,
   );
 
-  horizontal.rotation.y = Math.PI / 2;
   group.add(horizontal);
 
-  const vertical = createPath(
-    width,
-    depth,
-    materials,
-  );
-
-  group.add(vertical);
+  group.userData = {
+    type: "cross-path",
+  };
 
   return group;
 }
 
 function createRadialPath(
   radius: number,
-  width: number,
-  count: number,
+  pathWidth: number,
+  segments: number,
   materials: MaterialSet,
 ) {
   const group = new THREE.Group();
-  group.name = "LandscapeRadialPaths";
 
-  for (let i = 0; i < count; i += 1) {
-    const path = box(
-      width,
-      0.07,
-      radius,
-      materials.path,
+  for (let i = 0; i < segments; i += 1) {
+    const angle =
+      (Math.PI * 2 * i) / segments;
+
+    const path = createPath(
+      pathWidth,
+      radius * 2,
+      materials,
     );
 
-    path.position.y = 0.035;
-    path.position.z = -radius / 2;
-    path.rotation.y =
-      (Math.PI * 2 * i) / count;
-
+    path.rotation.y = angle;
     group.add(path);
   }
 
-  return group;
-}
-
-function createHedge(
-  width: number,
-  height: number,
-  depth: number,
-  materials: MaterialSet,
-) {
-  const group = new THREE.Group();
-  group.name = "LandscapeHedge";
-
-  const body = box(
-    width,
-    height,
-    depth,
-    materials.hedge,
+  const centre = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      radius * 0.18,
+      radius * 0.18,
+      0.06,
+      24,
+    ),
+    materials.path,
   );
 
-  body.position.y = height / 2;
-  group.add(body);
+  centre.position.y = 0.03;
+  group.add(centre);
 
-  const cap = box(
-    Math.max(0.2, width * 0.92),
-    Math.max(0.08, height * 0.18),
-    Math.max(0.2, depth * 0.92),
-    materials.hedgeDark,
-  );
-
-  cap.position.y = height + 0.015;
-  group.add(cap);
+  group.userData = {
+    type: "radial-path",
+    radius,
+  };
 
   return group;
 }
@@ -363,51 +337,68 @@ function createHedgeRow(
   rounded = false,
 ) {
   const group = new THREE.Group();
-  group.name = "LandscapeHedgeRow";
-
-  if (!rounded) {
-    group.add(
-      createHedge(
-        length,
-        height,
-        depth,
-        materials,
-      ),
-    );
-
-    return group;
-  }
 
   const count = Math.max(
     3,
-    Math.floor(length / 1.25),
+    Math.ceil(length / 1.2),
   );
 
+  const spacing =
+    count > 1
+      ? length / (count - 1)
+      : length;
+
   for (let i = 0; i < count; i += 1) {
-    const t =
-      count === 1 ? 0.5 : i / (count - 1);
+    const hedge = rounded
+      ? new THREE.Mesh(
+          new THREE.SphereGeometry(
+            Math.max(
+              0.34,
+              Math.min(
+                height,
+                depth,
+              ) * 0.58,
+            ),
+            10,
+            8,
+          ),
+          materials.hedge,
+        )
+      : createBox(
+          Math.max(
+            0.72,
+            spacing * 0.92,
+          ),
+          height,
+          depth,
+          materials.hedge,
+        );
 
-    const x =
-      THREE.MathUtils.lerp(
-        -length / 2,
-        length / 2,
-        t,
-      );
+    hedge.position.x =
+      -length / 2 +
+      i * spacing;
 
-    const scale =
-      0.72 +
-      Math.sin(t * Math.PI) * 0.28;
+    if (rounded) {
+      hedge.scale.y = 0.78;
+      hedge.position.y =
+        height * 0.48;
+    } else {
+      hedge.position.y =
+        height / 2;
+    }
 
-    const hedge = createHedge(
-      1.35,
-      height * scale,
-      depth,
-      materials,
-    );
+    hedge.castShadow = true;
+    hedge.receiveShadow = true;
 
-    hedge.position.x = x;
     group.add(hedge);
   }
+
+  group.userData = {
+    type: "hedge-row",
+    length,
+    height,
+    depth,
+  };
 
   return group;
 }
@@ -418,187 +409,343 @@ function createFlowerBed(
   materials: MaterialSet,
 ) {
   const group = new THREE.Group();
-  group.name = "LandscapeFlowerBed";
 
-  const soil = box(
+  const soil = createBox(
     width,
-    0.09,
+    0.07,
     depth,
-    new THREE.MeshStandardMaterial({
-      color: 0x5e4631,
-      roughness: 1,
-    }),
+    materials.kerb,
   );
 
-  soil.position.y = 0.045;
+  soil.position.y = 0.035;
   group.add(soil);
 
   const flowerCount = Math.max(
     8,
-    Math.floor((width * depth) / 1.8),
+    Math.floor(
+      width * depth * 0.22,
+    ),
   );
 
-  for (let i = 0; i < flowerCount; i += 1) {
+  const random = seededRandom(
+    Math.round(
+      width * 31 +
+      depth * 17,
+    ),
+  );
+
+  for (
+    let i = 0;
+    i < flowerCount;
+    i += 1
+  ) {
+    const stem = createBox(
+      0.035,
+      0.24,
+      0.035,
+      materials.treeTrunk,
+    );
+
     const x =
-      (Math.random() - 0.5) *
-      Math.max(0.4, width - 0.35);
+      (random() - 0.5) *
+      Math.max(0.1, width * 0.88);
 
     const z =
-      (Math.random() - 0.5) *
-      Math.max(0.4, depth - 0.35);
+      (random() - 0.5) *
+      Math.max(0.1, depth * 0.82);
 
-    const flower = sphere(
-      0.055 + Math.random() * 0.035,
-      materials.flower,
-      6,
-      5,
+    stem.position.set(
+      x,
+      0.16,
+      z,
+    );
+
+    group.add(stem);
+
+    const flower = new THREE.Mesh(
+      new THREE.SphereGeometry(
+        0.085,
+        7,
+        5,
+      ),
+      random() > 0.5
+        ? materials.flower
+        : materials.flowerSecondary,
     );
 
     flower.position.set(
       x,
-      0.13 + Math.random() * 0.06,
+      0.32,
       z,
     );
 
+    flower.scale.y = 0.72;
     group.add(flower);
   }
+
+  group.userData = {
+    type: "flower-bed",
+    width,
+    depth,
+  };
 
   return group;
 }
 
 function createTree(
-  height: number,
-  radius: number,
+  variant: TreeVariant,
   materials: MaterialSet,
-  variant: "round" | "narrow" | "cluster" = "round",
+  seed: number,
 ) {
+  const random = seededRandom(seed);
   const group = new THREE.Group();
-  group.name = "LandscapeTree";
 
   const trunkHeight =
     variant === "narrow"
-      ? height * 0.58
-      : height * 0.48;
+      ? 2.3
+      : variant === "cluster"
+        ? 1.8
+        : 2;
 
-  const trunk = cylinder(
-    radius * 0.17,
-    radius * 0.24,
-    trunkHeight,
-    materials.trunk,
-    7,
+  const trunkRadius =
+    variant === "narrow"
+      ? 0.15
+      : 0.18;
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      trunkRadius,
+      trunkRadius * 1.22,
+      trunkHeight,
+      8,
+    ),
+    materials.treeTrunk,
   );
 
-  trunk.position.y = trunkHeight / 2;
+  trunk.position.y =
+    trunkHeight / 2;
+
+  trunk.castShadow = true;
   group.add(trunk);
 
   if (variant === "narrow") {
-    const crown = sphere(
-      radius * 0.82,
-      materials.foliage,
-      10,
-      8,
+    const crown = new THREE.Mesh(
+      new THREE.ConeGeometry(
+        1.05,
+        2.7,
+        9,
+      ),
+      materials.treeLeaf,
     );
 
-    crown.scale.y = 1.35;
     crown.position.y =
-      trunkHeight + radius * 0.7;
+      trunkHeight + 1.15;
 
+    crown.castShadow = true;
     group.add(crown);
   } else if (variant === "cluster") {
-    const offsets = [
-      [-0.42, 0.1, 0],
-      [0.38, 0.14, 0.04],
-      [0, 0.4, 0],
-      [0, 0.1, -0.42],
-      [0.08, 0.18, 0.4],
-    ];
-
-    offsets.forEach(([x, y, z], index) => {
-      const crown = sphere(
-        radius *
-          (0.56 +
-            (index % 2) * 0.08),
-        index % 2 === 0
-          ? materials.foliage
-          : materials.foliageDark,
-        9,
-        7,
+    for (let i = 0; i < 5; i += 1) {
+      const crown = new THREE.Mesh(
+        new THREE.SphereGeometry(
+          0.75 +
+            random() * 0.3,
+          10,
+          8,
+        ),
+        i % 2 === 0
+          ? materials.treeLeaf
+          : materials.treeLeafSecondary,
       );
 
       crown.position.set(
-        x * radius,
-        trunkHeight + radius * y + radius * 0.55,
-        z * radius,
+        (random() - 0.5) * 1.25,
+        trunkHeight +
+          0.75 +
+          random() * 0.9,
+        (random() - 0.5) * 1.25,
       );
 
+      crown.scale.y =
+        0.9 + random() * 0.25;
+
+      crown.castShadow = true;
       group.add(crown);
-    });
+    }
   } else {
-    const crown = sphere(
-      radius,
-      materials.foliage,
-      11,
-      8,
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(
+        1.25,
+        12,
+        9,
+      ),
+      materials.treeLeaf,
     );
 
     crown.position.y =
-      trunkHeight + radius * 0.75;
+      trunkHeight + 1;
 
+    crown.scale.y = 0.88;
+    crown.castShadow = true;
     group.add(crown);
 
-    const secondary = sphere(
-      radius * 0.68,
-      materials.foliageDark,
-      9,
-      7,
+    const secondary = new THREE.Mesh(
+      new THREE.SphereGeometry(
+        0.72,
+        10,
+        8,
+      ),
+      materials.treeLeafSecondary,
     );
 
     secondary.position.set(
-      radius * 0.48,
-      trunkHeight + radius * 0.48,
-      radius * 0.1,
+      0.45,
+      trunkHeight + 1.55,
+      0.15,
     );
 
+    secondary.scale.y = 0.82;
+    secondary.castShadow = true;
     group.add(secondary);
   }
+
+  group.userData = {
+    type: "tree",
+    variant,
+  };
 
   return group;
 }
 
-function createBench(materials: MaterialSet) {
-  const group = new THREE.Group();
-  group.name = "LandscapeBench";
+function scatterTrees(
+  group: THREE.Group,
+  options: ResolvedLandscapeOptions,
+  materials: MaterialSet,
+) {
+  if (
+    !options.includeTrees ||
+    options.treeCount <= 0
+  ) {
+    return;
+  }
 
-  const seat = box(
-    1.65,
-    0.12,
-    0.42,
+  const random = seededRandom(
+    options.seed,
+  );
+
+  const count = Math.max(
+    0,
+    Math.floor(options.treeCount),
+  );
+
+  for (
+    let i = 0;
+    i < count;
+    i += 1
+  ) {
+    const roll = random();
+
+    const variant: TreeVariant =
+      roll < 0.2
+        ? "narrow"
+        : roll < 0.42
+          ? "cluster"
+          : "round";
+
+    const tree = createTree(
+      variant,
+      materials,
+      options.seed + i * 97,
+    );
+
+    const edgeBias =
+      random() > 0.48;
+
+    let x: number;
+    let z: number;
+
+    if (edgeBias) {
+      const side =
+        random() > 0.5
+          ? 1
+          : -1;
+
+      x =
+        side *
+        (
+          options.width * 0.38 +
+          random() *
+            options.width * 0.12
+        );
+
+      z =
+        (random() - 0.5) *
+        options.depth *
+        0.82;
+    } else {
+      x =
+        (random() - 0.5) *
+        options.width *
+        0.82;
+
+      z =
+        (random() - 0.5) *
+        options.depth *
+        0.82;
+    }
+
+    tree.position.set(
+      x,
+      0,
+      z,
+    );
+
+    const scale =
+      0.82 +
+      random() * 0.38;
+
+    tree.scale.setScalar(scale);
+
+    group.add(tree);
+  }
+}
+
+function createBench(
+  materials: MaterialSet,
+) {
+  const group = new THREE.Group();
+
+  const seat = createBox(
+    1.8,
+    0.14,
+    0.46,
     materials.wood,
   );
 
   seat.position.y = 0.72;
+  seat.castShadow = true;
   group.add(seat);
 
-  const back = box(
-    1.65,
-    0.48,
-    0.1,
+  const back = createBox(
+    1.8,
+    0.55,
+    0.12,
     materials.wood,
   );
 
   back.position.set(
     0,
-    1.03,
-    0.2,
+    1.02,
+    -0.18,
   );
 
+  back.castShadow = true;
   group.add(back);
 
-  for (const x of [-0.58, 0.58]) {
-    const leg = box(
-      0.09,
-      0.72,
-      0.09,
+  for (const x of [-0.62, 0.62]) {
+    const leg = createBox(
+      0.1,
+      0.7,
+      0.1,
       materials.metal,
     );
 
@@ -611,137 +758,79 @@ function createBench(materials: MaterialSet) {
     group.add(leg);
   }
 
+  group.userData = {
+    type: "bench",
+  };
+
   return group;
 }
 
-function createLamp(materials: MaterialSet) {
+function createLamp(
+  materials: MaterialSet,
+) {
   const group = new THREE.Group();
-  group.name = "LandscapeLamp";
 
-  const pole = cylinder(
-    0.035,
-    0.055,
+  const pole = createBox(
+    0.08,
     2.8,
+    0.08,
     materials.metal,
-    8,
   );
 
   pole.position.y = 1.4;
   group.add(pole);
 
-  const head = sphere(
-    0.13,
-    new THREE.MeshStandardMaterial({
-      color: 0xffdf9b,
-      emissive: 0x5f4524,
-      emissiveIntensity: 0.8,
-      roughness: 0.45,
-    }),
-    8,
-    6,
+  const arm = createBox(
+    0.55,
+    0.07,
+    0.07,
+    materials.metal,
   );
 
-  head.position.y = 2.85;
-  group.add(head);
+  arm.position.set(
+    0.22,
+    2.72,
+    0,
+  );
+
+  group.add(arm);
+
+  const light = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      0.16,
+      10,
+      8,
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0xffe4a8,
+      emissive: 0xffc86a,
+      emissiveIntensity: 1.5,
+      roughness: 0.4,
+    }),
+  );
+
+  light.position.set(
+    0.48,
+    2.66,
+    0,
+  );
+
+  group.add(light);
+
+  group.userData = {
+    type: "lamp",
+  };
 
   return group;
 }
 
-function seededRandom(seed: number) {
-  let value = seed >>> 0;
+/* -------------------------------------------------------------------------- */
+/* Internal environment builders                                              */
+/* -------------------------------------------------------------------------- */
 
-  return () => {
-    value += 0x6d2b79f5;
-
-    let t = value;
-    t =
-      Math.imul(
-        t ^ (t >>> 15),
-        t | 1,
-      );
-
-    t ^=
-      t +
-      Math.imul(
-        t ^ (t >>> 7),
-        t | 61,
-      );
-
-    return (
-      ((t ^ (t >>> 14)) >>> 0) /
-      4294967296
-    );
-  };
-}
-
-function scatterTrees(
+function createQuadrangleLandscapeInternal(
   group: THREE.Group,
-  options: Required<LandscapeOptions>,
-  materials: MaterialSet,
-) {
-  const random = seededRandom(options.seed);
-
-  const count =
-    options.style === "sports"
-      ? Math.max(3, Math.floor(options.treeCount * 0.55))
-      : options.treeCount;
-
-  for (let i = 0; i < count; i += 1) {
-    const side =
-      random() < 0.5 ? -1 : 1;
-
-    const x =
-      side *
-      (options.width * 0.35 +
-        random() * options.width * 0.34);
-
-    const z =
-      (random() - 0.5) *
-      options.depth *
-      0.86;
-
-    const variantRoll = random();
-
-    const variant =
-      variantRoll < 0.2
-        ? "narrow"
-        : variantRoll < 0.42
-          ? "cluster"
-          : "round";
-
-    const height =
-      variant === "narrow"
-        ? 5.8 + random() * 1.7
-        : 4.2 + random() * 2.4;
-
-    const radius =
-      variant === "narrow"
-        ? 0.85 + random() * 0.25
-        : 1.15 + random() * 0.55;
-
-    const tree = createTree(
-      height,
-      radius,
-      materials,
-      variant,
-    );
-
-    tree.position.set(
-      x,
-      0,
-      z,
-    );
-
-    tree.rotation.y =
-      random() * Math.PI * 2;
-
-    group.add(tree);
-  }
-}
-
-function createQuadrangleLandscape(
-  group: THREE.Group,
-  options: Required<LandscapeOptions>,
+  options: ResolvedLandscapeOptions,
   materials: MaterialSet,
 ) {
   group.add(
@@ -763,17 +852,21 @@ function createQuadrangleLandscape(
   }
 
   if (options.includeHedges) {
-    const hedgeY =
+    const hedgeZ =
       options.depth * 0.5 - 4;
 
-    for (const z of [-hedgeY, hedgeY]) {
-      const hedge = createHedgeRow(
-        options.width * 0.64,
-        0.7,
-        0.75,
-        materials,
-        false,
-      );
+    for (const z of [
+      -hedgeZ,
+      hedgeZ,
+    ]) {
+      const hedge =
+        createHedgeRow(
+          options.width * 0.64,
+          0.7,
+          0.75,
+          materials,
+          false,
+        );
 
       hedge.position.z = z;
       group.add(hedge);
@@ -783,18 +876,38 @@ function createQuadrangleLandscape(
       -options.width * 0.38,
       options.width * 0.38,
     ]) {
-      const hedge = createHedgeRow(
-        options.depth * 0.38,
-        0.68,
-        0.72,
-        materials,
-        false,
-      );
+      const hedge =
+        createHedgeRow(
+          options.depth * 0.38,
+          0.68,
+          0.72,
+          materials,
+          false,
+        );
 
-      hedge.rotation.y = Math.PI / 2;
+      hedge.rotation.y =
+        Math.PI / 2;
+
       hedge.position.x = x;
       group.add(hedge);
     }
+  }
+
+  if (options.includeFlowers) {
+    const bed =
+      createFlowerBed(
+        options.width * 0.18,
+        options.depth * 0.08,
+        materials,
+      );
+
+    bed.position.set(
+      0,
+      0,
+      options.depth * 0.25,
+    );
+
+    group.add(bed);
   }
 
   scatterTrees(
@@ -802,11 +915,34 @@ function createQuadrangleLandscape(
     options,
     materials,
   );
+
+  if (options.includeBenches) {
+    for (const x of [
+      -options.width * 0.22,
+      options.width * 0.22,
+    ]) {
+      const bench =
+        createBench(materials);
+
+      bench.position.set(
+        x,
+        0,
+        options.depth * 0.12,
+      );
+
+      bench.rotation.y =
+        x < 0
+          ? -Math.PI / 2
+          : Math.PI / 2;
+
+      group.add(bench);
+    }
+  }
 }
 
-function createWalkwayLandscape(
+function createWalkwayLandscapeInternal(
   group: THREE.Group,
-  options: Required<LandscapeOptions>,
+  options: ResolvedLandscapeOptions,
   materials: MaterialSet,
 ) {
   group.add(
@@ -827,41 +963,71 @@ function createWalkwayLandscape(
     );
   }
 
-  const plantingStripWidth =
-    Math.max(1.2, options.width * 0.18);
+  if (options.includeFlowers) {
+    const plantingStripWidth =
+      Math.max(
+        1.2,
+        options.width * 0.18,
+      );
 
-  for (const side of [-1, 1]) {
-    const strip = createFlowerBed(
-      plantingStripWidth,
-      options.depth * 0.82,
-      materials,
-    );
+    for (const side of [-1, 1]) {
+      const strip =
+        createFlowerBed(
+          plantingStripWidth,
+          options.depth * 0.82,
+          materials,
+        );
 
-    strip.position.x =
-      side *
-      (options.width * 0.32);
+      strip.position.x =
+        side *
+        options.width *
+        0.32;
 
-    group.add(strip);
+      group.add(strip);
+    }
   }
 
-  const treeOptions = {
-    ...options,
-    treeCount: Math.max(
-      4,
-      Math.floor(options.treeCount * 0.7),
-    ),
-  };
+  if (options.includeHedges) {
+    for (const side of [-1, 1]) {
+      const hedge =
+        createHedgeRow(
+          options.depth * 0.72,
+          0.56,
+          0.58,
+          materials,
+          true,
+        );
+
+      hedge.rotation.y =
+        Math.PI / 2;
+
+      hedge.position.x =
+        side *
+        options.width *
+        0.43;
+
+      group.add(hedge);
+    }
+  }
 
   scatterTrees(
     group,
-    treeOptions,
+    {
+      ...options,
+      treeCount: Math.max(
+        4,
+        Math.floor(
+          options.treeCount * 0.7,
+        ),
+      ),
+    },
     materials,
   );
 }
 
-function createGardenLandscape(
+function createGardenLandscapeInternal(
   group: THREE.Group,
-  options: Required<LandscapeOptions>,
+  options: ResolvedLandscapeOptions,
   materials: MaterialSet,
 ) {
   group.add(
@@ -886,23 +1052,27 @@ function createGardenLandscape(
     );
   }
 
-  const flowerBed = createFlowerBed(
-    options.width * 0.22,
-    options.depth * 0.13,
-    materials,
-  );
+  if (options.includeFlowers) {
+    const flowerBed =
+      createFlowerBed(
+        options.width * 0.22,
+        options.depth * 0.13,
+        materials,
+      );
 
-  flowerBed.position.y = 0.02;
-  group.add(flowerBed);
+    flowerBed.position.y = 0.02;
+    group.add(flowerBed);
+  }
 
   if (options.includeHedges) {
-    const hedge = createHedgeRow(
-      options.width * 0.6,
-      0.62,
-      0.7,
-      materials,
-      true,
-    );
+    const hedge =
+      createHedgeRow(
+        options.width * 0.6,
+        0.62,
+        0.7,
+        materials,
+        true,
+      );
 
     hedge.position.z =
       options.depth * 0.28;
@@ -927,9 +1097,8 @@ function createGardenLandscape(
       -options.width * 0.27,
       options.width * 0.27,
     ]) {
-      const bench = createBench(
-        materials,
-      );
+      const bench =
+        createBench(materials);
 
       bench.position.set(
         x,
@@ -947,9 +1116,9 @@ function createGardenLandscape(
   }
 }
 
-function createSportsLandscape(
+function createSportsLandscapeInternal(
   group: THREE.Group,
-  options: Required<LandscapeOptions>,
+  options: ResolvedLandscapeOptions,
   materials: MaterialSet,
 ) {
   group.add(
@@ -961,11 +1130,12 @@ function createSportsLandscape(
   );
 
   if (options.includePaths) {
-    const path = createPath(
-      1.9,
-      options.depth * 0.86,
-      materials,
-    );
+    const path =
+      createPath(
+        1.9,
+        options.depth * 0.86,
+        materials,
+      );
 
     path.position.x =
       options.width * 0.39;
@@ -974,13 +1144,14 @@ function createSportsLandscape(
   }
 
   if (options.includeHedges) {
-    const hedge = createHedgeRow(
-      options.width * 0.76,
-      0.52,
-      0.6,
-      materials,
-      false,
-    );
+    const hedge =
+      createHedgeRow(
+        options.width * 0.76,
+        0.52,
+        0.6,
+        materials,
+        false,
+      );
 
     hedge.position.z =
       -options.depth * 0.39;
@@ -994,16 +1165,37 @@ function createSportsLandscape(
       ...options,
       treeCount: Math.max(
         3,
-        Math.floor(options.treeCount * 0.45),
+        Math.floor(
+          options.treeCount * 0.45,
+        ),
       ),
     },
     materials,
   );
+
+  if (options.includeLamps) {
+    for (const z of [
+      -options.depth * 0.3,
+      0,
+      options.depth * 0.3,
+    ]) {
+      const lamp =
+        createLamp(materials);
+
+      lamp.position.set(
+        options.width * 0.28,
+        0,
+        z,
+      );
+
+      group.add(lamp);
+    }
+  }
 }
 
-function createHostelLandscape(
+function createHostelLandscapeInternal(
   group: THREE.Group,
-  options: Required<LandscapeOptions>,
+  options: ResolvedLandscapeOptions,
   materials: MaterialSet,
 ) {
   group.add(
@@ -1029,13 +1221,14 @@ function createHostelLandscape(
       -options.width * 0.36,
       options.width * 0.36,
     ]) {
-      const hedge = createHedgeRow(
-        options.depth * 0.46,
-        0.62,
-        0.68,
-        materials,
-        true,
-      );
+      const hedge =
+        createHedgeRow(
+          options.depth * 0.46,
+          0.62,
+          0.68,
+          materials,
+          true,
+        );
 
       hedge.rotation.y =
         Math.PI / 2;
@@ -1058,9 +1251,8 @@ function createHostelLandscape(
   );
 
   if (options.includeBenches) {
-    const bench = createBench(
-      materials,
-    );
+    const bench =
+      createBench(materials);
 
     bench.position.set(
       0,
@@ -1070,11 +1262,33 @@ function createHostelLandscape(
 
     group.add(bench);
   }
+
+  if (options.includeLamps) {
+    for (const z of [
+      -options.depth * 0.25,
+      options.depth * 0.25,
+    ]) {
+      for (const side of [-1, 1]) {
+        const lamp =
+          createLamp(materials);
+
+        lamp.position.set(
+          side *
+            options.width *
+            0.28,
+          0,
+          z,
+        );
+
+        group.add(lamp);
+      }
+    }
+  }
 }
 
-function createGateLandscape(
+function createGateLandscapeInternal(
   group: THREE.Group,
-  options: Required<LandscapeOptions>,
+  options: ResolvedLandscapeOptions,
   materials: MaterialSet,
 ) {
   group.add(
@@ -1086,24 +1300,26 @@ function createGateLandscape(
   );
 
   if (options.includePaths) {
-    const centralPath = createPath(
-      4.2,
-      options.depth * 0.9,
-      materials,
-    );
+    const centralPath =
+      createPath(
+        4.2,
+        options.depth * 0.9,
+        materials,
+      );
 
     group.add(centralPath);
   }
 
   if (options.includeHedges) {
     for (const side of [-1, 1]) {
-      const hedge = createHedgeRow(
-        options.depth * 0.55,
-        0.82,
-        0.85,
-        materials,
-        false,
-      );
+      const hedge =
+        createHedgeRow(
+          options.depth * 0.55,
+          0.82,
+          0.85,
+          materials,
+          false,
+        );
 
       hedge.rotation.y =
         Math.PI / 2;
@@ -1121,7 +1337,9 @@ function createGateLandscape(
     ...options,
     treeCount: Math.max(
       6,
-      Math.floor(options.treeCount * 0.8),
+      Math.floor(
+        options.treeCount * 0.8,
+      ),
     ),
   };
 
@@ -1138,9 +1356,8 @@ function createGateLandscape(
       options.depth * 0.28,
     ]) {
       for (const side of [-1, 1]) {
-        const lamp = createLamp(
-          materials,
-        );
+        const lamp =
+          createLamp(materials);
 
         lamp.position.set(
           side *
@@ -1156,6 +1373,10 @@ function createGateLandscape(
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Public factory                                                              */
+/* -------------------------------------------------------------------------- */
+
 export function createLandscape(
   options: LandscapeOptions = {},
 ) {
@@ -1168,11 +1389,12 @@ export function createLandscape(
   const group =
     new THREE.Group();
 
-  group.name = `CampusLandscape:${resolved.style}`;
+  group.name =
+    `CampusLandscape:${resolved.style}`;
 
   switch (resolved.style) {
     case "walkway":
-      createWalkwayLandscape(
+      createWalkwayLandscapeInternal(
         group,
         resolved,
         materials,
@@ -1180,7 +1402,7 @@ export function createLandscape(
       break;
 
     case "garden":
-      createGardenLandscape(
+      createGardenLandscapeInternal(
         group,
         resolved,
         materials,
@@ -1188,7 +1410,7 @@ export function createLandscape(
       break;
 
     case "sports":
-      createSportsLandscape(
+      createSportsLandscapeInternal(
         group,
         resolved,
         materials,
@@ -1196,7 +1418,7 @@ export function createLandscape(
       break;
 
     case "hostels":
-      createHostelLandscape(
+      createHostelLandscapeInternal(
         group,
         resolved,
         materials,
@@ -1204,7 +1426,7 @@ export function createLandscape(
       break;
 
     case "gate":
-      createGateLandscape(
+      createGateLandscapeInternal(
         group,
         resolved,
         materials,
@@ -1213,7 +1435,7 @@ export function createLandscape(
 
     case "quadrangle":
     default:
-      createQuadrangleLandscape(
+      createQuadrangleLandscapeInternal(
         group,
         resolved,
         materials,
@@ -1230,6 +1452,10 @@ export function createLandscape(
 
   return group;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Public style-specific wrappers                                              */
+/* -------------------------------------------------------------------------- */
 
 export function createCampusLandscape(
   options: LandscapeOptions = {},
@@ -1310,5 +1536,3 @@ export function createGateLandscape(
     style: "gate",
   });
 }
-
-export default createLandscape;
