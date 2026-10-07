@@ -1,9 +1,5 @@
 import * as THREE from "three";
 
-/* -------------------------------------------------------------------------- */
-/* Types                                                                      */
-/* -------------------------------------------------------------------------- */
-
 export type LandscapeStyle =
   | "campus"
   | "quadrangle"
@@ -25,23 +21,16 @@ export type LandscapeOptions = {
   width?: number;
   depth?: number;
 
-  /* Current API */
   style?: LandscapeStyle;
-
-  /* Legacy CampusWorld API */
   theme?: LandscapeTheme;
-
   seed?: number;
 
-  /* Vegetation */
   treeCount?: number;
   treeDensity?: number;
   hedgeDensity?: number;
-
-  /* Lighting */
   lampDensity?: number;
+  benchDensity?: number;
 
-  /* Materials */
   grassColor?: number;
   pathColor?: number;
   kerbColor?: number;
@@ -52,19 +41,15 @@ export type LandscapeOptions = {
   metalColor?: number;
   woodColor?: number;
 
-  /* Paths */
   pathWidth?: number;
   pathInset?: number;
 
-  /* Hedges */
   hedgeHeight?: number;
   hedgeThickness?: number;
 
-  /* Trees */
   treeScale?: number;
   treeSpacing?: number;
 
-  /* Optional details */
   includePaths?: boolean;
   includeHedges?: boolean;
   includeFlowers?: boolean;
@@ -79,14 +64,13 @@ type ResolvedLandscapeOptions = {
   depth: number;
 
   style: LandscapeStyle;
-
   seed: number;
 
   treeDensity: number;
   treeCount: number;
-
   hedgeDensity: number;
   lampDensity: number;
+  benchDensity: number;
 
   grassColor: number;
   pathColor: number;
@@ -116,23 +100,30 @@ type ResolvedLandscapeOptions = {
   name?: string;
 };
 
-/* -------------------------------------------------------------------------- */
-/* Defaults                                                                   */
-/* -------------------------------------------------------------------------- */
+type MaterialSet = {
+  grass: THREE.MeshStandardMaterial;
+  path: THREE.MeshStandardMaterial;
+  kerb: THREE.MeshStandardMaterial;
+  hedge: THREE.MeshStandardMaterial;
+  flower: THREE.MeshStandardMaterial;
+  trunk: THREE.MeshStandardMaterial;
+  foliage: THREE.MeshStandardMaterial;
+  metal: THREE.MeshStandardMaterial;
+  wood: THREE.MeshStandardMaterial;
+};
 
 const DEFAULTS = {
   width: 92,
   depth: 120,
 
   style: "campus" as LandscapeStyle,
-
   seed: 173,
 
   treeCount: 8,
   treeDensity: 1,
-
   hedgeDensity: 1,
   lampDensity: 0.65,
+  benchDensity: 0.45,
 
   grassColor: 0x527d43,
   pathColor: 0xb9a77b,
@@ -160,10 +151,6 @@ const DEFAULTS = {
   includeLamps: true,
 };
 
-/* -------------------------------------------------------------------------- */
-/* Utility                                                                    */
-/* -------------------------------------------------------------------------- */
-
 function clamp(
   value: number,
   min: number,
@@ -180,8 +167,7 @@ function seededRandom(seed: number) {
 
   return () => {
     state =
-      (state * 1664525 + 1013904223) >>>
-      0;
+      (state * 1664525 + 1013904223) >>> 0;
 
     return state / 4294967296;
   };
@@ -243,13 +229,9 @@ function createCylinder(
   return mesh;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Materials                                                                  */
-/* -------------------------------------------------------------------------- */
-
 function createMaterials(
   options: ResolvedLandscapeOptions,
-) {
+): MaterialSet {
   return {
     grass: createMaterial(
       options.grassColor,
@@ -293,7 +275,7 @@ function createMaterials(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Ground                                                                     */
+/* Ground and paths                                                           */
 /* -------------------------------------------------------------------------- */
 
 function createGrass(
@@ -386,7 +368,6 @@ function createRadialPath(
     );
 
     path.position.y = 0.025;
-
     path.rotation.y =
       (i / segments) * Math.PI;
 
@@ -405,6 +386,7 @@ function createHedgeRow(
   height: number,
   thickness: number,
   material: THREE.Material,
+  rounded = false,
 ) {
   const group = new THREE.Group();
 
@@ -415,8 +397,11 @@ function createHedgeRow(
     material,
   );
 
-  hedge.position.y =
-    height / 2;
+  hedge.position.y = height / 2;
+
+  if (rounded) {
+    hedge.geometry.computeBoundingBox();
+  }
 
   group.add(hedge);
 
@@ -451,6 +436,9 @@ function createHedgeRow(
 
     group.add(divider);
   }
+
+  group.userData.type =
+    "campus-hedge";
 
   return group;
 }
@@ -501,6 +489,9 @@ function createFlowerBed(
     group.add(stem);
   }
 
+  group.userData.type =
+    "campus-flower-bed";
+
   return group;
 }
 
@@ -511,13 +502,10 @@ function createFlowerBed(
 function createTree(
   variant: TreeVariant,
   scale: number,
-  materials: ReturnType<
-    typeof createMaterials
-  >,
+  materials: MaterialSet,
   seed: number,
 ) {
-  const group =
-    new THREE.Group();
+  const group = new THREE.Group();
 
   const random =
     seededRandom(seed);
@@ -567,18 +555,15 @@ function createTree(
         (random() - 0.5) *
           1.2 *
           scale,
-
         (2.1 + random() * 1.1) *
           scale,
-
         (random() - 0.5) *
           1.2 *
           scale,
       );
 
       foliage.rotation.z =
-        (random() - 0.5) *
-        0.15;
+        (random() - 0.5) * 0.15;
 
       group.add(foliage);
     }
@@ -593,13 +578,10 @@ function createTree(
         radius *
           scale *
           0.78,
-
         radius * scale,
-
         radius *
           scale *
           1.35,
-
         materials.foliage,
         9,
       );
@@ -620,15 +602,12 @@ function createTree(
         radius *
           scale *
           0.52,
-
         radius *
           scale *
           0.7,
-
         radius *
           scale *
           0.8,
-
         materials.foliage,
         9,
       );
@@ -652,10 +631,8 @@ function createTree(
 function scatterTrees(
   parent: THREE.Group,
   options: ResolvedLandscapeOptions,
-  materials: ReturnType<
-    typeof createMaterials
-  >,
-  bounds: {
+  materials: MaterialSet,
+  bounds?: {
     minX: number;
     maxX: number;
     minZ: number;
@@ -673,18 +650,25 @@ function scatterTrees(
     Math.round(options.treeCount),
   );
 
+  const resolvedBounds =
+    bounds ?? {
+      minX: -options.width * 0.44,
+      maxX: options.width * 0.44,
+      minZ: -options.depth * 0.44,
+      maxZ: options.depth * 0.44,
+    };
+
   for (
     let i = 0;
     i < count;
     i += 1
   ) {
-    const variantRoll =
-      random();
+    const roll = random();
 
     const variant: TreeVariant =
-      variantRoll < 0.58
+      roll < 0.58
         ? "round"
-        : variantRoll < 0.82
+        : roll < 0.82
           ? "narrow"
           : "cluster";
 
@@ -702,17 +686,15 @@ function scatterTrees(
     );
 
     tree.position.set(
-      bounds.minX +
+      resolvedBounds.minX +
         random() *
-          (bounds.maxX -
-            bounds.minX),
-
+          (resolvedBounds.maxX -
+            resolvedBounds.minX),
       0,
-
-      bounds.minZ +
+      resolvedBounds.minZ +
         random() *
-          (bounds.maxZ -
-            bounds.minZ),
+          (resolvedBounds.maxZ -
+            resolvedBounds.minZ),
     );
 
     parent.add(tree);
@@ -724,12 +706,9 @@ function scatterTrees(
 /* -------------------------------------------------------------------------- */
 
 function createBench(
-  materials: ReturnType<
-    typeof createMaterials
-  >,
+  materials: MaterialSet,
 ) {
-  const group =
-    new THREE.Group();
+  const group = new THREE.Group();
 
   const seat = createBox(
     2.2,
@@ -757,14 +736,12 @@ function createBench(
 
   group.add(back);
 
-  for (const x of [
-    -0.82,
-    0.82,
-  ]) {
-    for (const z of [
-      -0.15,
-      0.15,
-    ]) {
+  for (
+    const x of [-0.82, 0.82]
+  ) {
+    for (
+      const z of [-0.15, 0.15]
+    ) {
       const leg = createBox(
         0.12,
         0.9,
@@ -788,17 +765,91 @@ function createBench(
   return group;
 }
 
+function scatterBenches(
+  parent: THREE.Group,
+  options: ResolvedLandscapeOptions,
+  materials: MaterialSet,
+  positions: Array<{
+    x: number;
+    z: number;
+    rotation?: number;
+  }>,
+) {
+  if (
+    !options.includeBenches ||
+    options.benchDensity <= 0 ||
+    positions.length === 0
+  ) {
+    return;
+  }
+
+  const density = clamp(
+    options.benchDensity,
+    0,
+    1.5,
+  );
+
+  const count = Math.min(
+    positions.length,
+    Math.max(
+      1,
+      Math.round(
+        positions.length *
+          density,
+      ),
+    ),
+  );
+
+  for (
+    let i = 0;
+    i < count;
+    i += 1
+  ) {
+    const index =
+      count === positions.length
+        ? i
+        : Math.round(
+            (i *
+              (positions.length -
+                1)) /
+              Math.max(
+                1,
+                count - 1,
+              ),
+          );
+
+    const source =
+      positions[index];
+
+    const bench =
+      createBench(materials);
+
+    bench.position.set(
+      source.x,
+      0,
+      source.z,
+    );
+
+    if (
+      source.rotation !==
+      undefined
+    ) {
+      bench.rotation.y =
+        source.rotation;
+    }
+
+    parent.add(bench);
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Lamps                                                                      */
 /* -------------------------------------------------------------------------- */
 
 function createLamp(
-  materials: ReturnType<
-    typeof createMaterials
-  >,
+  materials: MaterialSet,
 ) {
-  const group =
-    new THREE.Group();
+  const group = new THREE.Group();
 
   const pole = createCylinder(
     0.045,
@@ -824,22 +875,22 @@ function createLamp(
 
   group.add(cap);
 
-  const glow =
-    new THREE.Mesh(
-      new THREE.SphereGeometry(
-        0.1,
-        8,
-        8,
-      ),
-      new THREE.MeshStandardMaterial(
-        {
-          color: 0xffe9ae,
-          emissive: 0xffd77b,
-          emissiveIntensity: 1.3,
-          roughness: 0.45,
-        },
-      ),
-    );
+  const glowMaterial =
+    new THREE.MeshStandardMaterial({
+      color: 0xffe9ae,
+      emissive: 0xffd77b,
+      emissiveIntensity: 1.3,
+      roughness: 0.45,
+    });
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      0.1,
+      8,
+      8,
+    ),
+    glowMaterial,
+  );
 
   glow.position.y = 2.88;
 
@@ -854,9 +905,7 @@ function createLamp(
 function scatterLamps(
   parent: THREE.Group,
   options: ResolvedLandscapeOptions,
-  materials: ReturnType<
-    typeof createMaterials
-  >,
+  materials: MaterialSet,
   positions: Array<{
     x: number;
     z: number;
@@ -864,76 +913,57 @@ function scatterLamps(
 ) {
   if (
     !options.includeLamps ||
-    options.lampDensity <= 0
+    options.lampDensity <= 0 ||
+    positions.length === 0
   ) {
     return;
   }
 
-  /*
-   * lampDensity is intentionally continuous.
-   *
-   * 1.0 = full authored lamp layout
-   * 0.5 = roughly half the lamps
-   * 0   = no lamps
-   *
-   * We use deterministic selection rather than random
-   * per frame so the environment remains stable.
-   */
-  const density =
-    clamp(
-      options.lampDensity,
-      0,
-      1.5,
-    );
-
-  const targetCount = Math.round(
-    positions.length *
-      density,
+  const density = clamp(
+    options.lampDensity,
+    0,
+    1.5,
   );
 
-  if (targetCount <= 0) {
-    return;
-  }
+  const count = Math.min(
+    positions.length,
+    Math.max(
+      1,
+      Math.round(
+        positions.length *
+          density,
+      ),
+    ),
+  );
 
-  const selected =
-    Math.min(
-      positions.length,
-      targetCount,
-    );
-
-  /*
-   * Evenly sample the authored positions.
-   * This prevents all lamps from clustering at one end.
-   */
   for (
     let i = 0;
-    i < selected;
+    i < count;
     i += 1
   ) {
-    const sourceIndex =
-      selected === positions.length
+    const index =
+      count === positions.length
         ? i
         : Math.round(
             (i *
-              (positions.length - 1)) /
+              (positions.length -
+                1)) /
               Math.max(
                 1,
-                selected - 1,
+                count - 1,
               ),
           );
 
-    const position =
-      positions[
-        sourceIndex
-      ];
+    const source =
+      positions[index];
 
     const lamp =
       createLamp(materials);
 
     lamp.position.set(
-      position.x,
+      source.x,
       0,
-      position.z,
+      source.z,
     );
 
     parent.add(lamp);
@@ -941,7 +971,7 @@ function scatterLamps(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Option resolution                                                          */
+/* Option compatibility                                                       */
 /* -------------------------------------------------------------------------- */
 
 function normalizeLandscapeStyle(
@@ -965,10 +995,6 @@ function normalizeLandscapeStyle(
 function mergeOptions(
   options: LandscapeOptions = {},
 ): ResolvedLandscapeOptions {
-  /*
-   * `style` is the current API.
-   * `theme` is retained for CampusWorld compatibility.
-   */
   const sourceStyle =
     options.style ??
     options.theme ??
@@ -995,6 +1021,13 @@ function mergeOptions(
         DEFAULTS.lampDensity,
     );
 
+  const benchDensity =
+    Math.max(
+      0,
+      options.benchDensity ??
+        DEFAULTS.benchDensity,
+    );
+
   const requestedTreeCount =
     options.treeCount ??
     DEFAULTS.treeCount;
@@ -1017,7 +1050,10 @@ function mergeOptions(
       options.depth ??
       DEFAULTS.depth,
 
-    style: sourceStyle,
+    style:
+      normalizeLandscapeStyle(
+        sourceStyle,
+      ),
 
     seed:
       options.seed ??
@@ -1031,6 +1067,8 @@ function mergeOptions(
     hedgeDensity,
 
     lampDensity,
+
+    benchDensity,
 
     grassColor:
       options.grassColor ??
@@ -1117,28 +1155,18 @@ function mergeOptions(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Quadrangle                                                                 */
+/* Environment builders                                                       */
 /* -------------------------------------------------------------------------- */
 
 function createQuadrangleLandscapeInternal(
+  group: THREE.Group,
   options: ResolvedLandscapeOptions,
+  materials: MaterialSet,
 ) {
-  const group =
-    new THREE.Group();
-
-  const materials =
-    createMaterials(options);
-
-  const width =
-    options.width;
-
-  const depth =
-    options.depth;
-
   group.add(
     createGrass(
-      width,
-      depth,
+      options.width,
+      options.depth,
       materials.grass,
     ),
   );
@@ -1146,94 +1174,142 @@ function createQuadrangleLandscapeInternal(
   if (options.includePaths) {
     group.add(
       createCrossPath(
-        width * 0.82,
-        depth * 0.82,
-        options.pathWidth,
+        options.width,
+        options.depth *
+          0.88,
+        Math.min(
+          options.pathWidth,
+          2.5,
+        ),
         materials.path,
       ),
     );
   }
 
   if (options.includeHedges) {
-    const hedgeOffset =
-      Math.min(
-        width,
-        depth,
-      ) * 0.34;
+    const hedgeZ =
+      options.depth * 0.5 - 4;
 
-    const hedgeScale =
-      clamp(
-        options.hedgeDensity,
-        0.35,
-        1.5,
-      );
+    for (
+      const z of [
+        -hedgeZ,
+        hedgeZ,
+      ]
+    ) {
+      const hedge =
+        createHedgeRow(
+          options.width * 0.64,
+          0.7,
+          0.75,
+          materials.hedge,
+        );
 
-    const hedgeLength =
-      width *
-      0.55 *
-      hedgeScale;
+      hedge.position.z = z;
 
-    const top =
-      createHedgeRow(
-        hedgeLength,
-        options.hedgeHeight,
-        options.hedgeThickness,
-        materials.hedge,
-      );
+      group.add(hedge);
+    }
 
-    top.position.set(
-      0,
-      0,
-      -hedgeOffset,
-    );
+    for (
+      const x of [
+        -options.width * 0.38,
+        options.width * 0.38,
+      ]
+    ) {
+      const hedge =
+        createHedgeRow(
+          options.depth * 0.38,
+          0.68,
+          0.72,
+          materials.hedge,
+        );
 
-    group.add(top);
+      hedge.rotation.y =
+        Math.PI / 2;
 
-    const bottom =
-      top.clone();
+      hedge.position.x = x;
 
-    bottom.position.z =
-      hedgeOffset;
-
-    group.add(bottom);
-  }
-
-  if (options.includeFlowers) {
-    const bed =
-      createFlowerBed(
-        width * 0.28,
-        depth * 0.08,
-        materials.flower,
-        options.seed + 10,
-      );
-
-    bed.position.set(
-      -width * 0.25,
-      0,
-      -depth * 0.28,
-    );
-
-    group.add(bed);
+      group.add(hedge);
+    }
   }
 
   scatterTrees(
     group,
-    options,
+    {
+      ...options,
+      treeCount: Math.max(
+        5,
+        options.treeCount,
+      ),
+    },
     materials,
     {
       minX:
-        -width * 0.44,
-
+        -options.width * 0.44,
       maxX:
-        width * 0.44,
-
+        options.width * 0.44,
       minZ:
-        -depth * 0.44,
-
+        -options.depth * 0.42,
       maxZ:
-        depth * 0.44,
+        options.depth * 0.42,
     },
-    100,
+  );
+
+  if (options.includeFlowers) {
+    const flowerBed =
+      createFlowerBed(
+        options.width * 0.18,
+        options.depth * 0.12,
+        materials.flower,
+        options.seed + 17,
+      );
+
+    flowerBed.position.set(
+      0,
+      0.02,
+      options.depth * 0.08,
+    );
+
+    group.add(flowerBed);
+  }
+
+  scatterBenches(
+    group,
+    options,
+    materials,
+    [
+      {
+        x:
+          -options.width * 0.24,
+        z:
+          -options.depth * 0.12,
+        rotation:
+          Math.PI / 2,
+      },
+      {
+        x:
+          options.width * 0.24,
+        z:
+          -options.depth * 0.12,
+        rotation:
+          -Math.PI / 2,
+      },
+      {
+        x:
+          -options.width * 0.24,
+        z:
+          options.depth * 0.12,
+        rotation:
+          Math.PI / 2,
+      },
+      {
+        x:
+          options.width * 0.24,
+        z:
+          options.depth * 0.12,
+        rotation:
+          -Math.PI / 2,
+      },
+    ],
   );
 
   scatterLamps(
@@ -1242,66 +1318,42 @@ function createQuadrangleLandscapeInternal(
     materials,
     [
       {
-        x: -width * 0.3,
-        z: -depth * 0.28,
+        x:
+          -options.width * 0.28,
+        z:
+          -options.depth * 0.32,
       },
       {
-        x: width * 0.3,
-        z: -depth * 0.28,
+        x:
+          options.width * 0.28,
+        z:
+          -options.depth * 0.32,
       },
       {
-        x: -width * 0.3,
-        z: depth * 0.28,
+        x:
+          -options.width * 0.28,
+        z:
+          options.depth * 0.32,
       },
       {
-        x: width * 0.3,
-        z: depth * 0.28,
+        x:
+          options.width * 0.28,
+        z:
+          options.depth * 0.32,
       },
     ],
   );
-
-  if (options.includeBenches) {
-    const bench =
-      createBench(materials);
-
-    bench.position.set(
-      width * 0.18,
-      0,
-      depth * 0.22,
-    );
-
-    bench.rotation.y =
-      Math.PI;
-
-    group.add(bench);
-  }
-
-  return group;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Walkway                                                                    */
-/* -------------------------------------------------------------------------- */
-
 function createWalkwayLandscapeInternal(
+  group: THREE.Group,
   options: ResolvedLandscapeOptions,
+  materials: MaterialSet,
 ) {
-  const group =
-    new THREE.Group();
-
-  const materials =
-    createMaterials(options);
-
-  const width =
-    options.width;
-
-  const depth =
-    options.depth;
-
   group.add(
     createGrass(
-      width,
-      depth,
+      options.width,
+      options.depth,
       materials.grass,
     ),
   );
@@ -1309,46 +1361,69 @@ function createWalkwayLandscapeInternal(
   if (options.includePaths) {
     group.add(
       createPath(
-        options.pathWidth * 1.25,
-        depth * 0.82,
+        Math.min(
+          2.7,
+          options.pathWidth,
+        ),
+        options.depth * 0.92,
         materials.path,
       ),
     );
   }
 
-  if (options.includeHedges) {
-    const hedgeScale =
-      clamp(
-        options.hedgeDensity,
-        0.35,
-        1.5,
-      );
+  const plantingStripWidth =
+    Math.max(
+      1.2,
+      options.width * 0.18,
+    );
 
-    for (const side of [
-      -1,
-      1,
-    ]) {
+  if (options.includeFlowers) {
+    for (
+      const side of [-1, 1]
+    ) {
+      const strip =
+        createFlowerBed(
+          plantingStripWidth,
+          options.depth * 0.82,
+          materials.flower,
+          options.seed +
+            100 +
+            side,
+        );
+
+      strip.position.x =
+        side *
+        options.width *
+        0.32;
+
+      strip.position.y =
+        0.02;
+
+      group.add(strip);
+    }
+  }
+
+  if (options.includeHedges) {
+    for (
+      const side of [-1, 1]
+    ) {
       const hedge =
         createHedgeRow(
-          depth *
-            0.62 *
-            hedgeScale,
-
-          options.hedgeHeight,
-
+          options.depth * 0.82,
+          options.hedgeHeight *
+            0.72,
           options.hedgeThickness,
-
           materials.hedge,
+          true,
         );
 
       hedge.rotation.y =
         Math.PI / 2;
 
-      hedge.position.set(
-        side * width * 0.32,
-        0,
-        0,
-      );
+      hedge.position.x =
+        side *
+        options.width *
+        0.44;
 
       group.add(hedge);
     }
@@ -1356,96 +1431,124 @@ function createWalkwayLandscapeInternal(
 
   scatterTrees(
     group,
-    options,
+    {
+      ...options,
+      treeCount: Math.max(
+        4,
+        Math.floor(
+          options.treeCount *
+            0.7,
+        ),
+      ),
+    },
     materials,
     {
       minX:
-        -width * 0.46,
-
+        -options.width * 0.46,
       maxX:
-        width * 0.46,
-
+        options.width * 0.46,
       minZ:
-        -depth * 0.44,
-
+        -options.depth * 0.42,
       maxZ:
-        depth * 0.44,
+        options.depth * 0.42,
     },
     200,
   );
 
-  const lampCount =
-    Math.max(
-      2,
-      Math.floor(
-        depth / 25,
-      ),
-    );
-
-  const lampPositions =
-    Array.from(
+  scatterBenches(
+    group,
+    options,
+    materials,
+    [
       {
-        length: lampCount,
-      },
-      (_, i) => ({
-        x: width * 0.19,
+        x:
+          -options.width * 0.28,
         z:
-          -depth * 0.36 +
-          i *
-            (depth * 0.72) /
-              Math.max(
-                1,
-                lampCount - 1,
-              ),
-      }),
-    );
+          -options.depth * 0.2,
+        rotation:
+          Math.PI / 2,
+      },
+      {
+        x:
+          options.width * 0.28,
+        z:
+          -options.depth * 0.2,
+        rotation:
+          -Math.PI / 2,
+      },
+      {
+        x:
+          -options.width * 0.28,
+        z:
+          options.depth * 0.2,
+        rotation:
+          Math.PI / 2,
+      },
+      {
+        x:
+          options.width * 0.28,
+        z:
+          options.depth * 0.2,
+        rotation:
+          -Math.PI / 2,
+      },
+    ],
+  );
 
   scatterLamps(
     group,
     options,
     materials,
-    lampPositions,
+    [
+      {
+        x:
+          -options.width * 0.39,
+        z:
+          -options.depth * 0.3,
+      },
+      {
+        x:
+          options.width * 0.39,
+        z:
+          -options.depth * 0.3,
+      },
+      {
+        x:
+          -options.width * 0.39,
+        z:
+          0,
+      },
+      {
+        x:
+          options.width * 0.39,
+        z:
+          0,
+      },
+      {
+        x:
+          -options.width * 0.39,
+        z:
+          options.depth * 0.3,
+      },
+      {
+        x:
+          options.width * 0.39,
+        z:
+          options.depth * 0.3,
+      },
+    ],
   );
-
-  if (options.includeBenches) {
-    const bench =
-      createBench(materials);
-
-    bench.position.set(
-      -width * 0.2,
-      0,
-      depth * 0.18,
-    );
-
-    group.add(bench);
-  }
-
-  return group;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Garden                                                                     */
-/* -------------------------------------------------------------------------- */
-
 function createGardenLandscapeInternal(
+  group: THREE.Group,
   options: ResolvedLandscapeOptions,
+  materials: MaterialSet,
 ) {
-  const group =
-    new THREE.Group();
-
-  const materials =
-    createMaterials(options);
-
-  const width =
-    options.width;
-
-  const depth =
-    options.depth;
-
   group.add(
     createGrass(
-      width,
-      depth,
+      options.width,
+      options.depth,
       materials.grass,
     ),
   );
@@ -1454,112 +1557,108 @@ function createGardenLandscapeInternal(
     group.add(
       createRadialPath(
         Math.min(
-          width,
-          depth,
-        ) * 0.34,
-
-        options.pathWidth,
-
+          options.width,
+          options.depth,
+        ) * 0.44,
+        1.8,
         materials.path,
       ),
     );
   }
 
   if (options.includeFlowers) {
-    const beds = [
-      [-0.28, -0.24],
-      [0.28, -0.24],
-      [-0.28, 0.24],
-      [0.28, 0.24],
-    ];
+    const flowerBed =
+      createFlowerBed(
+        options.width * 0.22,
+        options.depth * 0.13,
+        materials.flower,
+        options.seed + 300,
+      );
 
-    beds.forEach(
-      ([x, z], index) => {
-        const bed =
-          createFlowerBed(
-            width * 0.22,
-            depth * 0.13,
-            materials.flower,
-            options.seed +
-              300 +
-              index * 17,
-          );
+    flowerBed.position.y =
+      0.02;
 
-        bed.position.set(
-          x * width,
-          0,
-          z * depth,
-        );
-
-        group.add(bed);
-      },
-    );
+    group.add(flowerBed);
   }
 
   if (options.includeHedges) {
-    const radius =
-      Math.min(
-        width,
-        depth,
-      ) * 0.38;
-
-    const hedgeScale =
-      clamp(
-        options.hedgeDensity,
-        0.35,
-        1.5,
+    const hedge =
+      createHedgeRow(
+        options.width * 0.6,
+        options.hedgeHeight *
+          0.73,
+        options.hedgeThickness,
+        materials.hedge,
+        true,
       );
 
-    for (
-      let i = 0;
-      i < 4;
-      i += 1
-    ) {
-      const hedge =
-        createHedgeRow(
-          radius *
-            0.7 *
-            hedgeScale,
+    hedge.position.z =
+      options.depth * 0.28;
 
-          options.hedgeHeight,
-
-          options.hedgeThickness,
-
-          materials.hedge,
-        );
-
-      hedge.rotation.y =
-        (i / 4) * Math.PI;
-
-      group.add(hedge);
-    }
+    group.add(hedge);
   }
 
   scatterTrees(
     group,
     {
       ...options,
-      treeCount:
-        Math.round(
-          options.treeCount *
-            1.35,
-        ),
+      treeCount: Math.max(
+        options.treeCount,
+        10,
+      ),
     },
     materials,
     {
       minX:
-        -width * 0.45,
-
+        -options.width * 0.45,
       maxX:
-        width * 0.45,
-
+        options.width * 0.45,
       minZ:
-        -depth * 0.45,
-
+        -options.depth * 0.4,
       maxZ:
-        depth * 0.45,
+        options.depth * 0.4,
     },
     300,
+  );
+
+  scatterBenches(
+    group,
+    options,
+    materials,
+    [
+      {
+        x:
+          -options.width * 0.27,
+        z:
+          options.depth * 0.04,
+        rotation:
+          -Math.PI / 2,
+      },
+      {
+        x:
+          options.width * 0.27,
+        z:
+          options.depth * 0.04,
+        rotation:
+          Math.PI / 2,
+      },
+      {
+        x:
+          -options.width * 0.18,
+        z:
+          -options.depth * 0.22,
+        rotation:
+          -Math.PI / 2,
+      },
+      {
+        x:
+          options.width * 0.18,
+        z:
+          -options.depth * 0.22,
+        rotation:
+          Math.PI / 2,
+      },
+    ],
   );
 
   scatterLamps(
@@ -1568,81 +1667,42 @@ function createGardenLandscapeInternal(
     materials,
     [
       {
-        x: -width * 0.38,
-        z: -depth * 0.32,
+        x:
+          -options.width * 0.3,
+        z:
+          -options.depth * 0.25,
       },
       {
-        x: width * 0.38,
-        z: -depth * 0.32,
+        x:
+          options.width * 0.3,
+        z:
+          -options.depth * 0.25,
       },
       {
-        x: -width * 0.38,
-        z: depth * 0.32,
+        x:
+          -options.width * 0.3,
+        z:
+          options.depth * 0.25,
       },
       {
-        x: width * 0.38,
-        z: depth * 0.32,
-      },
-      {
-        x: 0,
-        z: -depth * 0.4,
-      },
-      {
-        x: 0,
-        z: depth * 0.4,
+        x:
+          options.width * 0.3,
+        z:
+          options.depth * 0.25,
       },
     ],
   );
-
-  if (options.includeBenches) {
-    for (const [x, z] of [
-      [-0.32, 0],
-      [0.32, 0],
-    ]) {
-      const bench =
-        createBench(materials);
-
-      bench.position.set(
-        x * width,
-        0,
-        z * depth,
-      );
-
-      bench.rotation.y =
-        x < 0
-          ? Math.PI / 2
-          : -Math.PI / 2;
-
-      group.add(bench);
-    }
-  }
-
-  return group;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Sports                                                                     */
-/* -------------------------------------------------------------------------- */
-
 function createSportsLandscapeInternal(
+  group: THREE.Group,
   options: ResolvedLandscapeOptions,
+  materials: MaterialSet,
 ) {
-  const group =
-    new THREE.Group();
-
-  const materials =
-    createMaterials(options);
-
-  const width =
-    options.width;
-
-  const depth =
-    options.depth;
-
   group.add(
     createGrass(
-      width,
-      depth,
+      options.width,
+      options.depth,
       materials.grass,
     ),
   );
@@ -1650,125 +1710,93 @@ function createSportsLandscapeInternal(
   if (options.includePaths) {
     const path =
       createPath(
-        options.pathWidth,
-        depth * 0.86,
+        1.9,
+        options.depth * 0.86,
         materials.path,
       );
 
     path.position.x =
-      width * 0.34;
+      options.width * 0.39;
 
     group.add(path);
   }
 
   if (options.includeHedges) {
-    const hedgeWidth =
-      options.hedgeThickness;
-
-    const hedgeScale =
-      clamp(
-        options.hedgeDensity,
-        0.35,
-        1.5,
-      );
-
-    const top =
+    const hedge =
       createHedgeRow(
-        width *
-          0.72 *
-          hedgeScale,
-
-        options.hedgeHeight,
-
-        hedgeWidth,
-
+        options.width * 0.76,
+        0.52,
+        0.6,
         materials.hedge,
+        false,
       );
 
-    top.position.z =
-      -depth * 0.38;
+    hedge.position.z =
+      -options.depth * 0.39;
 
-    group.add(top);
-
-    const bottom =
-      top.clone();
-
-    bottom.position.z =
-      depth * 0.38;
-
-    group.add(bottom);
+    group.add(hedge);
   }
 
   scatterTrees(
     group,
-    options,
+    {
+      ...options,
+      treeCount: Math.max(
+        3,
+        Math.floor(
+          options.treeCount *
+            0.45,
+        ),
+      ),
+    },
     materials,
     {
       minX:
-        -width * 0.45,
-
+        -options.width * 0.45,
       maxX:
-        width * 0.45,
-
+        options.width * 0.45,
       minZ:
-        -depth * 0.45,
-
+        -options.depth * 0.42,
       maxZ:
-        depth * 0.45,
+        options.depth * 0.42,
     },
     400,
   );
 
-  scatterLamps(
+  scatterBenches(
     group,
     options,
     materials,
     [
       {
-        x: -width * 0.4,
-        z: -depth * 0.3,
+        x:
+          -options.width * 0.28,
+        z:
+          options.depth * 0.32,
+        rotation:
+          Math.PI / 2,
       },
       {
-        x: width * 0.4,
-        z: -depth * 0.3,
-      },
-      {
-        x: -width * 0.4,
-        z: depth * 0.3,
-      },
-      {
-        x: width * 0.4,
-        z: depth * 0.3,
+        x:
+          options.width * 0.28,
+        z:
+          options.depth * 0.32,
+        rotation:
+          -Math.PI / 2,
       },
     ],
   );
-
-  return group;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Hostels                                                                    */
-/* -------------------------------------------------------------------------- */
-
 function createHostelLandscapeInternal(
+  group: THREE.Group,
   options: ResolvedLandscapeOptions,
+  materials: MaterialSet,
 ) {
-  const group =
-    new THREE.Group();
-
-  const materials =
-    createMaterials(options);
-
-  const width =
-    options.width;
-
-  const depth =
-    options.depth;
-
   group.add(
     createGrass(
-      width,
-      depth,
+      options.width,
+      options.depth,
       materials.grass,
     ),
   );
@@ -1776,44 +1804,37 @@ function createHostelLandscapeInternal(
   if (options.includePaths) {
     group.add(
       createCrossPath(
-        width * 0.86,
-        depth * 0.82,
-        options.pathWidth,
+        2.2,
+        options.depth * 0.86,
+        Math.min(
+          2.2,
+          options.pathWidth,
+        ),
         materials.path,
       ),
     );
   }
 
   if (options.includeHedges) {
-    const hedgeScale =
-      clamp(
-        options.hedgeDensity,
-        0.35,
-        1.5,
-      );
-
-    for (const side of [
-      -1,
-      1,
-    ]) {
+    for (
+      const x of [
+        -options.width * 0.36,
+        options.width * 0.36,
+      ]
+    ) {
       const hedge =
         createHedgeRow(
-          width *
-            0.5 *
-            hedgeScale,
-
-          options.hedgeHeight,
-
-          options.hedgeThickness,
-
+          options.depth * 0.46,
+          0.62,
+          0.68,
           materials.hedge,
+          true,
         );
 
-      hedge.position.set(
-        side * width * 0.24,
-        0,
-        -depth * 0.25,
-      );
+      hedge.rotation.y =
+        Math.PI / 2;
+
+      hedge.position.x = x;
 
       group.add(hedge);
     }
@@ -1823,27 +1844,53 @@ function createHostelLandscapeInternal(
     group,
     {
       ...options,
-      treeCount:
-        Math.round(
-          options.treeCount *
-            1.15,
-        ),
+      treeCount: Math.max(
+        options.treeCount,
+        9,
+      ),
     },
     materials,
     {
       minX:
-        -width * 0.45,
-
+        -options.width * 0.44,
       maxX:
-        width * 0.45,
-
+        options.width * 0.44,
       minZ:
-        -depth * 0.44,
-
+        -options.depth * 0.4,
       maxZ:
-        depth * 0.44,
+        options.depth * 0.4,
     },
     500,
+  );
+
+  scatterBenches(
+    group,
+    options,
+    materials,
+    [
+      {
+        x: 0,
+        z:
+          options.depth * 0.18,
+        rotation: 0,
+      },
+      {
+        x:
+          -options.width * 0.27,
+        z:
+          -options.depth * 0.2,
+        rotation:
+          Math.PI / 2,
+      },
+      {
+        x:
+          options.width * 0.27,
+        z:
+          -options.depth * 0.2,
+        rotation:
+          -Math.PI / 2,
+      },
+    ],
   );
 
   scatterLamps(
@@ -1852,63 +1899,54 @@ function createHostelLandscapeInternal(
     materials,
     [
       {
-        x: -width * 0.31,
-        z: -depth * 0.25,
+        x:
+          -options.width * 0.3,
+        z:
+          -options.depth * 0.3,
       },
       {
-        x: width * 0.31,
-        z: -depth * 0.25,
+        x:
+          options.width * 0.3,
+        z:
+          -options.depth * 0.3,
       },
       {
-        x: -width * 0.31,
-        z: depth * 0.2,
+        x:
+          -options.width * 0.3,
+        z:
+          0,
       },
       {
-        x: width * 0.31,
-        z: depth * 0.2,
+        x:
+          options.width * 0.3,
+        z:
+          0,
+      },
+      {
+        x:
+          -options.width * 0.3,
+        z:
+          options.depth * 0.3,
+      },
+      {
+        x:
+          options.width * 0.3,
+        z:
+          options.depth * 0.3,
       },
     ],
   );
-
-  if (options.includeBenches) {
-    const bench =
-      createBench(materials);
-
-    bench.position.set(
-      0,
-      0,
-      depth * 0.28,
-    );
-
-    group.add(bench);
-  }
-
-  return group;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Gate                                                                       */
-/* -------------------------------------------------------------------------- */
-
 function createGateLandscapeInternal(
+  group: THREE.Group,
   options: ResolvedLandscapeOptions,
+  materials: MaterialSet,
 ) {
-  const group =
-    new THREE.Group();
-
-  const materials =
-    createMaterials(options);
-
-  const width =
-    options.width;
-
-  const depth =
-    options.depth;
-
   group.add(
     createGrass(
-      width,
-      depth,
+      options.width,
+      options.depth,
       materials.grass,
     ),
   );
@@ -1916,71 +1954,62 @@ function createGateLandscapeInternal(
   if (options.includePaths) {
     group.add(
       createPath(
-        options.pathWidth * 1.5,
-        depth * 0.9,
+        4.2,
+        options.depth * 0.9,
         materials.path,
       ),
     );
   }
 
   if (options.includeHedges) {
-    const hedgeScale =
-      clamp(
-        options.hedgeDensity,
-        0.35,
-        1.5,
-      );
-
-    for (const side of [
-      -1,
-      1,
-    ]) {
+    for (
+      const side of [-1, 1]
+    ) {
       const hedge =
         createHedgeRow(
-          depth *
-            0.55 *
-            hedgeScale,
-
-          options.hedgeHeight,
-
-          options.hedgeThickness,
-
+          options.depth * 0.55,
+          0.82,
+          0.85,
           materials.hedge,
+          false,
         );
 
       hedge.rotation.y =
         Math.PI / 2;
 
       hedge.position.x =
-        side * width * 0.35;
+        side *
+        options.width *
+        0.32;
 
       group.add(hedge);
     }
   }
 
+  const avenueOptions = {
+    ...options,
+    treeCount: Math.max(
+      6,
+      Math.floor(
+        options.treeCount *
+          0.8,
+      ),
+    ),
+  };
+
   scatterTrees(
     group,
-    {
-      ...options,
-      treeCount:
-        Math.round(
-          options.treeCount *
-            0.8,
-        ),
-    },
+    avenueOptions,
     materials,
     {
       minX:
-        -width * 0.44,
-
+        -options.width * 0.38,
       maxX:
-        width * 0.44,
-
+        options.width * 0.38,
       minZ:
-        -depth * 0.42,
-
+        -options.depth * 0.38,
       maxZ:
-        depth * 0.42,
+        options.depth * 0.38,
     },
     600,
   );
@@ -1991,134 +2020,161 @@ function createGateLandscapeInternal(
     materials,
     [
       {
-        x: -width * 0.28,
-        z: -depth * 0.22,
+        x:
+          -options.width * 0.24,
+        z:
+          -options.depth * 0.28,
       },
       {
-        x: width * 0.28,
-        z: -depth * 0.22,
+        x:
+          options.width * 0.24,
+        z:
+          -options.depth * 0.28,
       },
       {
-        x: -width * 0.38,
-        z: depth * 0.12,
+        x:
+          -options.width * 0.24,
+        z: 0,
       },
       {
-        x: width * 0.38,
-        z: depth * 0.12,
+        x:
+          options.width * 0.24,
+        z: 0,
       },
       {
-        x: -width * 0.28,
-        z: depth * 0.36,
+        x:
+          -options.width * 0.24,
+        z:
+          options.depth * 0.28,
       },
       {
-        x: width * 0.28,
-        z: depth * 0.36,
+        x:
+          options.width * 0.24,
+        z:
+          options.depth * 0.28,
       },
     ],
   );
 
-  return group;
+  scatterBenches(
+    group,
+    options,
+    materials,
+    [
+      {
+        x:
+          -options.width * 0.2,
+        z:
+          options.depth * 0.2,
+        rotation:
+          Math.PI / 2,
+      },
+      {
+        x:
+          options.width * 0.2,
+        z:
+          options.depth * 0.2,
+        rotation:
+          -Math.PI / 2,
+      },
+    ],
+  );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Main factory                                                               */
+/* Public factory                                                             */
 /* -------------------------------------------------------------------------- */
 
 export function createLandscape(
-  input: LandscapeOptions = {},
+  options: LandscapeOptions = {},
 ) {
-  const options =
-    mergeOptions(input);
+  const resolved =
+    mergeOptions(options);
 
-  const normalizedStyle =
-    normalizeLandscapeStyle(
-      options.style,
-    );
+  const materials =
+    createMaterials(resolved);
 
-  let group: THREE.Group;
+  const group =
+    new THREE.Group();
 
-  switch (normalizedStyle) {
+  group.name =
+    `CampusLandscape:${resolved.style}`;
+
+  switch (resolved.style) {
     case "walkway":
-      group =
-        createWalkwayLandscapeInternal(
-          options,
-        );
+      createWalkwayLandscapeInternal(
+        group,
+        resolved,
+        materials,
+      );
       break;
 
     case "garden":
-      group =
-        createGardenLandscapeInternal(
-          options,
-        );
+      createGardenLandscapeInternal(
+        group,
+        resolved,
+        materials,
+      );
       break;
 
     case "sports":
-      group =
-        createSportsLandscapeInternal(
-          options,
-        );
+      createSportsLandscapeInternal(
+        group,
+        resolved,
+        materials,
+      );
       break;
 
     case "hostels":
-      group =
-        createHostelLandscapeInternal(
-          options,
-        );
+      createHostelLandscapeInternal(
+        group,
+        resolved,
+        materials,
+      );
       break;
 
     case "gate":
-      group =
-        createGateLandscapeInternal(
-          options,
-        );
+      createGateLandscapeInternal(
+        group,
+        resolved,
+        materials,
+      );
       break;
 
     case "quadrangle":
     default:
-      group =
-        createQuadrangleLandscapeInternal(
-          options,
-        );
+      createQuadrangleLandscapeInternal(
+        group,
+        resolved,
+        materials,
+      );
       break;
   }
 
-  group.userData.type =
-    "campus-landscape";
+  group.userData = {
+    type: "landscape",
+    style: resolved.style,
+    theme: options.theme,
+    sourceStyle:
+      options.style ??
+      options.theme ??
+      DEFAULTS.style,
+    seed: resolved.seed,
 
-  group.userData.style =
-    normalizedStyle;
+    width: resolved.width,
+    depth: resolved.depth,
 
-  group.userData.sourceStyle =
-    options.style;
-
-  group.userData.theme =
-    options.style;
-
-  group.userData.seed =
-    options.seed;
-
-  group.userData.treeDensity =
-    options.treeDensity;
-
-  group.userData.treeCount =
-    options.treeCount;
-
-  group.userData.hedgeDensity =
-    options.hedgeDensity;
-
-  group.userData.lampDensity =
-    options.lampDensity;
-
-  group.userData.width =
-    options.width;
-
-  group.userData.depth =
-    options.depth;
-
-  if (options.name) {
-    group.name =
-      options.name;
-  }
+    treeDensity:
+      resolved.treeDensity,
+    treeCount:
+      resolved.treeCount,
+    hedgeDensity:
+      resolved.hedgeDensity,
+    lampDensity:
+      resolved.lampDensity,
+    benchDensity:
+      resolved.benchDensity,
+  };
 
   return group;
 }
@@ -2130,76 +2186,79 @@ export function createLandscape(
 export function createCampusLandscape(
   options: LandscapeOptions = {},
 ) {
-  return createLandscape({
-    ...options,
-    style:
-      options.style ??
-      "campus",
-  });
+  return createLandscape(
+    options,
+  );
 }
 
 export function createQuadrangleLandscape(
-  options: LandscapeOptions = {},
+  options: Omit<
+    LandscapeOptions,
+    "style"
+  > = {},
 ) {
   return createLandscape({
     ...options,
-    style:
-      options.style ??
-      "quadrangle",
+    style: "quadrangle",
   });
 }
 
 export function createWalkwayLandscape(
-  options: LandscapeOptions = {},
+  options: Omit<
+    LandscapeOptions,
+    "style"
+  > = {},
 ) {
   return createLandscape({
     ...options,
-    style:
-      options.style ??
-      "walkway",
+    style: "walkway",
   });
 }
 
 export function createGardenLandscape(
-  options: LandscapeOptions = {},
+  options: Omit<
+    LandscapeOptions,
+    "style"
+  > = {},
 ) {
   return createLandscape({
     ...options,
-    style:
-      options.style ??
-      "garden",
+    style: "garden",
   });
 }
 
 export function createSportsLandscape(
-  options: LandscapeOptions = {},
+  options: Omit<
+    LandscapeOptions,
+    "style"
+  > = {},
 ) {
   return createLandscape({
     ...options,
-    style:
-      options.style ??
-      "sports",
+    style: "sports",
   });
 }
 
 export function createHostelLandscape(
-  options: LandscapeOptions = {},
+  options: Omit<
+    LandscapeOptions,
+    "style"
+  > = {},
 ) {
   return createLandscape({
     ...options,
-    style:
-      options.style ??
-      "hostels",
+    style: "hostels",
   });
 }
 
 export function createGateLandscape(
-  options: LandscapeOptions = {},
+  options: Omit<
+    LandscapeOptions,
+    "style"
+  > = {},
 ) {
   return createLandscape({
     ...options,
-    style:
-      options.style ??
-      "gate",
+    style: "gate",
   });
 }
