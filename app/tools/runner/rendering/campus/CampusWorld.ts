@@ -38,11 +38,45 @@ export type CampusWorldOptions = {
 
 const DEFAULT_DEPTH = 150;
 
-const ROAD_CLEAR_HALF =
-  7.5;
+/*
+ * --------------------------------------------------------------------------
+ * RUNNER CORRIDOR
+ * --------------------------------------------------------------------------
+ *
+ * The road has three playable lanes. Campus architecture must never visually
+ * occupy this corridor.
+ *
+ * The protection is intentionally slightly wider than the mathematical road
+ * so roofs, verandas, columns and decorative projections cannot visually
+ * crowd the runner even when they technically sit outside the road.
+ */
 
+const ROAD_CLEAR_HALF = 7.5;
+
+/*
+ * Additional visual breathing room around the playable road.
+ *
+ * ROAD_CLEAR_HALF = 7.5
+ * RUNNER_CORRIDOR_MARGIN = 1.5
+ *
+ * Therefore static campus objects are kept outside approximately:
+ *
+ *       -9.0                 +9.0
+ *         │                   │
+ *         ├──── RUNNER ──────┤
+ */
+const RUNNER_CORRIDOR_MARGIN = 1.5;
+
+const RUNNER_CORRIDOR_HALF =
+  ROAD_CLEAR_HALF +
+  RUNNER_CORRIDOR_MARGIN;
+
+/*
+ * Minimum distance at which the centre of a normal campus-side object
+ * is allowed to sit.
+ */
 const CAMPUS_SIDE_MIN =
-  ROAD_CLEAR_HALF + 4;
+  RUNNER_CORRIDOR_HALF + 2.5;
 
 const CAMPUS_SIDE_MAX = 31;
 
@@ -50,6 +84,182 @@ const ZONE_FRONT = 24;
 const ZONE_MIDDLE = 68;
 const ZONE_REAR = 112;
 
+/* -------------------------------------------------------------------------- */
+/* OBJECT PLACEMENT / RUNNER CLEARANCE                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Returns a safe campus-side X position.
+ *
+ * The value is clamped away from the playable runner corridor while keeping
+ * the existing campus layout philosophy intact.
+ */
+function campusSide(
+  side: -1 | 1,
+  offset: number,
+) {
+  const distance = THREE.MathUtils.clamp(
+    offset,
+    CAMPUS_SIDE_MIN,
+    CAMPUS_SIDE_MAX,
+  );
+
+  return side * distance;
+}
+
+/**
+ * Calculates the world-space X bounds of an object after it has been placed.
+ *
+ * This is deliberately based on the actual rendered geometry. A walkway may
+ * have an 18-unit nominal width but a roof, veranda or fascia can project
+ * beyond that. Box3 catches the real result.
+ */
+function getWorldBounds(
+  object: THREE.Object3D,
+) {
+  object.updateMatrixWorld(true);
+
+  return new THREE.Box3().setFromObject(
+    object,
+  );
+}
+
+/**
+ * Keeps a campus object completely outside the runner's visual corridor.
+ *
+ * This is the important safeguard for the 3D scene.
+ *
+ * If an object crosses the corridor:
+ *
+ *   - objects on the left are pushed left
+ *   - objects on the right are pushed right
+ *   - objects exactly on the centre are assigned to the left side
+ *
+ * The object itself is moved as a whole, preserving its geometry and
+ * orientation.
+ */
+function protectRunnerCorridor(
+  object: THREE.Object3D,
+) {
+  const bounds =
+    getWorldBounds(object);
+
+  const minX =
+    bounds.min.x;
+
+  const maxX =
+    bounds.max.x;
+
+  /*
+   * Completely clear already.
+   */
+  if (
+    maxX <=
+      -RUNNER_CORRIDOR_HALF ||
+    minX >=
+      RUNNER_CORRIDOR_HALF
+  ) {
+    return;
+  }
+
+  /*
+   * Choose the side based on the object's current centre.
+   *
+   * A central object is intentionally sent to the left rather than allowing
+   * it to remain across the lanes.
+   */
+  const centerX =
+    (minX + maxX) / 2;
+
+  if (centerX <= 0) {
+    /*
+     * Push the object's rightmost point beyond the left clearance boundary.
+     */
+    const requiredMaxX =
+      -RUNNER_CORRIDOR_HALF;
+
+    const deltaX =
+      requiredMaxX -
+      maxX;
+
+    object.position.x +=
+      deltaX;
+  } else {
+    /*
+     * Push the object's leftmost point beyond the right clearance boundary.
+     */
+    const requiredMinX =
+      RUNNER_CORRIDOR_HALF;
+
+    const deltaX =
+      requiredMinX -
+      minX;
+
+    object.position.x +=
+      deltaX;
+  }
+
+  /*
+   * Recalculate once after correction.
+   *
+   * This catches small floating-point or nested-transform discrepancies.
+   */
+  object.updateMatrixWorld(true);
+
+  const corrected =
+    getWorldBounds(object);
+
+  /*
+   * Extremely wide geometry can theoretically still cross the corridor after
+   * the first correction. Apply one final deterministic correction.
+   */
+  if (
+    corrected.min.x <
+    -RUNNER_CORRIDOR_HALF
+    &&
+    corrected.max.x >
+    RUNNER_CORRIDOR_HALF
+  ) {
+    /*
+     * A single object wider than the entire protected corridor cannot be
+     * placed safely merely by translating it. Move it toward the side that
+     * corresponds to its original centre.
+     */
+    const correctedCenter =
+      (corrected.min.x +
+        corrected.max.x) /
+      2;
+
+    if (correctedCenter <= 0) {
+      object.position.x +=
+        -RUNNER_CORRIDOR_HALF -
+        corrected.max.x;
+    } else {
+      object.position.x +=
+        RUNNER_CORRIDOR_HALF -
+        corrected.min.x;
+    }
+  }
+}
+
+/**
+ * Adds an object to the campus world and immediately applies the runner
+ * corridor protection.
+ *
+ * This is the central enforcement point for:
+ *   - buildings
+ *   - walkways
+ *   - roofs
+ *   - verandas
+ *   - columns
+ *   - signs
+ *   - lamps
+ *   - benches
+ *   - planters
+ *   - banners
+ *   - flags
+ *   - future campus details
+ */
 function addObject(
   parent: THREE.Group,
   object: THREE.Object3D,
@@ -68,6 +278,10 @@ function addObject(
     rotationY;
 
   parent.add(object);
+
+  protectRunnerCorridor(
+    object,
+  );
 
   return object;
 }
@@ -151,25 +365,6 @@ function addWalkway(
 }
 
 /*
- * Keep buildings well away from the playable road.
- * The exact values are deliberately centralized so that
- * future changes to ROAD_WIDTH do not require rewriting
- * every campus layout by hand.
- */
-function campusSide(
-  side: -1 | 1,
-  offset: number,
-) {
-  const distance = THREE.MathUtils.clamp(
-    offset,
-    CAMPUS_SIDE_MIN,
-    CAMPUS_SIDE_MAX,
-  );
-
-  return side * distance;
-}
-
-/*
  * Deterministic variation without introducing another
  * random-number dependency into the renderer.
  */
@@ -189,12 +384,6 @@ function createQuadrangleZone(
 ) {
   const v = variant(seed);
 
-  /*
-   * FRONT ZONE
-   *
-   * Two academic blocks frame the road-facing entrance
-   * while keeping the actual running corridor completely open.
-   */
   const frontLeft =
     createAcademicBlock({
       width:
@@ -231,8 +420,9 @@ function createQuadrangleZone(
   );
 
   /*
-   * A central covered connection establishes the visual
-   * relationship between the two academic wings.
+   * This walkway used to be centred directly on the road.
+   * It is still created at the same logical position, but addWalkway()
+   * now moves the actual geometry outside the protected runner corridor.
    */
   const frontWalkway =
     createWalkway({
@@ -247,13 +437,6 @@ function createQuadrangleZone(
     ZONE_FRONT - 8,
   );
 
-  /*
-   * MIDDLE ZONE
-   *
-   * The administration building sits farther back,
-   * preventing the entire campus from looking like two
-   * identical walls beside the road.
-   */
   const administration =
     createAdministrationBlock({
       width:
@@ -306,12 +489,6 @@ function createQuadrangleZone(
     ZONE_MIDDLE - 8,
   );
 
-  /*
-   * REAR ZONE
-   *
-   * Smaller buildings and landscaped space provide depth
-   * rather than another giant pair of blocks.
-   */
   const rearService =
     createServiceBlock({
       width: 11,
@@ -456,10 +633,6 @@ function addQuadrangleDetails(
     56,
   );
 
-  /*
-   * Small lamps create a much stronger sense of scale than
-   * simply adding more trees.
-   */
   for (
     let i = 0;
     i < 4;
@@ -480,15 +653,14 @@ function addQuadrangleDetails(
     addObject(
       parent,
       lamp,
-      side * (6.5 + (i % 2) * 0.8),
+      side *
+        (6.5 +
+          (i % 2) *
+            0.8),
       26 + i * 24,
     );
   }
 
-  /*
-   * Alternating banners keep repeated segments from looking
-   * like an exact clone.
-   */
   if (seed % 2 === 0) {
     const banner =
       createDetail("banner", {
@@ -1090,7 +1262,7 @@ function createGateZone(
 }
 
 /* -------------------------------------------------------------------------- */
-/* LANDSCAPE                                                                   */
+/* LANDSCAPE                                                                  */
 /* -------------------------------------------------------------------------- */
 
 function createEnvironmentLandscape(
