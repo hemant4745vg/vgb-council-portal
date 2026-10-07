@@ -85,6 +85,7 @@ export default function HideAndSeekPage() {
 
     const keys: Keys = {};
     let dragging = false;
+    let gameFocused = true;
     let lastPointerX = 0;
     let lastPointerY = 0;
     let yaw = Math.PI;
@@ -131,18 +132,92 @@ export default function HideAndSeekPage() {
       }
     };
 
+    const setKey = (event: KeyboardEvent, pressed: boolean) => {
+      // Physical key codes are more reliable than event.key across
+      // keyboard layouts and browser/platform differences.
+      switch (event.code) {
+        case "KeyW":
+          keys.w = pressed;
+          break;
+        case "KeyA":
+          keys.a = pressed;
+          break;
+        case "KeyS":
+          keys.s = pressed;
+          break;
+        case "KeyD":
+          keys.d = pressed;
+          break;
+        case "ArrowUp":
+          keys.arrowup = pressed;
+          break;
+        case "ArrowDown":
+          keys.arrowdown = pressed;
+          break;
+        case "ArrowLeft":
+          keys.arrowleft = pressed;
+          break;
+        case "ArrowRight":
+          keys.arrowright = pressed;
+          break;
+        case "ShiftLeft":
+        case "ShiftRight":
+          keys.shift = pressed;
+          break;
+      }
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
-      keys[event.key.toLowerCase()] = true;
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
+      gameFocused = true;
+      setKey(event, true);
+
+      if (
+        [
+          "KeyW", "KeyA", "KeyS", "KeyD",
+          "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+          "ShiftLeft", "ShiftRight"
+        ].includes(event.code)
+      ) {
         event.preventDefault();
       }
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
-      keys[event.key.toLowerCase()] = false;
+      setKey(event, false);
+
+      if (
+        [
+          "KeyW", "KeyA", "KeyS", "KeyD",
+          "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+          "ShiftLeft", "ShiftRight"
+        ].includes(event.code)
+      ) {
+        event.preventDefault();
+      }
+    };
+
+    const clearKeys = () => {
+      for (const key of Object.keys(keys)) {
+        keys[key] = false;
+      }
+    };
+
+    const onWindowBlur = () => {
+      gameFocused = false;
+      clearKeys();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        gameFocused = false;
+        clearKeys();
+      } else {
+        gameFocused = true;
+      }
     };
 
     const onPointerDown = (event: PointerEvent) => {
+      gameFocused = true;
       dragging = true;
       lastPointerX = event.clientX;
       lastPointerY = event.clientY;
@@ -172,9 +247,12 @@ export default function HideAndSeekPage() {
       renderer.setSize(mount.clientWidth, mount.clientHeight);
     };
 
-    window.addEventListener("keydown", onKeyDown, { passive: false });
-    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("keydown", onKeyDown, { passive: false, capture: true });
+    window.addEventListener("keyup", onKeyUp, { passive: false, capture: true });
+    window.addEventListener("blur", onWindowBlur);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
+    renderer.domElement.addEventListener("contextmenu", (event) => event.preventDefault());
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointercancel", onPointerUp);
@@ -185,8 +263,13 @@ export default function HideAndSeekPage() {
     const animate = () => {
       const dt = Math.min(clock.getDelta(), 0.05);
 
-      const forward = Number(keys["w"] || keys["arrowup"]) - Number(keys["s"] || keys["arrowdown"]);
-      const strafe = Number(keys["d"] || keys["arrowright"]) - Number(keys["a"] || keys["arrowleft"]);
+      const forward = gameFocused
+        ? Number(Boolean(keys.w || keys.arrowup)) - Number(Boolean(keys.s || keys.arrowdown))
+        : 0;
+
+      const strafe = gameFocused
+        ? Number(Boolean(keys.d || keys.arrowright)) - Number(Boolean(keys.a || keys.arrowleft))
+        : 0;
 
       moveVector.set(strafe, 0, forward);
 
@@ -238,9 +321,12 @@ export default function HideAndSeekPage() {
 
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("blur", onWindowBlur);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      renderer.domElement.removeEventListener("contextmenu", (event) => event.preventDefault());
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointercancel", onPointerUp);
@@ -281,6 +367,7 @@ export default function HideAndSeekPage() {
       <div className="pointer-events-none absolute bottom-5 left-5 max-w-sm rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-xs text-white/70 shadow-xl backdrop-blur-md">
         <div className="font-semibold text-white">Movement</div>
         <div className="mt-1">WASD / Arrow Keys · Shift to sprint</div>
+        <div>Click the game once, then use the keyboard</div>
         <div>Drag mouse to orbit camera</div>
       </div>
 
