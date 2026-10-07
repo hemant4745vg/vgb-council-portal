@@ -25,7 +25,7 @@ export type LandscapeOptions = {
   width?: number;
   depth?: number;
 
-  /* New API */
+  /* Current API */
   style?: LandscapeStyle;
 
   /* Legacy CampusWorld API */
@@ -33,12 +33,13 @@ export type LandscapeOptions = {
 
   seed?: number;
 
-  /* Tree controls */
+  /* Vegetation */
   treeCount?: number;
   treeDensity?: number;
-
-  /* Hedge controls */
   hedgeDensity?: number;
+
+  /* Lighting */
+  lampDensity?: number;
 
   /* Materials */
   grassColor?: number;
@@ -85,6 +86,7 @@ type ResolvedLandscapeOptions = {
   treeCount: number;
 
   hedgeDensity: number;
+  lampDensity: number;
 
   grassColor: number;
   pathColor: number;
@@ -130,6 +132,7 @@ const DEFAULTS = {
   treeDensity: 1,
 
   hedgeDensity: 1,
+  lampDensity: 0.65,
 
   grassColor: 0x527d43,
   pathColor: 0xb9a77b,
@@ -513,7 +516,8 @@ function createTree(
   >,
   seed: number,
 ) {
-  const group = new THREE.Group();
+  const group =
+    new THREE.Group();
 
   const random =
     seededRandom(seed);
@@ -827,7 +831,6 @@ function createLamp(
         8,
         8,
       ),
-
       new THREE.MeshStandardMaterial(
         {
           color: 0xffe9ae,
@@ -846,6 +849,95 @@ function createLamp(
     "campus-lamp";
 
   return group;
+}
+
+function scatterLamps(
+  parent: THREE.Group,
+  options: ResolvedLandscapeOptions,
+  materials: ReturnType<
+    typeof createMaterials
+  >,
+  positions: Array<{
+    x: number;
+    z: number;
+  }>,
+) {
+  if (
+    !options.includeLamps ||
+    options.lampDensity <= 0
+  ) {
+    return;
+  }
+
+  /*
+   * lampDensity is intentionally continuous.
+   *
+   * 1.0 = full authored lamp layout
+   * 0.5 = roughly half the lamps
+   * 0   = no lamps
+   *
+   * We use deterministic selection rather than random
+   * per frame so the environment remains stable.
+   */
+  const density =
+    clamp(
+      options.lampDensity,
+      0,
+      1.5,
+    );
+
+  const targetCount = Math.round(
+    positions.length *
+      density,
+  );
+
+  if (targetCount <= 0) {
+    return;
+  }
+
+  const selected =
+    Math.min(
+      positions.length,
+      targetCount,
+    );
+
+  /*
+   * Evenly sample the authored positions.
+   * This prevents all lamps from clustering at one end.
+   */
+  for (
+    let i = 0;
+    i < selected;
+    i += 1
+  ) {
+    const sourceIndex =
+      selected === positions.length
+        ? i
+        : Math.round(
+            (i *
+              (positions.length - 1)) /
+              Math.max(
+                1,
+                selected - 1,
+              ),
+          );
+
+    const position =
+      positions[
+        sourceIndex
+      ];
+
+    const lamp =
+      createLamp(materials);
+
+    lamp.position.set(
+      position.x,
+      0,
+      position.z,
+    );
+
+    parent.add(lamp);
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -896,6 +988,13 @@ function mergeOptions(
         DEFAULTS.hedgeDensity,
     );
 
+  const lampDensity =
+    Math.max(
+      0,
+      options.lampDensity ??
+        DEFAULTS.lampDensity,
+    );
+
   const requestedTreeCount =
     options.treeCount ??
     DEFAULTS.treeCount;
@@ -930,6 +1029,8 @@ function mergeOptions(
       resolvedTreeCount,
 
     hedgeDensity,
+
+    lampDensity,
 
     grassColor:
       options.grassColor ??
@@ -1135,6 +1236,30 @@ function createQuadrangleLandscapeInternal(
     100,
   );
 
+  scatterLamps(
+    group,
+    options,
+    materials,
+    [
+      {
+        x: -width * 0.3,
+        z: -depth * 0.28,
+      },
+      {
+        x: width * 0.3,
+        z: -depth * 0.28,
+      },
+      {
+        x: -width * 0.3,
+        z: depth * 0.28,
+      },
+      {
+        x: width * 0.3,
+        z: depth * 0.28,
+      },
+    ],
+  );
+
   if (options.includeBenches) {
     const bench =
       createBench(materials);
@@ -1149,30 +1274,6 @@ function createQuadrangleLandscapeInternal(
       Math.PI;
 
     group.add(bench);
-  }
-
-  if (options.includeLamps) {
-    for (const [x, z] of [
-      [
-        -width * 0.3,
-        -depth * 0.28,
-      ],
-      [
-        width * 0.3,
-        depth * 0.28,
-      ],
-    ]) {
-      const lamp =
-        createLamp(materials);
-
-      lamp.position.set(
-        x,
-        0,
-        z,
-      );
-
-      group.add(lamp);
-    }
   }
 
   return group;
@@ -1273,37 +1374,50 @@ function createWalkwayLandscapeInternal(
     200,
   );
 
-  if (options.includeLamps) {
-    const lampCount =
-      Math.max(
-        2,
-        Math.floor(
-          depth / 25,
-        ),
-      );
+  const lampCount =
+    Math.max(
+      2,
+      Math.floor(
+        depth / 25,
+      ),
+    );
 
-    for (
-      let i = 0;
-      i < lampCount;
-      i += 1
-    ) {
-      const lamp =
-        createLamp(materials);
-
-      lamp.position.set(
-        width * 0.19,
-        0,
-        -depth * 0.36 +
+  const lampPositions =
+    Array.from(
+      {
+        length: lampCount,
+      },
+      (_, i) => ({
+        x: width * 0.19,
+        z:
+          -depth * 0.36 +
           i *
             (depth * 0.72) /
               Math.max(
                 1,
                 lampCount - 1,
               ),
-      );
+      }),
+    );
 
-      group.add(lamp);
-    }
+  scatterLamps(
+    group,
+    options,
+    materials,
+    lampPositions,
+  );
+
+  if (options.includeBenches) {
+    const bench =
+      createBench(materials);
+
+    bench.position.set(
+      -width * 0.2,
+      0,
+      depth * 0.18,
+    );
+
+    group.add(bench);
   }
 
   return group;
@@ -1448,6 +1562,38 @@ function createGardenLandscapeInternal(
     300,
   );
 
+  scatterLamps(
+    group,
+    options,
+    materials,
+    [
+      {
+        x: -width * 0.38,
+        z: -depth * 0.32,
+      },
+      {
+        x: width * 0.38,
+        z: -depth * 0.32,
+      },
+      {
+        x: -width * 0.38,
+        z: depth * 0.32,
+      },
+      {
+        x: width * 0.38,
+        z: depth * 0.32,
+      },
+      {
+        x: 0,
+        z: -depth * 0.4,
+      },
+      {
+        x: 0,
+        z: depth * 0.4,
+      },
+    ],
+  );
+
   if (options.includeBenches) {
     for (const [x, z] of [
       [-0.32, 0],
@@ -1573,23 +1719,29 @@ function createSportsLandscapeInternal(
     400,
   );
 
-  if (options.includeLamps) {
-    for (const x of [
-      -width * 0.4,
-      width * 0.4,
-    ]) {
-      const lamp =
-        createLamp(materials);
-
-      lamp.position.set(
-        x,
-        0,
-        0,
-      );
-
-      group.add(lamp);
-    }
-  }
+  scatterLamps(
+    group,
+    options,
+    materials,
+    [
+      {
+        x: -width * 0.4,
+        z: -depth * 0.3,
+      },
+      {
+        x: width * 0.4,
+        z: -depth * 0.3,
+      },
+      {
+        x: -width * 0.4,
+        z: depth * 0.3,
+      },
+      {
+        x: width * 0.4,
+        z: depth * 0.3,
+      },
+    ],
+  );
 
   return group;
 }
@@ -1694,6 +1846,30 @@ function createHostelLandscapeInternal(
     500,
   );
 
+  scatterLamps(
+    group,
+    options,
+    materials,
+    [
+      {
+        x: -width * 0.31,
+        z: -depth * 0.25,
+      },
+      {
+        x: width * 0.31,
+        z: -depth * 0.25,
+      },
+      {
+        x: -width * 0.31,
+        z: depth * 0.2,
+      },
+      {
+        x: width * 0.31,
+        z: depth * 0.2,
+      },
+    ],
+  );
+
   if (options.includeBenches) {
     const bench =
       createBench(materials);
@@ -1705,24 +1881,6 @@ function createHostelLandscapeInternal(
     );
 
     group.add(bench);
-  }
-
-  if (options.includeLamps) {
-    for (const x of [
-      -width * 0.31,
-      width * 0.31,
-    ]) {
-      const lamp =
-        createLamp(materials);
-
-      lamp.position.set(
-        x,
-        0,
-        depth * 0.15,
-      );
-
-      group.add(lamp);
-    }
   }
 
   return group;
@@ -1827,23 +1985,37 @@ function createGateLandscapeInternal(
     600,
   );
 
-  if (options.includeLamps) {
-    for (const x of [
-      -width * 0.28,
-      width * 0.28,
-    ]) {
-      const lamp =
-        createLamp(materials);
-
-      lamp.position.set(
-        x,
-        0,
-        -depth * 0.22,
-      );
-
-      group.add(lamp);
-    }
-  }
+  scatterLamps(
+    group,
+    options,
+    materials,
+    [
+      {
+        x: -width * 0.28,
+        z: -depth * 0.22,
+      },
+      {
+        x: width * 0.28,
+        z: -depth * 0.22,
+      },
+      {
+        x: -width * 0.38,
+        z: depth * 0.12,
+      },
+      {
+        x: width * 0.38,
+        z: depth * 0.12,
+      },
+      {
+        x: -width * 0.28,
+        z: depth * 0.36,
+      },
+      {
+        x: width * 0.28,
+        z: depth * 0.36,
+      },
+    ],
+  );
 
   return group;
 }
@@ -1933,6 +2105,9 @@ export function createLandscape(
 
   group.userData.hedgeDensity =
     options.hedgeDensity;
+
+  group.userData.lampDensity =
+    options.lampDensity;
 
   group.userData.width =
     options.width;
