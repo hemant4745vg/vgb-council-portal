@@ -257,18 +257,18 @@ function obstacleHeight(
  * because RunnerScene smoothly animates the player's
  * world-X position toward targetLane.
  */
+function horizontalDistance(g: Game, obstacle: Obstacle) {
+  return Math.abs(laneWorldX(g.player.lane) - laneWorldX(obstacle.lane));
+}
+
 function horizontalOverlap(
   g: Game,
   obstacle: Obstacle,
 ) {
-  const playerX = laneWorldX(g.player.lane);
-  const obstacleX = laneWorldX(obstacle.lane);
-
-  const horizontalDistance =
-    Math.abs(playerX - obstacleX);
+  const horizontalDistanceValue = horizontalDistance(g, obstacle);
 
   return (
-    horizontalDistance <=
+    horizontalDistanceValue <=
     PLAYER_HALF_WIDTH +
       obstacleHalfWidth(obstacle)
   );
@@ -412,6 +412,11 @@ function collisionCheck(
        * Do not resolve it yet until it is safely behind
        * the player.
        */
+      if (!obstacle.nearMissed && horizontalDistance(g, obstacle) < PLAYER_HALF_WIDTH + obstacleHalfWidth(obstacle) + 0.7) {
+        obstacle.nearMissed = true;
+        g.score += 25 * g.multiplier;
+        g.combo += 1;
+      }
       if (obstacle.z < -2.2) {
         obstacle.resolved = true;
         resolveSuccessfulObstacle(g);
@@ -438,9 +443,9 @@ function collisionCheck(
 
     if (g.player.shield) {
       g.player.shield = false;
-      g.camera.shake = 0.18;
-      g.flash = 0.18;
-
+      g.camera.shake = 0.28;
+      g.flash = 0.35;
+      g.combo = 0;
       beep(170, 0.12);
       continue;
     }

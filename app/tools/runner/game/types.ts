@@ -70,6 +70,7 @@ export type Obstacle = {
   kind: ObstacleKind;
 
   resolved: boolean;
+  nearMissed?: boolean;
 
   /**
    * Optional movement parameters for animated obstacles.
