@@ -220,28 +220,40 @@ export function Distance3DLab() {
 }
 
 export function MatrixLab() {
-  const [a, setA] = useState(2);
-  const [b, setB] = useState(1);
-  const [c, setC] = useState(0);
-  const [d, setD] = useState(5);
-  const [e, setE] = useState(3);
-  const [f, setF] = useState(1);
-  const [p, setP] = useState(1);
-  const [q, setQ] = useState(0);
-  const [r, setR] = useState(2);
-  const left = [[a, b, c], [d, e, f], [1, 0, 1]];
-  const right = [[p, q, r], [0, 1, 1], [1, 2, 0]];
+  const [left, setLeft] = useState([[1, 0, 0], [0, 1, 0], [0, 0, 1]]);
+  const [right, setRight] = useState([[2, 1, 0], [0, 1, 1], [1, 0, 1]]);
+  const setCell = (side: "left" | "right", row: number, col: number, value: number) => {
+    const source = side === "left" ? left : right;
+    const next = source.map((line) => [...line]);
+    next[row][col] = value;
+    if (side === "left") setLeft(next);
+    else setRight(next);
+  };
   const product = left.map((row) => right[0].map((_, col) => row.reduce((sum, value, k) => sum + value * right[k][col], 0)));
   const det = det3(left);
+  const inverse = det === 0 ? null : left.map((_, row) => left[0].map((_, col) => {
+    const minor = left.filter((_, r) => r !== row).map((line) => line.filter((_, c) => c !== col));
+    const minorDet = minor[0][0] * minor[1][1] - minor[0][1] * minor[1][0];
+    return ((row + col) % 2 === 0 ? 1 : -1) * minorDet / det;
+  }));
+  // The cofactor above is C_row,col. Inverse needs the transpose.
+  const shown = inverse ? inverse[0].map((_, col) => inverse.map((row) => row[col])) : null;
   return (
-    <Shell title="Matrices" note="A 3×3 product, with the determinant of the first matrix.">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Num label="a11" value={a} set={setA} /><Num label="a12" value={b} set={setB} /><Num label="a13" value={c} set={setC} />
-        <Num label="a21" value={d} set={setD} /><Num label="a22" value={e} set={setE} /><Num label="a23" value={f} set={setF} />
-        <Num label="b11" value={p} set={setP} /><Num label="b12" value={q} set={setQ} /><Num label="b13" value={r} set={setR} />
+    <Shell title="Matrices" note="Edit both 3×3 matrices. The product, determinant and inverse use every cell.">
+      <div className="grid gap-4 lg:grid-cols-2">
+        {[["A", left, "left"], ["B", right, "right"]].map(([label, grid, side]) => (
+          <div key={String(label)}>
+            <p className="mb-2 text-sm font-semibold">{label}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {(grid as number[][]).map((row, r) => row.map((value, c) => (
+                <input key={`${label}-${r}-${c}`} type="number" value={value} onChange={(e) => setCell(side as "left" | "right", r, c, Number(e.target.value))} className="rounded-lg border border-slate-200 px-2 py-1 text-sm" />
+              )))}
+            </div>
+          </div>
+        ))}
       </div>
-      <p className="mt-3 text-sm text-slate-600">det(A) = {det}. First row of AB: {product[0].join(", ")}.</p>
-      <p className="mt-1 text-sm text-slate-500">The other rows of B stay fixed so the product stays readable. Change the first row of B to see that row move.</p>
+      <p className="mt-4 text-sm text-slate-600">det(A) = {det}. First row of AB: {product[0].join(", ")}.</p>
+      <p className="mt-1 text-sm text-slate-600">{shown ? `Inverse first row: ${shown[0].map((value) => value.toFixed(2)).join(", ")}` : "A is singular, so it has no inverse."}</p>
     </Shell>
   );
 }
@@ -319,37 +331,43 @@ export function VectorLab() {
 }
 
 export function LinearProgrammingLab() {
-  const [a1, setA1] = useState(1);
-  const [b1, setB1] = useState(1);
-  const [c1, setC1] = useState(5);
-  const [a2, setA2] = useState(1);
-  const [b2, setB2] = useState(2);
-  const [c2, setC2] = useState(8);
+  const [rows, setRows] = useState([[1, 1, 6], [1, 2, 8], [2, 1, 8]]);
   const [ox, setOx] = useState(3);
   const [oy, setOy] = useState(2);
-  const lines = [{ a: a1, b: b1, c: c1 }, { a: a2, b: b2, c: c2 }, { a: 1, b: 0, c: 8 }, { a: 0, b: 1, c: 8 }];
-  const points: { x: number; y: number }[] = [{ x: 0, y: 0 }];
+  const setRow = (index: number, col: number, value: number) => {
+    const next = rows.map((row) => [...row]);
+    next[index][col] = value;
+    setRows(next);
+  };
+  const lines = [...rows.map(([a, b, c]) => ({ a, b, c })), { a: 1, b: 0, c: 12 }, { a: 0, b: 1, c: 12 }];
+  const points: { x: number; y: number }[] = [];
   for (let i = 0; i < lines.length; i += 1) {
     for (let j = i + 1; j < lines.length; j += 1) {
       const d = lines[i].a * lines[j].b - lines[j].a * lines[i].b;
       if (Math.abs(d) < 1e-6) continue;
       const x = (lines[i].c * lines[j].b - lines[j].c * lines[i].b) / d;
       const y = (lines[i].a * lines[j].c - lines[j].a * lines[i].c) / d;
-      if (x >= -0.01 && y >= -0.01 && a1 * x + b1 * y <= c1 + 0.01 && a2 * x + b2 * y <= c2 + 0.01 && x <= 8 && y <= 8) points.push({ x, y });
+      const feasible = x >= -0.01 && y >= -0.01 && rows.every(([a, b, c]) => a * x + b * y <= c + 0.05);
+      if (feasible) points.push({ x, y });
     }
   }
   const unique = points.filter((point, index) => points.findIndex((other) => Math.abs(other.x - point.x) < 0.05 && Math.abs(other.y - point.y) < 0.05) === index);
   const ranked = unique.map((point) => ({ ...point, value: ox * point.x + oy * point.y })).sort((p, q) => q.value - p.value);
-  const poly = [...unique].sort((p, q) => Math.atan2(p.y - 2, p.x - 2) - Math.atan2(q.y - 2, q.x - 2));
+  const poly = [...unique].sort((p, q) => Math.atan2(p.y - 3, p.x - 3) - Math.atan2(q.y - 3, q.x - 3));
   return (
-    <Shell title="Linear programming" note="Two constraints, both of the form ax + by ≤ c, with x ≥ 0 and y ≥ 0. The gold point is the best corner.">
+    <Shell title="Linear programming" note="Three constraints of the form ax + by ≤ c, with x ≥ 0 and y ≥ 0. The gold point is the best corner.">
       <div className="grid gap-3 sm:grid-cols-4">
-        <Num label="First a" value={a1} set={setA1} /><Num label="First b" value={b1} set={setB1} /><Num label="First limit" value={c1} set={setC1} /><Num label="Objective x" value={ox} set={setOx} />
-        <Num label="Second a" value={a2} set={setA2} /><Num label="Second b" value={b2} set={setB2} /><Num label="Second limit" value={c2} set={setC2} /><Num label="Objective y" value={oy} set={setOy} />
+        {rows.map((row, index) => (
+          <div key={index} className="grid grid-cols-3 gap-2">
+            {row.map((value, col) => <input key={col} type="number" value={value} onChange={(e) => setRow(index, col, Number(e.target.value))} className="rounded-lg border border-slate-200 px-2 py-1 text-sm" />)}
+          </div>
+        ))}
+        <Num label="Objective x" value={ox} set={setOx} />
+        <Num label="Objective y" value={oy} set={setOy} />
       </div>
       <svg viewBox="0 0 320 240" className="mt-4 h-56 w-full rounded-2xl bg-slate-50">
-        <polygon points={poly.map((point) => `${40 + point.x * 28},${200 - point.y * 22}`).join(" ")} fill="rgba(37,99,235,.18)" stroke="#2563eb" />
-        {ranked[0] && <circle cx={40 + ranked[0].x * 28} cy={200 - ranked[0].y * 22} r="6" fill="#d97706" />}
+        <polygon points={poly.map((point) => `${40 + point.x * 22},${200 - point.y * 16}`).join(" ")} fill="rgba(37,99,235,.18)" stroke="#2563eb" />
+        {ranked[0] && <circle cx={40 + ranked[0].x * 22} cy={200 - ranked[0].y * 16} r="6" fill="#d97706" />}
       </svg>
       <p className="mt-2 text-sm text-slate-600">{ranked.map((point) => `(${point.x.toFixed(1)}, ${point.y.toFixed(1)}) = ${point.value.toFixed(1)}`).join("; ") || "No feasible corner."}</p>
     </Shell>

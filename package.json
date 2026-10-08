@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit --pretty false --incremental false",
+    "check": "node scripts/check-formulas.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

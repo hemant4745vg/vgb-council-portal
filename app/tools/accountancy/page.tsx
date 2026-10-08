@@ -678,6 +678,32 @@ function Overview({ mode, setLab }: { mode: ClassMode; setLab: (l: Lab) => void 
   );
 }
 
+
+function ShareCapitalLab() {
+  const [shares, setShares] = useState(1000);
+  const [face, setFace] = useState(10);
+  const [premium, setPremium] = useState(2);
+  const application = shares * face;
+  const premiumTotal = shares * premium;
+  return (
+    <Card className="p-6">
+      <SectionTitle eyebrow="Company Accounts" title="Share issue at a premium" text="Application is received at face value. The premium is credited separately." />
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <label className="text-sm">Shares<input type="number" value={shares} onChange={(e) => setShares(Number(e.target.value))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" /></label>
+        <label className="text-sm">Face value<input type="number" value={face} onChange={(e) => setFace(Number(e.target.value))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" /></label>
+        <label className="text-sm">Premium per share<input type="number" value={premium} onChange={(e) => setPremium(Number(e.target.value))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" /></label>
+      </div>
+      <div className="mt-4 space-y-2 text-sm text-slate-700">
+        <p>Bank Dr. {application + premiumTotal}</p>
+        <p>To Share application {application}</p>
+        <p>To Securities premium {premiumTotal}</p>
+        <p>Share application Dr. {application}</p>
+        <p>To Share capital {application}</p>
+      </div>
+    </Card>
+  );
+}
+
 export default function AccountancyPage() {
   const [mode, setMode] = useState<ClassMode>("XI");
   const [lab, setLab] = useState<Lab>("overview");
@@ -711,7 +737,7 @@ export default function AccountancyPage() {
       case "statements":
         return <Card className="p-6"><SectionTitle eyebrow={mode === "XI" ? "Sole Proprietorship" : "Financial Statements"} title="Statement builder" text="The production version should connect trial balance, prescribed adjustments, Trading A/c, P&L and Balance Sheet through one transaction engine." /><div className="grid gap-3 md:grid-cols-5">{["Trial Balance", "Adjustments", "Trading A/c", "P&L A/c", "Balance Sheet"].map((x, i) => <div key={x} className="rounded-xl bg-slate-50 p-4 text-center text-xs font-semibold">{i + 1}. {x}</div>)}</div></Card>;
       case "shares":
-        return <Card className="p-6"><SectionTitle eyebrow="Company Accounts" title="Share capital workspace" text="Issue at par/premium, subscription, calls, forfeiture and reissue belong in this module." /><div className="rounded-xl bg-blue-50 p-5 text-sm leading-6 text-blue-950">The architecture is prepared for a journal-driven share-capital engine, including disclosure of share capital in the Balance Sheet.</div></Card>;
+        return <ShareCapitalLab />;
       default: return <Overview mode={mode} setLab={setLab} />;
     }
   };
