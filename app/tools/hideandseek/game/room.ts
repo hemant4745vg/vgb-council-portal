@@ -24,6 +24,8 @@ export async function joinRoom(roomCode: string, role: Role) {
   if (userError || !userData.user) throw new Error("Sign in before joining a room.");
   const { data, error } = await supabase.from("hide_rounds").select("id, code").eq("code", roomCode.trim().toUpperCase()).single();
   if (error || !data) throw new Error("No room with that code.");
+  const { data: seated } = await supabase.from("hide_players").select("role").eq("round_id", data.id);
+  if ((seated ?? []).some((row) => row.role === role)) throw new Error("That role is already taken. Pick the other one.");
   await supabase.from("hide_players").upsert({ round_id: data.id, user_id: userData.user.id, role, x: 40, z: -60, hidden: false });
   return { id: data.id as string, code: data.code as string, userId: userData.user.id };
 }
