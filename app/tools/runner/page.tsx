@@ -560,6 +560,8 @@ export default function RunnerPage() {
 
   const [phase, setPhase] =
     useState<Phase>("menu");
+  const [coinRun, setCoinRun] = useState(false);
+  const runIndexRef = useRef(0);
 
   const [sound, setSound] =
     useState(true);
@@ -861,7 +863,9 @@ export default function RunnerPage() {
         g.phase = "paused";
         setPhase("paused");
       } else {
-        g.phase = "playing";
+        runIndexRef.current += 1;
+      setCoinRun(runIndexRef.current % 5 === 0);
+      g.phase = "playing";
         g.last =
           performance.now();
 
@@ -1142,10 +1146,9 @@ export default function RunnerPage() {
          */
         g.spawnTimer -= dt;
 
-        if (
-          g.spawnTimer <= 0
-        ) {
-          spawnObstacleSet(g);
+        if (g.spawnTimer <= 0) {
+          if (runIndexRef.current % 5 === 0) g.spawnTimer = 1.4;
+          else spawnObstacleSet(g);
         }
 
         /*
@@ -2015,7 +2018,7 @@ export default function RunnerPage() {
 
         <footer>
           <span>
-            VGB RUNNER · CAMPUS 3D
+            VGB RUNNER · CAMPUS 3D{coinRun ? " · COIN RUN" : ""}
           </span>
 
           <span>

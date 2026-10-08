@@ -59,7 +59,7 @@ export function laneX(lane: number) {
 /* Speed                                                                       */
 /* -------------------------------------------------------------------------- */
 
-export const START_SPEED = 18;
+export const START_SPEED = 14;
 export const MAX_SPEED = 42;
 
 export const SPEED_ACCELERATION = 0.85;
