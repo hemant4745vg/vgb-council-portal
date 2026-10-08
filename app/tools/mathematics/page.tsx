@@ -1668,6 +1668,18 @@ function StatisticsLab() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="font-semibold">Frequency</h3>
+        <div className="mt-4 space-y-2">
+          {Object.entries(values.reduce<Record<string, number>>((acc, value) => { acc[value] = (acc[value] ?? 0) + 1; return acc; }, {})).map(([key, count]) => (
+            <div key={key} className="grid grid-cols-[64px_1fr_32px] items-center gap-2 text-sm">
+              <span>{key}</span>
+              <span className="h-2 rounded-full bg-slate-100"><span className="block h-2 rounded-full bg-slate-900" style={{ width: `${(count / values.length) * 100}%` }} /></span>
+              <span>{count}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="font-semibold">
           Variance
         </h3>
@@ -1714,8 +1726,8 @@ const practiceQuestions = [
   {
     topic: "Trigonometry",
     question:
-      "Find sin²x + cos²x.",
-    answer: "1",
+      "Find sin 30°.",
+    answer: "0.5",
   },
   {
     topic: "Quadratic Equations",
@@ -1762,6 +1774,21 @@ const practiceQuestions = [
     topic: "Integrals",
     question: "Find the integral of 2x, without the constant.",
     answer: "x^2",
+  },
+  {
+    topic: "Argand plane",
+    question: "Find the modulus of 3 + 4i.",
+    answer: "5",
+  },
+  {
+    topic: "Binomial",
+    question: "Find the coefficient of a^2 b in (a + b)^3.",
+    answer: "3",
+  },
+  {
+    topic: "Statistics",
+    question: "Find the mean of 2, 4, 6.",
+    answer: "4",
   },
 ];
 
@@ -2283,10 +2310,8 @@ const referenceGroups = [
   {
     title: "Sets",
     formulas: [
-      "\\(A\\cup B\\)",
-      "\\(A\\cap B\\)",
-      "\\(A-B\\)",
-      "\\(A'=U-A\\)",
+      "\\(n(A\\cup B)=n(A)+n(B)-n(A\\cap B)\\)",
+      "\\(n(A')=n(U)-n(A)\\)",
     ],
   },
   {

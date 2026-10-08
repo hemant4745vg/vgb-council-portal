@@ -28,33 +28,42 @@ function fact(n: number) {
   return out;
 }
 
+function det3(m: number[][]) {
+  const [a, b, c] = m[0];
+  const [d, e, f] = m[1];
+  const [g, h, i] = m[2];
+  return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+}
+
 export function ArgandLab() {
   const [real, setReal] = useState(3);
   const [imag, setImag] = useState(4);
-  const modulus = Math.sqrt(real * real + imag * imag);
+  const [real2, setReal2] = useState(1);
+  const [imag2, setImag2] = useState(-2);
+  const modulus = Math.hypot(real, imag);
   const argument = Math.atan2(imag, real);
   const s = 22;
-  const cx = 180;
-  const cy = 140;
+  const cx = 190;
+  const cy = 150;
   return (
-    <Shell title="Argand plane" note="The point is a + bi. The gold segment is the modulus.">
-      <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-        <div className="space-y-3">
-          <Num label="Real part a" value={real} set={setReal} />
-          <Num label="Imaginary part b" value={imag} set={setImag} />
-          <p className="text-sm leading-6 text-slate-600">z = {real} + {imag}i. |z| = {modulus.toFixed(2)}. Argument = {(argument * 180 / Math.PI).toFixed(1)}°. Conjugate = {real} − {imag}i.</p>
-        </div>
-        <svg viewBox="0 0 360 280" className="h-72 w-full rounded-2xl bg-slate-50">
-          {[-6, -3, 0, 3, 6].map((tick) => <g key={tick}><line x1={cx + tick * s} x2={cx + tick * s} y1={cy - 4} y2={cy + 4} stroke="#94a3b8" /><line y1={cy - tick * s} y2={cy - tick * s} x1={cx - 4} x2={cx + 4} stroke="#94a3b8" /></g>)}
-          <line x1="24" x2="336" y1={cy} y2={cy} stroke="#334155" />
-          <line x1={cx} x2={cx} y1="20" y2="260" stroke="#334155" />
-          <circle cx={cx} cy={cy} r={modulus * s} fill="none" stroke="#fbbf24" strokeDasharray="4 4" />
-          <line x1={cx} y1={cy} x2={cx + real * s} y2={cy - imag * s} stroke="#d97706" strokeWidth="3" />
-          <circle cx={cx + real * s} cy={cy - imag * s} r="6" fill="#2563eb" />
-          <circle cx={cx + real * s} cy={cy + imag * s} r="5" fill="#94a3b8" />
-          <text x={cx + real * s + 8} y={cy - imag * s - 8} fontSize="12" fill="#1d4ed8">z</text>
-        </svg>
+    <Shell title="Argand plane" note="Move two complex numbers. Gold is the first, blue is the second, and the open point is their sum.">
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Num label="a" value={real} set={setReal} />
+        <Num label="b" value={imag} set={setImag} />
+        <Num label="c" value={real2} set={setReal2} />
+        <Num label="d" value={imag2} set={setImag2} />
       </div>
+      <svg viewBox="0 0 380 300" className="mt-4 h-72 w-full rounded-2xl bg-slate-50">
+        <line x1="20" x2="360" y1={cy} y2={cy} stroke="#334155" />
+        <line x1={cx} x2={cx} y1="16" y2="284" stroke="#334155" />
+        <circle cx={cx} cy={cy} r={modulus * s} fill="none" stroke="#fbbf24" strokeDasharray="4 4" />
+        <line x1={cx} y1={cy} x2={cx + real * s} y2={cy - imag * s} stroke="#d97706" strokeWidth="3" />
+        <line x1={cx + real * s} y1={cy - imag * s} x2={cx + (real + real2) * s} y2={cy - (imag + imag2) * s} stroke="#2563eb" strokeWidth="3" />
+        <circle cx={cx + real * s} cy={cy - imag * s} r="5" fill="#d97706" />
+        <circle cx={cx + real2 * s} cy={cy - imag2 * s} r="5" fill="#2563eb" />
+        <circle cx={cx + (real + real2) * s} cy={cy - (imag + imag2) * s} r="6" fill="white" stroke="#0f172a" strokeWidth="2" />
+      </svg>
+      <p className="mt-2 text-sm text-slate-600">|z| = {modulus.toFixed(2)}. Argument {(argument * 180 / Math.PI).toFixed(1)}°. Sum = {real + real2} + {imag + imag2}i.</p>
     </Shell>
   );
 }
@@ -63,25 +72,29 @@ export function InequalityLab() {
   const [a, setA] = useState(2);
   const [b, setB] = useState(-6);
   const [sign, setSign] = useState<"<" | ">" | "≤" | "≥">("<");
+  const [test, setTest] = useState(1);
   const bound = a === 0 ? NaN : -b / a;
-  const left = Number.isFinite(bound) && (sign === "<" || sign === "≤") ? a > 0 : sign === ">" || sign === "≥";
+  const holds = a * test + b < 0 ? sign === "<" || sign === "≤" : a * test + b > 0 ? sign === ">" || sign === "≥" : sign === "≤" || sign === "≥";
+  const left = Number.isFinite(bound) && ((sign === "<" || sign === "≤") ? a > 0 : a < 0);
   const closed = sign === "≤" || sign === "≥";
   return (
-    <Shell title="Linear inequality" note="One variable. The ray is the solution set.">
-      <div className="grid gap-3 sm:grid-cols-3">
+    <Shell title="Linear inequality" note="Drag the test value and see whether it sits in the solution ray.">
+      <div className="grid gap-3 sm:grid-cols-4">
         <Num label="Coefficient of x" value={a} set={setA} />
         <Num label="Constant" value={b} set={setB} />
         <label className="text-sm font-medium">Relation
           <select value={sign} onChange={(e) => setSign(e.target.value as typeof sign)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2">{["<", ">", "≤", "≥"].map((item) => <option key={item}>{item}</option>)}</select>
         </label>
+        <Num label="Test value" value={test} set={setTest} />
       </div>
-      <p className="mt-3 text-sm text-slate-600">{a}x + {b} {sign} 0. Boundary x = {Number.isFinite(bound) ? bound.toFixed(2) : "undefined"}.</p>
-      <svg viewBox="0 0 640 90" className="mt-3 h-24 w-full">
-        <line x1="30" x2="610" y1="45" y2="45" stroke="#334155" strokeWidth="2" />
-        {[-6, -3, 0, 3, 6].map((tick) => <text key={tick} x={320 + tick * 40} y="72" textAnchor="middle" fontSize="12" fill="#64748b">{tick}</text>)}
-        {Number.isFinite(bound) && <line x1={left ? 30 : 320 + bound * 40} x2={left ? 320 + bound * 40 : 610} y1="45" y2="45" stroke="#2563eb" strokeWidth="6" />}
-        {Number.isFinite(bound) && <circle cx={320 + bound * 40} cy="45" r="6" fill={closed ? "#2563eb" : "white"} stroke="#2563eb" strokeWidth="2" />}
+      <svg viewBox="0 0 640 100" className="mt-4 h-28 w-full">
+        <line x1="30" x2="610" y1="48" y2="48" stroke="#334155" strokeWidth="2" />
+        {[-6, -3, 0, 3, 6].map((tick) => <text key={tick} x={320 + tick * 40} y="78" textAnchor="middle" fontSize="12" fill="#64748b">{tick}</text>)}
+        {Number.isFinite(bound) && <line x1={left ? 30 : 320 + bound * 40} x2={left ? 320 + bound * 40 : 610} y1="48" y2="48" stroke="#2563eb" strokeWidth="6" />}
+        {Number.isFinite(bound) && <circle cx={320 + bound * 40} cy="48" r="6" fill={closed ? "#2563eb" : "white"} stroke="#2563eb" strokeWidth="2" />}
+        <circle cx={320 + test * 40} cy="48" r="5" fill={holds ? "#16a34a" : "#dc2626"} />
       </svg>
+      <p className="text-sm text-slate-600">Boundary x = {Number.isFinite(bound) ? bound.toFixed(2) : "undefined"}. The test point {holds ? "satisfies" : "does not satisfy"} the inequality.</p>
     </Shell>
   );
 }
@@ -93,28 +106,33 @@ export function CountingLab() {
   const p = ok ? fact(n) / fact(n - r) : NaN;
   const c = ok ? fact(n) / (fact(r) * fact(n - r)) : NaN;
   return (
-    <Shell title="Permutations and combinations" note="Order matters for nPr. It does not matter for nCr.">
+    <Shell title="Permutations and combinations" note="Use nPr when the order of the chosen objects matters. Use nCr when it does not.">
       <div className="grid gap-3 sm:grid-cols-2"><Num label="n" value={n} set={setN} /><Num label="r" value={r} set={setR} /></div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs uppercase tracking-wide text-slate-500">nPr</p><p className="mt-1 text-3xl font-semibold">{Number.isFinite(p) ? p : "—"}</p><p className="mt-2 text-sm text-slate-500">{n}! / ({n} − {r})!</p></div>
-        <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs uppercase tracking-wide text-slate-500">nCr</p><p className="mt-1 text-3xl font-semibold">{Number.isFinite(c) ? c : "—"}</p><p className="mt-2 text-sm text-slate-500">{n}! / ({r}! ({n} − {r})!)</p></div>
+        <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Arrangements nPr</p><p className="mt-1 text-3xl font-semibold">{Number.isFinite(p) ? p : "—"}</p><p className="mt-2 text-sm text-slate-500">{n}! / ({n} − {r})!</p></div>
+        <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Selections nCr</p><p className="mt-1 text-3xl font-semibold">{Number.isFinite(c) ? c : "—"}</p><p className="mt-2 text-sm text-slate-500">{n}! / ({r}! ({n} − {r})!)</p></div>
       </div>
     </Shell>
   );
 }
 
 export function BinomialLab() {
-  const [n, setN] = useState(5);
+  const [n, setN] = useState(4);
+  const [a, setA] = useState(2);
+  const [b, setB] = useState(1);
   const terms = useMemo(() => {
     if (!Number.isInteger(n) || n < 0 || n > 8) return [];
-    return Array.from({ length: n + 1 }, (_, k) => ({ k, coeff: fact(n) / (fact(k) * fact(n - k)) }));
-  }, [n]);
+    return Array.from({ length: n + 1 }, (_, k) => {
+      const coeff = fact(n) / (fact(k) * fact(n - k));
+      return { k, coeff, value: coeff * a ** (n - k) * b ** k };
+    });
+  }, [n, a, b]);
+  const total = terms.reduce((sum, term) => sum + term.value, 0);
   return (
-    <Shell title="Binomial expansion" note="(a + b)^n for a positive integer n, up to 8.">
-      <Num label="Index n" value={n} set={setN} />
-      <div className="mt-4 overflow-auto">
-        <table className="w-full text-sm"><thead><tr className="text-left text-slate-500"><th>k</th><th>C(n, k)</th><th>Term</th></tr></thead><tbody>{terms.map((term) => <tr key={term.k} className="border-t border-slate-100"><td>{term.k}</td><td>{term.coeff}</td><td>{term.coeff} a^{n - term.k} b^{term.k}</td></tr>)}</tbody></table>
-      </div>
+    <Shell title="Binomial expansion" note="Enter a and b. The last column is the value of that term.">
+      <div className="grid gap-3 sm:grid-cols-3"><Num label="Index n" value={n} set={setN} /><Num label="a" value={a} set={setA} /><Num label="b" value={b} set={setB} /></div>
+      <div className="mt-4 overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left text-slate-500"><th>k</th><th>Coefficient</th><th>Term</th><th>Value</th></tr></thead><tbody>{terms.map((term) => <tr key={term.k} className="border-t border-slate-100"><td>{term.k}</td><td>{term.coeff}</td><td>{term.coeff} ({a})^{n - term.k} ({b})^{term.k}</td><td>{term.value}</td></tr>)}</tbody></table></div>
+      <p className="mt-2 text-sm text-slate-600">({a} + {b})^{n} = {terms.length ? total : "—"}. Check: direct value {(a + b) ** n}.</p>
     </Shell>
   );
 }
@@ -124,15 +142,18 @@ export function SequenceLab() {
   const [d, setD] = useState(3);
   const [r, setR] = useState(2);
   const [n, setN] = useState(6);
-  const ap = Array.from({ length: Math.min(n, 8) }, (_, i) => a + i * d);
-  const gp = Array.from({ length: Math.min(n, 8) }, (_, i) => a * r ** i);
-  const apSum = (n / 2) * (2 * a + (n - 1) * d);
-  const gpSum = r === 1 ? a * n : a * (r ** n - 1) / (r - 1);
+  const count = Math.max(1, Math.min(8, Math.floor(n)));
+  const ap = Array.from({ length: count }, (_, i) => a + i * d);
+  const gp = Array.from({ length: count }, (_, i) => a * r ** i);
+  const max = Math.max(...ap, ...gp, 1);
   return (
-    <Shell title="Sequences" note="The common difference and the common ratio are separate.">
+    <Shell title="Sequences" note="Bars compare the first terms of the AP and the GP.">
       <div className="grid gap-3 sm:grid-cols-4"><Num label="First term" value={a} set={setA} /><Num label="AP difference" value={d} set={setD} /><Num label="GP ratio" value={r} set={setR} /><Num label="n" value={n} set={setN} /></div>
-      <p className="mt-4 text-sm text-slate-600">AP: {ap.join(", ")}. Sum {apSum}.</p>
-      <p className="mt-1 text-sm text-slate-600">GP: {gp.join(", ")}. Sum {Number.isFinite(gpSum) ? gpSum : "undefined"}.</p>
+      <svg viewBox="0 0 520 180" className="mt-4 h-44 w-full rounded-2xl bg-slate-50">
+        {ap.map((value, i) => <rect key={`a${i}`} x={30 + i * 60} y={150 - (value / max) * 110} width="22" height={(value / max) * 110} fill="#2563eb" />)}
+        {gp.map((value, i) => <rect key={`g${i}`} x={54 + i * 60} y={150 - (Math.max(value, 0) / max) * 110} width="22" height={(Math.max(value, 0) / max) * 110} fill="#dc2626" />)}
+      </svg>
+      <p className="mt-2 text-sm text-slate-600">Blue AP: {ap.join(", ")}. Red GP: {gp.join(", ")}.</p>
     </Shell>
   );
 }
@@ -141,29 +162,30 @@ export function TrigGraphLab() {
   const [amp, setAmp] = useState(1);
   const [freq, setFreq] = useState(1);
   const [phase, setPhase] = useState(0);
+  const [probe, setProbe] = useState(0);
   const path = (fn: (x: number) => number, color: string) => {
     const parts: string[] = [];
-    for (let i = 0; i <= 120; i += 1) {
-      const x = -Math.PI * 2 + (i * Math.PI * 4) / 120;
+    for (let i = 0; i <= 140; i += 1) {
+      const x = -Math.PI * 2 + (i * Math.PI * 4) / 140;
       const y = fn(x);
-      if (!Number.isFinite(y) || Math.abs(y) > 3) { parts.push("M"); continue; }
-      const px = 40 + ((x + Math.PI * 2) / (Math.PI * 4)) * 360;
-      const py = 120 - y * 32;
-      parts.push(`${parts[parts.length - 1] === "M" || i === 0 ? "M" : "L"} ${px.toFixed(1)} ${py.toFixed(1)}`);
+      const broken = !Number.isFinite(y) || Math.abs(y) > 3;
+      const px = 40 + (i / 140) * 420;
+      const py = 120 - y * 30;
+      parts.push(broken ? "M" : `${parts[parts.length - 1] === "M" || i === 0 ? "M" : "L"} ${px.toFixed(1)} ${py.toFixed(1)}`);
     }
     return <path d={parts.join(" ")} fill="none" stroke={color} strokeWidth="2.5" />;
   };
   return (
-    <Shell title="Trigonometric graphs" note="Blue sine, red cosine, green tangent. Tangent breaks at its asymptotes.">
-      <div className="grid gap-3 sm:grid-cols-3"><Num label="Amplitude" value={amp} set={setAmp} step={0.1} /><Num label="Frequency" value={freq} set={setFreq} step={0.1} /><Num label="Phase in radians" value={phase} set={setPhase} step={0.1} /></div>
-      <svg viewBox="0 0 440 240" className="mt-4 h-60 w-full rounded-2xl bg-slate-50">
-        <line x1="40" x2="400" y1="120" y2="120" stroke="#334155" />
-        <line x1="40" x2="40" y1="20" y2="220" stroke="#334155" />
+    <Shell title="Trigonometric graphs" note="Move the probe. Blue sine, red cosine, green tangent.">
+      <div className="grid gap-3 sm:grid-cols-4"><Num label="Amplitude" value={amp} set={setAmp} step={0.1} /><Num label="Frequency" value={freq} set={setFreq} step={0.1} /><Num label="Phase" value={phase} set={setPhase} step={0.1} /><Num label="Probe x" value={probe} set={setProbe} step={0.1} /></div>
+      <svg viewBox="0 0 500 240" className="mt-4 h-60 w-full rounded-2xl bg-slate-50">
+        <line x1="40" x2="460" y1="120" y2="120" stroke="#334155" /><line x1="40" x2="40" y1="20" y2="220" stroke="#334155" />
         {path((x) => amp * Math.sin(freq * x + phase), "#2563eb")}
         {path((x) => amp * Math.cos(freq * x + phase), "#dc2626")}
         {path((x) => amp * Math.tan(freq * x + phase), "#16a34a")}
+        <line x1={40 + ((probe + Math.PI * 2) / (Math.PI * 4)) * 420} x2={40 + ((probe + Math.PI * 2) / (Math.PI * 4)) * 420} y1="20" y2="220" stroke="#0f172a" strokeDasharray="4 3" />
       </svg>
-      <p className="mt-2 text-sm text-slate-500">Period of sine and cosine is {(2 * Math.PI / Math.abs(freq || 1)).toFixed(2)} radians.</p>
+      <p className="mt-2 text-sm text-slate-600">At x = {probe}: sin { (amp * Math.sin(freq * probe + phase)).toFixed(2) }, cos { (amp * Math.cos(freq * probe + phase)).toFixed(2) }. Period {(2 * Math.PI / Math.abs(freq || 1)).toFixed(2)}.</p>
     </Shell>
   );
 }
@@ -175,17 +197,24 @@ export function Distance3DLab() {
   const [bx, setBx] = useState(4);
   const [by, setBy] = useState(6);
   const [bz, setBz] = useState(-2);
-  const dx = bx - ax;
-  const dy = by - ay;
-  const dz = bz - az;
-  const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  const project = (x: number, y: number, z: number) => [70 + x * 36 - z * 22, 190 - y * 28 - z * 14];
+  const a = project(ax, ay, az);
+  const b = project(bx, by, bz);
+  const distance = Math.hypot(bx - ax, by - ay, bz - az);
   return (
-    <Shell title="Distance in three dimensions" note="Only the two points and the distance. No plane equation.">
+    <Shell title="Distance in three dimensions" note="The sketch is a projection. The value uses the full distance formula.">
       <div className="grid gap-3 sm:grid-cols-3">
         <Num label="x1" value={ax} set={setAx} /><Num label="y1" value={ay} set={setAy} /><Num label="z1" value={az} set={setAz} />
         <Num label="x2" value={bx} set={setBx} /><Num label="y2" value={by} set={setBy} /><Num label="z2" value={bz} set={setBz} />
       </div>
-      <p className="mt-4 text-sm leading-6 text-slate-600">√[({bx} − {ax})² + ({by} − {ay})² + ({bz} − {az})²] = √[{dx * dx} + {dy * dy} + {dz * dz}] = {distance.toFixed(2)}.</p>
+      <svg viewBox="0 0 360 240" className="mt-4 h-56 w-full rounded-2xl bg-slate-50">
+        <line x1="70" x2="250" y1="190" y2="190" stroke="#94a3b8" />
+        <line x1="70" x2="70" y1="190" y2="40" stroke="#94a3b8" />
+        <line x1="70" x2="20" y1="190" y2="230" stroke="#94a3b8" />
+        <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#d97706" strokeWidth="3" />
+        <circle cx={a[0]} cy={a[1]} r="5" fill="#2563eb" /><circle cx={b[0]} cy={b[1]} r="5" fill="#dc2626" />
+      </svg>
+      <p className="mt-2 text-sm text-slate-600">Distance {distance.toFixed(2)}.</p>
     </Shell>
   );
 }
@@ -193,17 +222,26 @@ export function Distance3DLab() {
 export function MatrixLab() {
   const [a, setA] = useState(2);
   const [b, setB] = useState(1);
-  const [c, setC] = useState(5);
-  const [d, setD] = useState(3);
-  const det = a * d - b * c;
+  const [c, setC] = useState(0);
+  const [d, setD] = useState(5);
+  const [e, setE] = useState(3);
+  const [f, setF] = useState(1);
+  const [p, setP] = useState(1);
+  const [q, setQ] = useState(0);
+  const [r, setR] = useState(2);
+  const left = [[a, b, c], [d, e, f], [1, 0, 1]];
+  const right = [[p, q, r], [0, 1, 1], [1, 2, 0]];
+  const product = left.map((row) => right[0].map((_, col) => row.reduce((sum, value, k) => sum + value * right[k][col], 0)));
+  const det = det3(left);
   return (
-    <Shell title="2×2 matrix" note="Determinant, transpose and inverse when the determinant is not zero.">
-      <div className="grid gap-3 sm:grid-cols-4"><Num label="a" value={a} set={setA} /><Num label="b" value={b} set={setB} /><Num label="c" value={c} set={setC} /><Num label="d" value={d} set={setD} /></div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3 text-sm">
-        <div className="rounded-2xl bg-slate-50 p-4">Matrix [[{a}, {b}], [{c}, {d}]]</div>
-        <div className="rounded-2xl bg-slate-50 p-4">Transpose [[{a}, {c}], [{b}, {d}]]. Det {det}.</div>
-        <div className="rounded-2xl bg-slate-50 p-4">{det === 0 ? "Singular. No inverse." : `Inverse (1/${det}) [[${d}, ${-b}], [${-c}, ${a}]].`}</div>
+    <Shell title="Matrices" note="A 3×3 product, with the determinant of the first matrix.">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Num label="a11" value={a} set={setA} /><Num label="a12" value={b} set={setB} /><Num label="a13" value={c} set={setC} />
+        <Num label="a21" value={d} set={setD} /><Num label="a22" value={e} set={setE} /><Num label="a23" value={f} set={setF} />
+        <Num label="b11" value={p} set={setP} /><Num label="b12" value={q} set={setQ} /><Num label="b13" value={r} set={setR} />
       </div>
+      <p className="mt-3 text-sm text-slate-600">det(A) = {det}. First row of AB: {product[0].join(", ")}.</p>
+      <p className="mt-1 text-sm text-slate-500">The other rows of B stay fixed so the product stays readable. Change the first row of B to see that row move.</p>
     </Shell>
   );
 }
@@ -211,21 +249,25 @@ export function MatrixLab() {
 export function InverseTrigLab() {
   const [value, setValue] = useState(0.5);
   const safe = Math.max(-1, Math.min(1, value));
-  const path = Array.from({ length: 81 }, (_, i) => {
-    const x = -1 + i / 40;
-    const y = Math.asin(x);
-    return `${i ? "L" : "M"} ${(40 + ((x + 1) / 2) * 320).toFixed(1)} ${(120 - y * 50).toFixed(1)}`;
-  }).join(" ");
+  const curve = (fn: (x: number) => number, color: string) => {
+    const parts = Array.from({ length: 80 }, (_, i) => {
+      const x = -1 + i / 39.5;
+      const y = fn(x);
+      return `${i ? "L" : "M"} ${(30 + ((x + 1) / 2) * 300).toFixed(1)} ${(90 - y * 36).toFixed(1)}`;
+    }).join(" ");
+    return <path d={parts} fill="none" stroke={color} strokeWidth="2.5" />;
+  };
   return (
-    <Shell title="Inverse trigonometric values" note="The curve is the principal branch of arcsin, from −π/2 to π/2.">
-      <Num label="Input" value={value} set={setValue} step={0.1} />
-      <svg viewBox="0 0 400 220" className="mt-4 h-56 w-full rounded-2xl bg-slate-50">
-        <line x1="40" x2="360" y1="120" y2="120" stroke="#334155" />
-        <line x1="200" x2="200" y1="20" y2="200" stroke="#334155" />
-        <path d={path} fill="none" stroke="#2563eb" strokeWidth="3" />
-        <circle cx={40 + ((safe + 1) / 2) * 320} cy={120 - Math.asin(safe) * 50} r="5" fill="#d97706" />
+    <Shell title="Inverse trigonometric branches" note="Blue arcsin, red arccos, green arctan. The probe uses the same input.">
+      <Num label="Input" value={value} set={setValue} step={0.05} />
+      <svg viewBox="0 0 360 180" className="mt-4 h-52 w-full rounded-2xl bg-slate-50">
+        <line x1="30" x2="330" y1="90" y2="90" stroke="#334155" /><line x1="180" x2="180" y1="16" y2="164" stroke="#334155" />
+        {curve(Math.asin, "#2563eb")}
+        {curve(Math.acos, "#dc2626")}
+        {curve(Math.atan, "#16a34a")}
+        <circle cx={30 + ((safe + 1) / 2) * 300} cy={90 - Math.asin(safe) * 36} r="4" fill="#d97706" />
       </svg>
-      <p className="mt-2 text-sm text-slate-600">arcsin {Math.asin(safe).toFixed(3)}. arccos {Math.acos(safe).toFixed(3)}. arctan {Math.atan(value).toFixed(3)} radians.</p>
+      <p className="mt-2 text-sm text-slate-600">arcsin {Math.asin(safe).toFixed(3)}, arccos {Math.acos(safe).toFixed(3)}, arctan {Math.atan(value).toFixed(3)} radians.</p>
     </Shell>
   );
 }
@@ -235,16 +277,16 @@ export function IntegralLab() {
   const [from, setFrom] = useState(0);
   const [to, setTo] = useState(2);
   const area = power === -1 ? NaN : (to ** (power + 1) - from ** (power + 1)) / (power + 1);
-  const path = Array.from({ length: 60 }, (_, i) => {
-    const x = from + ((to - from) * i) / 59;
+  const path = Array.from({ length: 70 }, (_, i) => {
+    const x = from + ((to - from) * i) / 69;
     const y = x ** power;
-    return `${i ? "L" : "M"} ${(40 + (i / 59) * 320).toFixed(1)} ${(160 - Math.max(-40, Math.min(120, y)) * 0.8).toFixed(1)}`;
+    return `${i ? "L" : "M"} ${(40 + (i / 69) * 320).toFixed(1)} ${(150 - Math.max(-30, Math.min(100, y)) * 0.9).toFixed(1)}`;
   }).join(" ");
   return (
-    <Shell title="Area under one curve" note="The curve is y = x^n. The area is the definite integral between the two limits.">
-      <div className="grid gap-3 sm:grid-cols-3"><Num label="Power n" value={power} set={setPower} /><Num label="Lower limit" value={from} set={setFrom} /><Num label="Upper limit" value={to} set={setTo} /></div>
-      <svg viewBox="0 0 400 200" className="mt-4 h-52 w-full rounded-2xl bg-slate-50"><path d={`${path} L 360 160 L 40 160 Z`} fill="rgba(37,99,235,.15)" /><path d={path} fill="none" stroke="#2563eb" strokeWidth="3" /></svg>
-      <p className="mt-2 text-sm text-slate-600">Antiderivative x^{power + 1}/{power + 1}. Area {Number.isFinite(area) ? area.toFixed(3) : "undefined for this power"}.</p>
+    <Shell title="Area under one curve" note="Move the limits. The shaded region is the definite integral of x^n.">
+      <div className="grid gap-3 sm:grid-cols-3"><Num label="Power n" value={power} set={setPower} /><Num label="Lower limit" value={from} set={setFrom} step={0.5} /><Num label="Upper limit" value={to} set={setTo} step={0.5} /></div>
+      <svg viewBox="0 0 400 190" className="mt-4 h-52 w-full rounded-2xl bg-slate-50"><path d={`${path} L 360 150 L 40 150 Z`} fill="rgba(37,99,235,.16)" /><path d={path} fill="none" stroke="#2563eb" strokeWidth="3" /></svg>
+      <p className="mt-2 text-sm text-slate-600">Antiderivative x^{power + 1}/{power + 1}. Area {Number.isFinite(area) ? area.toFixed(3) : "undefined"}.</p>
     </Shell>
   );
 }
@@ -252,39 +294,64 @@ export function IntegralLab() {
 export function VectorLab() {
   const [ax, setAx] = useState(3);
   const [ay, setAy] = useState(2);
+  const [az, setAz] = useState(1);
   const [bx, setBx] = useState(1);
   const [by, setBy] = useState(3);
-  const mag = Math.sqrt(ax * ax + ay * ay);
-  const dot = ax * bx + ay * by;
-  const s = 28;
+  const [bz, setBz] = useState(2);
+  const mag = Math.hypot(ax, ay, az);
+  const dot = ax * bx + ay * by + az * bz;
+  const s = 26;
   return (
-    <Shell title="Vectors in the plane" note="Blue is a, red is b, gold is a + b. Direction cosines use the 2D vector.">
-      <div className="grid gap-3 sm:grid-cols-4"><Num label="a1" value={ax} set={setAx} /><Num label="a2" value={ay} set={setAy} /><Num label="b1" value={bx} set={setBx} /><Num label="b2" value={by} set={setBy} /></div>
-      <svg viewBox="0 0 360 240" className="mt-4 h-56 w-full rounded-2xl bg-slate-50">
-        <line x1="40" x2="330" y1="190" y2="190" stroke="#334155" /><line x1="40" x2="40" y1="20" y2="190" stroke="#334155" />
-        <line x1="40" y1="190" x2={40 + ax * s} y2={190 - ay * s} stroke="#2563eb" strokeWidth="3" />
-        <line x1="40" y1="190" x2={40 + bx * s} y2={190 - by * s} stroke="#dc2626" strokeWidth="3" />
-        <line x1="40" y1="190" x2={40 + (ax + bx) * s} y2={190 - (ay + by) * s} stroke="#d97706" strokeWidth="3" />
+    <Shell title="Vectors" note="The drawing uses the first two components. Magnitude, direction cosines and the dot product use all three.">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Num label="a1" value={ax} set={setAx} /><Num label="a2" value={ay} set={setAy} /><Num label="a3" value={az} set={setAz} />
+        <Num label="b1" value={bx} set={setBx} /><Num label="b2" value={by} set={setBy} /><Num label="b3" value={bz} set={setBz} />
+      </div>
+      <svg viewBox="0 0 360 220" className="mt-4 h-52 w-full rounded-2xl bg-slate-50">
+        <line x1="40" x2="330" y1="180" y2="180" stroke="#334155" /><line x1="40" x2="40" y1="20" y2="180" stroke="#334155" />
+        <line x1="40" y1="180" x2={40 + ax * s} y2={180 - ay * s} stroke="#2563eb" strokeWidth="3" />
+        <line x1="40" y1="180" x2={40 + bx * s} y2={180 - by * s} stroke="#dc2626" strokeWidth="3" />
+        <line x1="40" y1="180" x2={40 + (ax + bx) * s} y2={180 - (ay + by) * s} stroke="#d97706" strokeWidth="3" />
       </svg>
-      <p className="mt-2 text-sm text-slate-600">|a| = {mag.toFixed(2)}. Direction cosines {(ax / mag).toFixed(2)}, {(ay / mag).toFixed(2)}. a · b = {dot}.</p>
+      <p className="mt-2 text-sm text-slate-600">|a| = {mag.toFixed(2)}. Direction cosines {(ax / mag).toFixed(2)}, {(ay / mag).toFixed(2)}, {(az / mag).toFixed(2)}. a · b = {dot}.</p>
     </Shell>
   );
 }
 
 export function LinearProgrammingLab() {
-  const [limit, setLimit] = useState(5);
-  const [c1, setC1] = useState(3);
-  const [c2, setC2] = useState(2);
-  const corners = [[0, 0], [0, limit], [limit, 0]].filter(([x, y]) => x + y <= limit);
-  const ranked = corners.map(([x, y]) => ({ x, y, value: c1 * x + c2 * y })).sort((p, q) => q.value - p.value);
+  const [a1, setA1] = useState(1);
+  const [b1, setB1] = useState(1);
+  const [c1, setC1] = useState(5);
+  const [a2, setA2] = useState(1);
+  const [b2, setB2] = useState(2);
+  const [c2, setC2] = useState(8);
+  const [ox, setOx] = useState(3);
+  const [oy, setOy] = useState(2);
+  const lines = [{ a: a1, b: b1, c: c1 }, { a: a2, b: b2, c: c2 }, { a: 1, b: 0, c: 8 }, { a: 0, b: 1, c: 8 }];
+  const points: { x: number; y: number }[] = [{ x: 0, y: 0 }];
+  for (let i = 0; i < lines.length; i += 1) {
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const d = lines[i].a * lines[j].b - lines[j].a * lines[i].b;
+      if (Math.abs(d) < 1e-6) continue;
+      const x = (lines[i].c * lines[j].b - lines[j].c * lines[i].b) / d;
+      const y = (lines[i].a * lines[j].c - lines[j].a * lines[i].c) / d;
+      if (x >= -0.01 && y >= -0.01 && a1 * x + b1 * y <= c1 + 0.01 && a2 * x + b2 * y <= c2 + 0.01 && x <= 8 && y <= 8) points.push({ x, y });
+    }
+  }
+  const unique = points.filter((point, index) => points.findIndex((other) => Math.abs(other.x - point.x) < 0.05 && Math.abs(other.y - point.y) < 0.05) === index);
+  const ranked = unique.map((point) => ({ ...point, value: ox * point.x + oy * point.y })).sort((p, q) => q.value - p.value);
+  const poly = [...unique].sort((p, q) => Math.atan2(p.y - 2, p.x - 2) - Math.atan2(q.y - 2, q.x - 2));
   return (
-    <Shell title="Linear programming" note="Constraints x ≥ 0, y ≥ 0 and x + y ≤ the limit. The best corner is marked.">
-      <div className="grid gap-3 sm:grid-cols-3"><Num label="x + y limit" value={limit} set={setLimit} /><Num label="Objective x coefficient" value={c1} set={setC1} /><Num label="Objective y coefficient" value={c2} set={setC2} /></div>
+    <Shell title="Linear programming" note="Two constraints, both of the form ax + by ≤ c, with x ≥ 0 and y ≥ 0. The gold point is the best corner.">
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Num label="First a" value={a1} set={setA1} /><Num label="First b" value={b1} set={setB1} /><Num label="First limit" value={c1} set={setC1} /><Num label="Objective x" value={ox} set={setOx} />
+        <Num label="Second a" value={a2} set={setA2} /><Num label="Second b" value={b2} set={setB2} /><Num label="Second limit" value={c2} set={setC2} /><Num label="Objective y" value={oy} set={setOy} />
+      </div>
       <svg viewBox="0 0 320 240" className="mt-4 h-56 w-full rounded-2xl bg-slate-50">
-        <polygon points={`40,200 40,${200 - limit * 24} ${40 + limit * 24},200`} fill="rgba(37,99,235,.18)" stroke="#2563eb" />
-        <circle cx={40 + ranked[0].x * 24} cy={200 - ranked[0].y * 24} r="6" fill="#d97706" />
+        <polygon points={poly.map((point) => `${40 + point.x * 28},${200 - point.y * 22}`).join(" ")} fill="rgba(37,99,235,.18)" stroke="#2563eb" />
+        {ranked[0] && <circle cx={40 + ranked[0].x * 28} cy={200 - ranked[0].y * 22} r="6" fill="#d97706" />}
       </svg>
-      <p className="mt-2 text-sm text-slate-600">Corners {ranked.map((point) => `(${point.x}, ${point.y}) = ${point.value}`).join("; ")}. Best is ({ranked[0].x}, {ranked[0].y}).</p>
+      <p className="mt-2 text-sm text-slate-600">{ranked.map((point) => `(${point.x.toFixed(1)}, ${point.y.toFixed(1)}) = ${point.value.toFixed(1)}`).join("; ") || "No feasible corner."}</p>
     </Shell>
   );
 }
@@ -295,9 +362,11 @@ export function BayesLab() {
   const [miss, setMiss] = useState(0.2);
   const evidence = hit * prior + miss * (1 - prior);
   const posterior = evidence === 0 ? NaN : (hit * prior) / evidence;
+  const width = Math.max(0, Math.min(100, posterior * 100));
   return (
-    <Shell title="Bayes table" note="P(A|B) = P(B|A) P(A) / P(B).">
+    <Shell title="Bayes table" note="The bar is P(A|B). Move the three inputs and the bar follows the formula.">
       <div className="grid gap-3 sm:grid-cols-3"><Num label="P(A)" value={prior} set={setPrior} step={0.05} /><Num label="P(B|A)" value={hit} set={setHit} step={0.05} /><Num label="P(B|not A)" value={miss} set={setMiss} step={0.05} /></div>
+      <div className="mt-4 h-4 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-slate-900" style={{ width: `${width}%` }} /></div>
       <table className="mt-4 w-full text-sm"><tbody>
         <tr className="border-t border-slate-100"><td>P(A and B)</td><td>{(hit * prior).toFixed(3)}</td></tr>
         <tr className="border-t border-slate-100"><td>P(not A and B)</td><td>{(miss * (1 - prior)).toFixed(3)}</td></tr>
