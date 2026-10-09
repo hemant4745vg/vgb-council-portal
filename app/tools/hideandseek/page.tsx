@@ -11,7 +11,9 @@ type Phase = "playing" | "hider-won" | "seekers-won" | "caught";
 type Agent = { id: number; mesh: THREE.Group; role: Role; alive: boolean; speed: number; waypoint: number; lastSeen: THREE.Vector3 | null; think: number; hiddenSpot: number };
 type Hud = { remaining: number; phase: Phase; stage: "countdown" | "hiding" | "seeking" | "ended"; caught: number; total: number; nearby: boolean; sprint: boolean; message: string; finalPhase: boolean };
 
-const HIDE_SECONDS = 30;\nconst SEEK_SECONDS = 150;\nconst ROUND_SECONDS = HIDE_SECONDS + SEEK_SECONDS;
+const HIDE_SECONDS = 30;
+const SEEK_SECONDS = 150;
+const ROUND_SECONDS = HIDE_SECONDS + SEEK_SECONDS;
 const PLAYER_RADIUS = 0.62;
 const PLAYER_HEIGHT = 1.8;
 const WALK_SPEED = 5.2;
@@ -96,7 +98,9 @@ export default function HideAndSeekPage() {
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.outline = "none";
     renderer.domElement.tabIndex = 0;
-    mount.appendChild(renderer.domElement);\n    // Focus the game surface when a round starts so the first WASD press is captured.\n    renderer.domElement.focus({ preventScroll: true });
+    mount.appendChild(renderer.domElement);
+    // Focus the game surface when a round starts so the first WASD press is captured.
+    renderer.domElement.focus({ preventScroll: true });
 
     scene.add(new THREE.HemisphereLight(0xc5dcff, 0x2a472c, 1.45));
     const sun = new THREE.DirectionalLight(0xffedca, 2.0);
