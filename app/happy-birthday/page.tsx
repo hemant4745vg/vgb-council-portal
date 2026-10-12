@@ -789,7 +789,7 @@ button,
 
             <div className="home-object-area">
                 {/* Glowing Gift Box */}
-                <div className="home-gift-wrapper" id="startGift" role="button" tabIndex="0" aria-label="Begin Journey">
+                <div className="home-gift-wrapper" id="startGift" role="button" tabIndex={0} aria-label="Begin Journey">
                     <div className="home-gift-box"></div>
                     <div className="home-gift-ribbon-v"></div>
                     <div className="home-gift-lid"></div>
@@ -846,7 +846,7 @@ button,
                     <div className="ribbon-band vertical"></div>
                     <div className="ribbon-band horizontal"></div>
                 </div>
-                <div className="bow-center" id="bowCenter" role="button" tabIndex="0" aria-label="Untie ribbon">
+                <div className="bow-center" id="bowCenter" role="button" tabIndex={0} aria-label="Untie ribbon">
                     <div className="bow-loop left"></div>
                     <div className="bow-loop right"></div>
                     <div className="bow-knot"></div>
@@ -935,7 +935,7 @@ button,
                 <h2 className="wish-text">Make a wish...</h2>
                 <div className="wish-sub">Tap the flame to blow it out</div>
                 
-                <div className="cake-container" id="wishCake" role="button" tabIndex="0">
+                <div className="cake-container" id="wishCake" role="button" tabIndex={0}>
                     <div className="cake-candle">
                         <div className="cake-flame"></div>
                     </div>
