@@ -33,7 +33,6 @@ const navItems = [
   { name: "Tools", href: "/tools" },
   { name: "Study Materials", href: "/study-material" },
   { name: "Cafeteria", href: "/cafeteria" },
-  { name: "Editorial", href: "/editorial" },
 ];
 
 /* =========================================================

@@ -597,7 +597,7 @@ const ACADEMIC_TOOLS = [
 const FOOTER_LINKS = [
   { group: "Portal", links: [{ title: "News", href: "/news" }, { title: "Calendar", href: "/calendar" }, { title: "Daily Timeline", href: "/timetable" }, { title: "Tools", href: "/tools" }] },
   { group: "Campus", links: [{ title: "Cafeteria", href: "/cafeteria" }, { title: "Study Materials", href: "/study-material" }, { title: "Activities", href: "/activities" }] },
-  { group: "Community", links: [{ title: "Council", href: "/council" }, { title: "Leadership", href: "/leadership" }, { title: "Editorial", href: "/editorial" }] },
+  { group: "Community", links: [{ title: "Council", href: "/council" }, { title: "Leadership", href: "/leadership" }] },
 ];
 
 function indiaDateKey(date = new Date()) {
