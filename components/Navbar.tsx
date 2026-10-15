@@ -791,8 +791,8 @@ export default function Navbar() {
      ========================================================= */
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/90">
+      <div className="mx-auto flex h-16 max-w-[90rem] items-center gap-3 px-4 sm:px-6 lg:px-8">
         {/* BRAND */}
 
         <Link
@@ -807,7 +807,7 @@ export default function Navbar() {
           />
 
           <div className="hidden border-l border-slate-200 pl-3 sm:block">
-            <p className="text-sm font-bold leading-tight text-slate-900">
+            <p className="text-sm font-semibold tracking-tight text-slate-900">
               VidyaGyan
             </p>
 
@@ -827,14 +827,27 @@ export default function Navbar() {
               onClick={closeMenus}
               className={`rounded-lg px-3 py-2 text-[13px] font-medium transition-all ${
                 isActive(item.href)
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-950"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
               {item.name}
             </Link>
           ))}
         </nav>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = document.documentElement.classList.toggle("dark");
+            localStorage.setItem("vgb-theme", next ? "dark" : "light");
+          }}
+          aria-label="Switch light and dark mode"
+          className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 lg:ml-3"
+        >
+          <span className="dark:hidden">☾</span>
+          <span className="hidden dark:inline">☀</span>
+        </button>
 
         {/* ACCOUNT AREA */}
 
