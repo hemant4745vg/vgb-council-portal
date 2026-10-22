@@ -1,0 +1,285 @@
+diff --git a/app/tools/hideandseek/game/room.ts b/app/tools/hideandseek/game/room.ts
+index 2bef66a..fbe8739 100644
+--- a/app/tools/hideandseek/game/room.ts
++++ b/app/tools/hideandseek/game/room.ts
+@@ -12,9 +12,9 @@ export async function createRoom(role: Role) {
+   const { data: userData, error: userError } = await supabase.auth.getUser();
+   if (userError || !userData.user) throw new Error("Sign in before opening a room.");
+   const roomCode = code();
+-  const { data, error } = await supabase.from("hide_rounds").insert({ code: roomCode, phase: "hide", host_id: userData.user.id, time_left: 8 }).select("id, code").single();
++  const { data, error } = await supabase.from("hide_rounds").insert({ code: roomCode, phase: "hide", host_id: userData.user.id, time_left: 30 }).select("id, code").single();
+   if (error) throw new Error(error.message);
+-  await supabase.from("hide_players").insert({ round_id: data.id, user_id: userData.user.id, role, x: 24, z: -70, hidden: false });
++  await supabase.from("hide_players").insert({ round_id: data.id, user_id: userData.user.id, role, x: -4, z: 76, hidden: false });
+   return { id: data.id as string, code: data.code as string, userId: userData.user.id };
+ }
+ 
+@@ -26,7 +26,7 @@ export async function joinRoom(roomCode: string, role: Role) {
+   if (error || !data) throw new Error("No room with that code.");
+   const { data: seated } = await supabase.from("hide_players").select("role").eq("round_id", data.id);
+   if ((seated ?? []).some((row) => row.role === role)) throw new Error("That role is already taken. Pick the other one.");
+-  await supabase.from("hide_players").upsert({ round_id: data.id, user_id: userData.user.id, role, x: 40, z: -60, hidden: false });
++  await supabase.from("hide_players").upsert({ round_id: data.id, user_id: userData.user.id, role, x: 21, z: 76, hidden: false });
+   return { id: data.id as string, code: data.code as string, userId: userData.user.id };
+ }
+ 
+diff --git a/app/tools/hideandseek/game/rules.ts b/app/tools/hideandseek/game/rules.ts
+index 5233f60..f39dc09 100644
+--- a/app/tools/hideandseek/game/rules.ts
++++ b/app/tools/hideandseek/game/rules.ts
+@@ -1,5 +1,11 @@
+-export const HIDE_TIME = 8;
+-export const SEEK_TIME = 30;
++/*
++ * Shared round ruleset — must match the playable game in page.tsx
++ * (30s hide phase + 150s seek phase). The Supabase
++ * hide_rounds.time_left default is still 8; set it to HIDE_TIME
++ * when the multiplayer flow ships.
++ */
++export const HIDE_TIME = 30;
++export const SEEK_TIME = 150;
+ export const CATCH_DISTANCE = 1.5;
+ export const CONE_DISTANCE = 8;
+ export const CONE_ANGLE = 0.5;
+diff --git a/app/tools/hideandseek/page.tsx b/app/tools/hideandseek/page.tsx
+index 91f3070..b7e218a 100644
+--- a/app/tools/hideandseek/page.tsx
++++ b/app/tools/hideandseek/page.tsx
+@@ -9,7 +9,7 @@ type Role = "hider" | "seeker";
+ type Difficulty = "easy" | "normal" | "hard";
+ type Phase = "playing" | "hider-won" | "seekers-won" | "caught";
+ type Agent = { id: number; mesh: THREE.Group; role: Role; alive: boolean; speed: number; waypoint: number; lastSeen: THREE.Vector3 | null; think: number; hiddenSpot: number };
+-type Hud = { remaining: number; phase: Phase; stage: "countdown" | "hiding" | "seeking" | "ended"; caught: number; total: number; nearby: boolean; sprint: boolean; message: string; finalPhase: boolean };
++type Hud = { remaining: number; phase: Phase; stage: "countdown" | "hiding" | "seeking" | "ended"; caught: number; total: number; nearest: number; nearby: boolean; sprint: boolean; message: string; finalPhase: boolean };
+ 
+ const HIDE_SECONDS = 30;
+ const SEEK_SECONDS = 150;
+@@ -68,11 +68,16 @@ export default function HideAndSeekPage() {
+   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
+   const [started, setStarted] = useState(false);
+   const [runId, setRunId] = useState(0);
+-  const [hud, setHud] = useState<Hud>({ remaining: HIDE_SECONDS, phase: "playing", stage: "countdown", caught: 0, total: 3, nearby: false, sprint: false, message: "Find cover and stay alert.", finalPhase: false });
+-  const [mobile, setMobile] = useState(false);
++  const [hud, setHud] = useState<Hud>({ remaining: HIDE_SECONDS, phase: "playing", stage: "countdown", caught: 0, total: 3, nearest: 0, nearby: false, sprint: false, message: "Find cover and stay alert.", finalPhase: false });
++  const [mobile, setMobile] = useState(
++    () =>
++      typeof window !== "undefined" &&
++      typeof window.matchMedia === "function" &&
++      window.matchMedia("(pointer: coarse)").matches,
++  );
+ 
+   const begin = useCallback(() => {
+-    setHud({ remaining: HIDE_SECONDS, phase: "playing", stage: "countdown", caught: 0, total: 3, nearby: false, sprint: false, message: role === "hider" ? "You have 30 seconds to find cover." : "Hide phase: seekers are held until the seek begins.", finalPhase: false });
++    setHud({ remaining: HIDE_SECONDS, phase: "playing", stage: "countdown", caught: 0, total: 3, nearest: 0, nearby: false, sprint: false, message: role === "hider" ? "You have 30 seconds to find cover." : "Hide phase: seekers are held until the seek begins.", finalPhase: false });
+     setRunId((v) => v + 1);
+     setStarted(true);
+   }, [role]);
+@@ -96,7 +101,6 @@ export default function HideAndSeekPage() {
+     renderer.domElement.style.display = "block";
+     renderer.domElement.style.width = "100%";
+     renderer.domElement.style.height = "100%";
+-    renderer.domElement.style.outline = "none";
+     renderer.domElement.tabIndex = 0;
+     mount.appendChild(renderer.domElement);
+     // Focus the game surface when a round starts so the first WASD press is captured.
+@@ -182,10 +186,10 @@ export default function HideAndSeekPage() {
+     };
+     const setKey = (event: KeyboardEvent, value: boolean) => {
+       const code = event.code;
+-      const map: Record<string, string> = { KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d", ArrowUp: "w", ArrowLeft: "a", ArrowDown: "s", ArrowRight: "d", ShiftLeft: "shift", ShiftRight: "shift", Space: "jump" };
++      const map: Record<string, string> = { KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d", ArrowUp: "w", ArrowLeft: "a", ArrowDown: "s", ArrowRight: "d", ShiftLeft: "shift", ShiftRight: "shift" };
+       const key = map[code];
+       if (key) keys[key] = value;
+-      if (key && ["w", "a", "s", "d", "shift", "jump"].includes(key)) event.preventDefault();
++      if (key && ["w", "a", "s", "d", "shift"].includes(key)) event.preventDefault();
+     };
+     const onKeyDown = (e: KeyboardEvent) => {
+       setKey(e, true);
+@@ -327,6 +331,7 @@ export default function HideAndSeekPage() {
+             stage: phase !== "playing" ? "ended" : !live ? "countdown" : hiding ? "hiding" : "seeking",
+             caught: caughtCount,
+             total: agents.length,
++            nearest: Number.isFinite(nearest) ? Math.round(nearest) : 0,
+             nearby,
+             sprint,
+             message,
+@@ -395,7 +400,7 @@ export default function HideAndSeekPage() {
+             <div style={{ position: "absolute", top: 14, left: 14, right: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, pointerEvents: "none", flexWrap: "wrap" }}>
+               <div style={{ ...panel, padding: "11px 14px", minWidth: 125 }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>YOUR ROLE</div><div style={{ fontSize: 21, fontWeight: 900, color: role === "hider" ? "#88c8f5" : "#ff9e7f", marginTop: 3 }}>{role === "hider" ? "HIDER" : "SEEKER"}</div></div>
+               <div style={{ ...panel, padding: "11px 16px", textAlign: "center", minWidth: 110 }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>{hud.stage === "countdown" ? "STARTING" : hud.stage === "hiding" ? "HIDE TIME" : hud.stage === "seeking" && hud.finalPhase ? "FINAL 30 SECONDS" : hud.stage === "seeking" ? "SEEK TIME" : "ROUND OVER"}</div><div style={{ fontSize: 27, fontVariantNumeric: "tabular-nums", fontWeight: 900, color: hud.remaining <= 30 ? "#ffbf6d" : primary, marginTop: 1 }}>{formatTime(hud.remaining)}</div></div>
+-              <div style={{ ...panel, padding: "11px 14px", textAlign: "right" }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>OPPOSITION</div><div style={{ fontSize: 19, fontWeight: 850, marginTop: 3 }}>{role === "hider" ? `${agentsLabel(hud.total - hud.caught)} seekers` : `${hud.caught}/${hud.total} tagged`}</div></div>
++              <div style={{ ...panel, padding: "11px 14px", textAlign: "right" }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>{role === "hider" ? "NEAREST SEEKER" : "HIDERS TAGGED"}</div><div style={{ fontSize: 19, fontWeight: 850, marginTop: 3 }}>{role === "hider" ? `${hud.nearest} m` : `${hud.caught}/${hud.total}`}</div></div>
+             </div>
+             <div style={{ position: "absolute", left: 14, bottom: 14, maxWidth: "min(440px, calc(100% - 28px))", ...panel, padding: "10px 13px", pointerEvents: "none" }}><div style={{ fontSize: 12, fontWeight: 750 }}>{hud.nearby ? "⚠ A seeker is nearby" : hud.message}</div><div style={{ color: muted, fontSize: 10, marginTop: 4 }}>WASD / arrows to move · Shift to sprint · Drag mouse to look</div></div>
+             {mobile && <div style={{ position: "absolute", left: 14, bottom: 80, display: "grid", gridTemplateColumns: "repeat(3,44px)", gap: 5 }}><span /><button style={button} onPointerDown={() => touch("w", true)} onPointerUp={() => touch("w", false)} onPointerLeave={() => touch("w", false)}>↑</button><span /><button style={button} onPointerDown={() => touch("a", true)} onPointerUp={() => touch("a", false)} onPointerLeave={() => touch("a", false)}>←</button><button style={button} onPointerDown={() => touch("s", true)} onPointerUp={() => touch("s", false)} onPointerLeave={() => touch("s", false)}>↓</button><button style={button} onPointerDown={() => touch("d", true)} onPointerUp={() => touch("d", false)} onPointerLeave={() => touch("d", false)}>→</button><button style={{ ...button, gridColumn: "span 3" }} onPointerDown={() => touch("shift", true)} onPointerUp={() => touch("shift", false)} onPointerLeave={() => touch("shift", false)}>Sprint</button></div>}
+@@ -409,4 +414,3 @@ export default function HideAndSeekPage() {
+   );
+ }
+ 
+-function agentsLabel(count: number) { return Math.max(0, count); }
+diff --git a/app/tools/runner/page.tsx b/app/tools/runner/page.tsx
+index e76ecee..7c4249e 100644
+--- a/app/tools/runner/page.tsx
++++ b/app/tools/runner/page.tsx
+@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
+ import {
+   BEST_KEY,
+   BANK_KEY,
++  CAMERA_FOV,
++  CAMERA_FOV_MAX,
+   COLLISION_FRONT,
+   MAGNET_DURATION,
+   MULTIPLIER_DURATION,
+@@ -28,6 +30,13 @@ import { RunnerScene } from "./rendering/RunnerScene";
+ 
+ const MAX_FRAME_DT = 0.034;
+ 
++/*
++ * Every Nth run is a "coin run": a calmer lap with no obstacles
++ * and extra pickups. The run counter advances once per run, in
++ * start() — never on pause/resume.
++ */
++const COIN_RUN_EVERY = 5;
++
+ /*
+  * Collision geometry is expressed in the same world units
+  * as RunnerScene.
+@@ -561,11 +570,19 @@ export default function RunnerPage() {
+   const [phase, setPhase] =
+     useState<Phase>("menu");
+   const [coinRun, setCoinRun] = useState(false);
+-  const runIndexRef = useRef(0);
++  const runCountRef = useRef(0);
++  const isCoinRunRef = useRef(false);
+ 
+   const [sound, setSound] =
+     useState(true);
+ 
++  /*
++   * Mirror of the sound state, read inside beep(). Keeping
++   * beep's identity stable means the scene effect never re-runs
++   * (and never resets a run) when sound is toggled.
++   */
++  const soundRef = useRef(true);
++
+   const [hud, setHud] =
+     useState({
+       score: 0,
+@@ -587,7 +604,7 @@ export default function RunnerPage() {
+       duration = 0.06,
+     ) => {
+       if (
+-        !sound ||
++        !soundRef.current ||
+         typeof window === "undefined"
+       ) {
+         return;
+@@ -665,9 +682,13 @@ export default function RunnerPage() {
+          */
+       }
+     },
+-    [sound],
++    [],
+   );
+ 
++  useEffect(() => {
++    soundRef.current = sound;
++  }, [sound]);
++
+   const syncHud = useCallback(
+     () => {
+       const g =
+@@ -713,6 +734,13 @@ export default function RunnerPage() {
+         return;
+       }
+ 
++      runCountRef.current += 1;
++
++      isCoinRunRef.current =
++        runCountRef.current % COIN_RUN_EVERY === 0;
++
++      setCoinRun(isCoinRunRef.current);
++
+       resetRun(g);
+ 
+       setPhase("playing");
+@@ -863,9 +891,7 @@ export default function RunnerPage() {
+         g.phase = "paused";
+         setPhase("paused");
+       } else {
+-        runIndexRef.current += 1;
+-      setCoinRun(runIndexRef.current % 5 === 0);
+-      g.phase = "playing";
++        g.phase = "playing";
+         g.last =
+           performance.now();
+ 
+@@ -1147,8 +1173,12 @@ export default function RunnerPage() {
+         g.spawnTimer -= dt;
+ 
+         if (g.spawnTimer <= 0) {
+-          if (runIndexRef.current % 5 === 0) g.spawnTimer = 1.4;
+-          else spawnObstacleSet(g);
++          if (isCoinRunRef.current) {
++            g.spawnTimer = 1.4;
++            spawnPickupSet(g);
++          } else {
++            spawnObstacleSet(g);
++          }
+         }
+ 
+         /*
+@@ -1384,14 +1414,14 @@ export default function RunnerPage() {
+ 
+         g.camera.targetFov =
+           clamp(
+-            62 +
++            CAMERA_FOV +
+               (
+                 g.speed -
+                 START_SPEED
+               ) *
+                 0.23,
+-            62,
+-            76,
++            CAMERA_FOV,
++            CAMERA_FOV_MAX,
+           );
+       } else if (
+         g.phase === "paused"
+@@ -1898,6 +1928,11 @@ export default function RunnerPage() {
+                     ↓
+                   </span>{" "}
+                   SLIDE
++
++                  <span>
++                    P / ESC
++                  </span>{" "}
++                  PAUSE
+                 </div>
+ 
+                 <div className="touch-note">
+@@ -2168,7 +2203,7 @@ export default function RunnerPage() {
+           display: block;
+           width: 100%;
+           height: 100%;
+-          cursor: grab;
++          cursor: default;
+           touch-action: none;
+         }
+ 
+@@ -2204,11 +2239,11 @@ export default function RunnerPage() {
+             255,
+             255,
+             255,
+-            0.72
++            0.78
+           );
+-          font-size: 8px;
++          font-size: 10px;
+           font-weight: 800;
+-          letter-spacing: 0.2em;
++          letter-spacing: 0.18em;
+         }
+ 
+         .metric strong {
