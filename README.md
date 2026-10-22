@@ -1,2 +1,2 @@
-# vgb-council-portal
-Portal for VidyaGyan Student Council
+# vgb-portal
+Portal for VidyaGyan Students
