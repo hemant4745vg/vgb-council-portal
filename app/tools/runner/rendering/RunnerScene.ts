@@ -360,6 +360,8 @@ export class RunnerScene {
       campusWorld.position.z =
         i * CAMPUS_SEGMENT_LENGTH;
 
+      this.addSolidSides(campusWorld, CAMPUS_SEGMENT_LENGTH);
+
       this.campus.add(
         campusWorld,
       );
@@ -373,6 +375,24 @@ export class RunnerScene {
   /* ---------------------------------------------------------------------- */
   /* PLAYER                                                                  */
   /* ---------------------------------------------------------------------- */
+
+
+  private addSolidSides(parent: THREE.Group, length: number) {
+    const material = new THREE.MeshStandardMaterial({ color: 0xc4b396, roughness: 0.86 });
+    const trim = new THREE.MeshStandardMaterial({ color: 0x8d7b63, roughness: 0.8 });
+    for (const side of [-1, 1]) {
+      for (let z = 8; z < length; z += 18) {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(8, 7.2, 14), material);
+        body.position.set(side * 16, 3.6, z);
+        body.castShadow = true;
+        body.receiveShadow = true;
+        parent.add(body);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.45, 14.4), trim);
+        roof.position.set(side * 16, 7.4, z);
+        parent.add(roof);
+      }
+    }
+  }
 
   private createPlayer() {
     this.player.position.set(

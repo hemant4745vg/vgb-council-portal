@@ -714,6 +714,8 @@ export default function RunnerPage() {
       }
 
       resetRun(g);
+      runIndexRef.current += 1;
+      setCoinRun(runIndexRef.current % 5 === 0);
 
       setPhase("playing");
       syncHud();
@@ -863,8 +865,6 @@ export default function RunnerPage() {
         g.phase = "paused";
         setPhase("paused");
       } else {
-        runIndexRef.current += 1;
-      setCoinRun(runIndexRef.current % 5 === 0);
       g.phase = "playing";
         g.last =
           performance.now();
@@ -1147,7 +1147,7 @@ export default function RunnerPage() {
         g.spawnTimer -= dt;
 
         if (g.spawnTimer <= 0) {
-          if (runIndexRef.current % 5 === 0) g.spawnTimer = 1.4;
+          if (runIndexRef.current > 0 && runIndexRef.current % 5 === 0) g.spawnTimer = 1.4;
           else spawnObstacleSet(g);
         }
 
