@@ -3,8 +3,8 @@ import Navbar from "@/components/Navbar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VidyaGyan Council Portal",
-  description: "The official student leadership and council coordination portal of VidyaGyan.",
+  title: "VidyaGyan Portal",
+  description: "The official student portal of VidyaGyan.",
 };
 
 const themeScript = `try{if(localStorage.getItem("vgb-theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
