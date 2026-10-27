@@ -812,7 +812,7 @@ export default function Navbar() {
             </p>
 
             <p className="text-[11px] font-medium leading-tight text-slate-500">
-              Student Council Portal
+              Student Portal
             </p>
           </div>
         </Link>
