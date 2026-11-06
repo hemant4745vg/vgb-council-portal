@@ -208,3 +208,30 @@ html.dark .text-slate-400 { color: #94a3b8 !important; }
 html.dark .border-slate-200,
 html.dark .border-slate-100,
 html.dark .border-slate-200\/80 { border-color: #1e293b !important; }
+
+html.dark .bg-slate-50\/60,
+html.dark .bg-emerald-50\/35,
+html.dark .bg-amber-50,
+html.dark .bg-yellow-50,
+html.dark .bg-cyan-50,
+html.dark .bg-orange-50,
+html.dark .bg-indigo-50,
+html.dark .bg-fuchsia-50,
+html.dark .bg-amber-100,
+html.dark .bg-emerald-100,
+html.dark .bg-yellow-100 { background-color: #1e293b !important; }
+html.dark .text-amber-950,
+html.dark .text-red-950,
+html.dark .text-emerald-950,
+html.dark .text-yellow-950,
+html.dark .text-indigo-950,
+html.dark .text-violet-950 { color: #f8fafc !important; }
+html.dark .from-amber-400 { --tw-gradient-from: #92400e var(--tw-gradient-from-position) !important; }
+html.dark .via-yellow-400 { --tw-gradient-via: #b45309 var(--tw-gradient-via-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to) !important; }
+html.dark .to-orange-400,
+html.dark .from-orange-400 { --tw-gradient-to: #9a3412 var(--tw-gradient-to-position) !important; --tw-gradient-from: #9a3412 var(--tw-gradient-from-position) !important; }
+html.dark .to-yellow-300 { --tw-gradient-to: #a16207 var(--tw-gradient-to-position) !important; }
+html.dark .from-cyan-400 { --tw-gradient-from: #155e75 var(--tw-gradient-from-position) !important; }
+html.dark .from-emerald-400 { --tw-gradient-from: #065f46 var(--tw-gradient-from-position) !important; }
+html.dark .from-slate-50 { --tw-gradient-from: #111827 var(--tw-gradient-from-position) !important; }
+html.dark .to-white { --tw-gradient-to: #0f172a var(--tw-gradient-to-position) !important; }
