@@ -235,3 +235,12 @@ html.dark .from-cyan-400 { --tw-gradient-from: #155e75 var(--tw-gradient-from-po
 html.dark .from-emerald-400 { --tw-gradient-from: #065f46 var(--tw-gradient-from-position) !important; }
 html.dark .from-slate-50 { --tw-gradient-from: #111827 var(--tw-gradient-from-position) !important; }
 html.dark .to-white { --tw-gradient-to: #0f172a var(--tw-gradient-to-position) !important; }
+
+html.dark .bg-green-50,
+html.dark .bg-green-100 { background-color: #1e293b !important; }
+html.dark .text-green-700,
+html.dark .text-green-800,
+html.dark .text-teal-700 { color: #cbd5e1 !important; }
+html.dark .via-green-500 { --tw-gradient-via: #166534 var(--tw-gradient-via-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to) !important; }
+html.dark .to-teal-500 { --tw-gradient-to: #115e59 var(--tw-gradient-to-position) !important; }
+html.dark .from-emerald-600 { --tw-gradient-from: #064e3b var(--tw-gradient-from-position) !important; }
