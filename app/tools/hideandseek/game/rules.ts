@@ -1,5 +1,5 @@
 export const HIDE_TIME = 8;
-export const SEEK_TIME = 30;
+export const SEEK_TIME = 15;
 export const CATCH_DISTANCE = 1.5;
 export const CONE_DISTANCE = 8;
 export const CONE_ANGLE = 0.5;

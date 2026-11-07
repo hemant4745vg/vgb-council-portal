@@ -12,7 +12,7 @@ type Agent = { id: number; mesh: THREE.Group; role: Role; alive: boolean; speed:
 type Hud = { remaining: number; phase: Phase; stage: "countdown" | "hiding" | "seeking" | "ended"; caught: number; total: number; nearby: boolean; sprint: boolean; message: string; finalPhase: boolean };
 
 const HIDE_SECONDS = 30;
-const SEEK_SECONDS = 150;
+const SEEK_SECONDS = 15;
 const ROUND_SECONDS = HIDE_SECONDS + SEEK_SECONDS;
 const PLAYER_RADIUS = 0.62;
 const PLAYER_HEIGHT = 1.8;
@@ -225,21 +225,28 @@ export default function HideAndSeekPage() {
       if (agent.role === "seeker" && !seeking) return;
       if (agent.role === "seeker") {
         const d = distance2D(actor.position, player.position);
-        const sees = canSee(actor, player, finalPhase ? 34 : 23);
-        if (sees) agent.lastSeen = player.position.clone();
-        const chase = sees || (agent.lastSeen && distance2D(actor.position, agent.lastSeen) < (finalPhase ? 18 : 8));
+        const sees = canSee(actor, player, finalPhase ? 22 : 16);
+        if (sees) { agent.lastSeen = player.position.clone(); agent.think = 4; }
+        else if (agent.think > 0) agent.think -= dt;
+        else agent.lastSeen = null;
         let dest: THREE.Vector3;
-        if (chase) dest = sees ? player.position : agent.lastSeen!;
-        else {
+        if (sees) dest = player.position;
+        else if (agent.lastSeen) {
+          dest = agent.lastSeen;
+          if (distance2D(actor.position, agent.lastSeen) < 2.2) {
+            const near = WAYPOINTS.map((p, idx) => ({ idx, d: Math.hypot(p[0] - agent.lastSeen!.x, p[1] - agent.lastSeen!.z) })).sort((a, b) => a.d - b.d);
+            agent.waypoint = near[1 + (agent.id % 3)]?.idx ?? agent.waypoint;
+            agent.lastSeen = null;
+          }
+        } else {
           const wp = WAYPOINTS[agent.waypoint];
           dest = new THREE.Vector3(wp[0], 0, wp[1]);
           if (distance2D(actor.position, dest) < 3) chooseWaypoint(agent);
         }
         const dx = dest.x - actor.position.x; const dz = dest.z - actor.position.z; const len = Math.hypot(dx, dz);
-        if (len > 0.1) { moveActor(actor, dx / len * agent.speed * (finalPhase ? 1.12 : 1) * dt, dz / len * agent.speed * (finalPhase ? 1.12 : 1) * dt, 0.55); actor.rotation.y = Math.atan2(dx, dz); }
-        if (d < 1.8 && hasLineOfSight(actor.position, player.position)) {
+        if (len > 0.1) { moveActor(actor, dx / len * agent.speed * (finalPhase ? 1.08 : 1) * dt, dz / len * agent.speed * (finalPhase ? 1.08 : 1) * dt, 0.55); actor.rotation.y = Math.atan2(dx, dz); }
+        if (d < 1.8 && canSee(actor, player, 4)) {
           if (role === "hider") endRound("caught", "You were tagged! The seekers found you.");
-          else { /* AI seekers only exist when the human is a hider. */ }
         }
       } else {
         // AI hiders either stay concealed when safe or choose a new route when a seeker gets close.
@@ -256,13 +263,12 @@ export default function HideAndSeekPage() {
           moveActor(actor, away.x * speed * dt, away.z * speed * dt, 0.5);
           actor.rotation.y = Math.atan2(away.x, away.z);
         } else {
-          agent.think -= dt;
-          if (agent.think <= 0 || distance2D(actor.position, new THREE.Vector3(...[WAYPOINTS[agent.hiddenSpot][0], 0, WAYPOINTS[agent.hiddenSpot][1]])) < 3) {
-            agent.think = difficulty === "hard" ? 2.8 : 4.5;
-            agent.hiddenSpot = (agent.hiddenSpot + 1 + Math.floor(Math.random() * 4)) % WAYPOINTS.length;
+          const spot = new THREE.Vector3(...[WAYPOINTS[agent.hiddenSpot][0], 0, WAYPOINTS[agent.hiddenSpot][1]]);
+          if (distance2D(actor.position, spot) > 1.4) {
+            const dx = spot.x - actor.position.x; const dz = spot.z - actor.position.z; const len = Math.hypot(dx, dz) || 1;
+            moveActor(actor, dx / len * agent.speed * 0.7 * dt, dz / len * agent.speed * 0.7 * dt, 0.5);
+            actor.rotation.y = Math.atan2(dx, dz);
           }
-          const wp = WAYPOINTS[agent.hiddenSpot]; const dx = wp[0] - actor.position.x; const dz = wp[1] - actor.position.z; const len = Math.hypot(dx, dz);
-          if (len > 0.5) { moveActor(actor, dx / len * agent.speed * 0.65 * dt, dz / len * agent.speed * 0.65 * dt, 0.5); actor.rotation.y = Math.atan2(dx, dz); }
         }
         // Tagging: seeker must be close and have clear line of sight.
         if (seeking && playerIsSeeker && distance2D(player.position, actor.position) < 1.9 && hasLineOfSight(player.position, actor.position)) {
@@ -289,7 +295,7 @@ export default function HideAndSeekPage() {
           : hiding
             ? Math.max(0, Math.ceil(HIDE_SECONDS - activeElapsed))
             : Math.max(0, Math.ceil(SEEK_SECONDS - (activeElapsed - HIDE_SECONDS)));
-        const finalPhase = seeking && remaining <= 30;
+        const finalPhase = seeking && remaining <= 5;
         const canPlayerMove = live && (role === "hider" || seeking);
         const forward = canPlayerMove ? Number(keys.w || touchKeys.w) - Number(keys.s || touchKeys.s) : 0;
         const strafe = canPlayerMove ? Number(keys.d || touchKeys.d) - Number(keys.a || touchKeys.a) : 0;
