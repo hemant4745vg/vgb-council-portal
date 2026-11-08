@@ -12,7 +12,7 @@ type Agent = { id: number; mesh: THREE.Group; role: Role; alive: boolean; caged:
 type Hud = { remaining: number; phase: Phase; stage: "countdown" | "hiding" | "seeking" | "ended"; caught: number; total: number; nearby: boolean; sprint: boolean; message: string; finalPhase: boolean; caged: boolean; thoughts: { name: string; thought: string; role: Role }[] };
 
 const HIDE_SECONDS = 10;
-const SEEK_SECONDS = 30;
+const SEEK_SECONDS = 90;
 const ROUND_SECONDS = HIDE_SECONDS + SEEK_SECONDS;
 const PLAYER_RADIUS = 0.62;
 const PLAYER_HEIGHT = 1.8;
@@ -453,7 +453,7 @@ export default function HideAndSeekPage() {
         const live = countdown <= 0;
         const hiding = live && activeElapsed < HIDE_SECONDS;
         const seeking = live && activeElapsed >= HIDE_SECONDS;
-        // The timer resets from 10s hide to 30s seek.
+        // The timer resets from 10s hide to 90s seek.
         const remaining = !live
           ? HIDE_SECONDS
           : hiding
@@ -586,7 +586,7 @@ export default function HideAndSeekPage() {
           <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 18 }}>
             <div style={{ ...panel, minHeight: 430, overflow: "hidden", position: "relative", padding: "clamp(22px, 4vw, 42px)", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "radial-gradient(ellipse at 70% 30%, rgba(74,128,81,.3), transparent 45%), linear-gradient(140deg,#172b20,#0c1712 68%)" }}>
               <div style={{ maxWidth: 550 }}><div style={{ display: "inline-flex", borderRadius: 99, padding: "7px 10px", background: "rgba(135,200,151,.12)", color: "#a9e2b4", fontSize: 11, fontWeight: 800, letterSpacing: 1.4 }}>THE CAMPUS IS YOUR ARENA</div><h2 style={{ fontSize: "clamp(34px, 5vw, 58px)", lineHeight: 1.02, letterSpacing: -2, margin: "22px 0 14px" }}>Stay unseen.<br /><span style={{ color: "#9bd7a7" }}>Or find everyone.</span></h2><p style={{ color: "#b5c6bb", lineHeight: 1.7, maxWidth: 490, margin: 0 }}>Use campus paths, courtyards and cover. Choose your side, outsmart the opposition, and survive the final pursuit.</p></div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 38 }}>{[{ big: "10s", small: "TO HIDE" }, { big: "30s", small: "TO SEEK" }, { big: "CAGE", small: "UNTIL FREED" }].map((item) => <div key={item.small} style={{ borderTop: "1px solid rgba(230,246,235,.2)", paddingTop: 13 }}><div style={{ fontSize: 23, fontWeight: 900 }}>{item.big}</div><div style={{ color: muted, fontSize: 10, letterSpacing: 1.1, marginTop: 3 }}>{item.small}</div></div>)}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 38 }}>{[{ big: "10s", small: "TO HIDE" }, { big: "1.5m", small: "TO SEEK" }, { big: "CAGE", small: "UNTIL FREED" }].map((item) => <div key={item.small} style={{ borderTop: "1px solid rgba(230,246,235,.2)", paddingTop: 13 }}><div style={{ fontSize: 23, fontWeight: 900 }}>{item.big}</div><div style={{ color: muted, fontSize: 10, letterSpacing: 1.1, marginTop: 3 }}>{item.small}</div></div>)}</div>
               <div aria-hidden="true" style={{ position: "absolute", right: -20, bottom: 90, opacity: .15, fontSize: 170, fontWeight: 900, lineHeight: 1, pointerEvents: "none" }}>V</div>
             </div>
             <div style={{ ...panel, padding: 22, display: "flex", flexDirection: "column", gap: 18 }}>
@@ -610,7 +610,7 @@ export default function HideAndSeekPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 7 }}>{(["easy", "normal", "hard"] as Difficulty[]).map((d) => <button key={d} onClick={() => setDifficulty(d)} style={{ ...button, padding: "9px 5px", textTransform: "capitalize", fontSize: 12, background: difficulty === d ? "rgba(155,215,167,.17)" : button.background, borderColor: difficulty === d ? "#80ba8b" : undefined }}>{d}</button>)}</div>
               </div>
               <button onClick={begin} style={{ ...button, marginTop: "auto", padding: 15, background: "#c6ebce", color: "#0c1c12", borderColor: "#c6ebce", fontSize: 15 }}>Start game <span style={{ marginLeft: 8 }}>→</span></button>
-              <div style={{ color: muted, fontSize: 11, lineHeight: 1.5 }}>Hiders can move for the whole 10 seconds. Seekers unlock when that clock ends, then have 30 seconds. A touch cages a hider until another hider reaches them.</div>
+              <div style={{ color: muted, fontSize: 11, lineHeight: 1.5 }}>Hiders can move for the whole 10 seconds. Seekers unlock when that clock ends, then have 1.5 minutes. A touch cages a hider until another hider reaches them.</div>
             </div>
           </section>
         ) : (
@@ -636,7 +636,7 @@ export default function HideAndSeekPage() {
 {hud.phase !== "playing" && <div style={{ position: "absolute", inset: 0, background: "rgba(4,10,7,.72)", backdropFilter: "blur(7px)", display: "grid", placeItems: "center", padding: 20 }}><div style={{ ...panel, width: "min(440px,100%)", padding: 28, textAlign: "center" }}><div style={{ color: "#9ed7ac", letterSpacing: 2, fontSize: 10, fontWeight: 900 }}>ROUND COMPLETE</div><h2 style={{ fontSize: 34, margin: "12px 0" }}>{hud.phase === "seekers-won" ? "Seekers win" : hud.phase === "caught" ? "You were found" : "Hiders survive"}</h2><p style={{ color: muted, lineHeight: 1.6 }}>{hud.message}</p><div style={{ display: "flex", gap: 9, justifyContent: "center", marginTop: 22, flexWrap: "wrap" }}><button style={{ ...button, background: "#c6ebce", color: "#0c1c12" }} onClick={begin}>Play again</button><button style={button} onClick={() => setStarted(false)}>Change role</button></div></div></div>}
           </section>
         )}
-        <footer style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, color: "#71877a", fontSize: 11, marginTop: 14 }}><span>VGB Hide & Seek · 10s hide + 30s seek · max 2 seekers, 5 hiders</span><span>Campus geometry is an approximate playable blockout.</span></footer>
+        <footer style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, color: "#71877a", fontSize: 11, marginTop: 14 }}><span>VGB Hide & Seek · 10s hide + 1.5 min seek · max 2 seekers, 5 hiders</span><span>Campus geometry is an approximate playable blockout.</span></footer>
       </div>
     </main>
   );
