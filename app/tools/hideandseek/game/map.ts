@@ -43,11 +43,11 @@ export const VGB_MAP = {
   // They are intentionally approximate at this stage.
   buildings: [
     // North / upper campus
-    { id: "north-academic-a", name: "North Academic", x: -38, z: -66, width: 28, depth: 20, height: 8, rotation: -0.28, color: 0xd9c8a7 },
-    { id: "north-academic-b", name: "North Academic", x: -7, z: -61, width: 22, depth: 19, height: 7, rotation: -0.28, color: 0xd5c19e },
-    { id: "cafeteria", name: "Cafeteria", x: 28, z: -71, width: 25, depth: 18, height: 7, rotation: -0.28, color: 0xd6bd95 },
-    { id: "north-facility-a", name: "North Facility", x: 54, z: -48, width: 18, depth: 13, height: 6, rotation: -0.28, color: 0xcab48e },
-    { id: "north-facility-b", name: "North Facility", x: 65, z: -31, width: 15, depth: 12, height: 6, rotation: -0.28, color: 0xc7af89 },
+    { id: "north-academic-a", name: "North Academic", x: -38, z: -66, width: 28, depth: 20, height: 8, rotation: -0.28, color: 0xc15a3c },
+    { id: "north-academic-b", name: "North Academic", x: -7, z: -61, width: 22, depth: 19, height: 7, rotation: -0.28, color: 0xc15a3c },
+    { id: "cafeteria", name: "Cafeteria", x: 28, z: -71, width: 25, depth: 18, height: 7, rotation: -0.28, color: 0xc15a3c },
+    { id: "north-facility-a", name: "North Facility", x: 54, z: -48, width: 18, depth: 13, height: 6, rotation: -0.28, color: 0xc15a3c },
+    { id: "north-facility-b", name: "North Facility", x: 65, z: -31, width: 15, depth: 12, height: 6, rotation: -0.28, color: 0xc15a3c },
 
     // Central / middle campus
     { id: "central-west", name: "Central Block", x: -45, z: -20, width: 27, depth: 18, height: 7, rotation: -0.28, color: 0xd3c19f },

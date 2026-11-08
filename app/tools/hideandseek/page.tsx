@@ -90,8 +90,8 @@ export default function HideAndSeekPage() {
 
     let disposed = false;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x101c17);
-    scene.fog = new THREE.Fog(0x101c17, 105, 225);
+    scene.background = new THREE.Color(0xf0c9a0);
+    scene.fog = new THREE.Fog(0xf0c9a0, 140, 260);
     const camera = new THREE.PerspectiveCamera(62, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 500);
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
@@ -110,8 +110,8 @@ export default function HideAndSeekPage() {
     renderer.domElement.focus({ preventScroll: true });
     requestAnimationFrame(() => renderer.domElement.focus({ preventScroll: true }));
 
-    scene.add(new THREE.HemisphereLight(0xc5dcff, 0x2a472c, 1.45));
-    const sun = new THREE.DirectionalLight(0xffedca, 2.0);
+    scene.add(new THREE.HemisphereLight(0xffd7b0, 0x3d6a38, 1.15));
+    const sun = new THREE.DirectionalLight(0xffc48a, 1.7);
     sun.position.set(-42, 78, 30);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1536, 1536);
@@ -578,14 +578,14 @@ export default function HideAndSeekPage() {
     <main style={{ minHeight: "100dvh", background: "#07110d", color: primary, padding: "clamp(12px, 2.5vw, 28px)", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}>
       <div style={{ maxWidth: 1440, margin: "0 auto" }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 18, flexWrap: "wrap" }}>
-          <div><div style={{ color: "#9ed7ac", fontSize: 11, letterSpacing: 2.4, fontWeight: 900 }}>VGB · CAMPUS GAMES</div><h1 style={{ margin: "5px 0 0", fontSize: "clamp(26px, 4vw, 38px)", letterSpacing: -1.2 }}>Hide <span style={{ color: "#8bc89b" }}>&</span> Seek</h1></div>
+          <div><div style={{ color: "#e7b08a", fontSize: 11, letterSpacing: 2.4, fontWeight: 900 }}>VIDYAGYAN · CAMPUS</div><h1 style={{ margin: "5px 0 0", fontSize: "clamp(26px, 4vw, 38px)", letterSpacing: -1.2 }}>Hide <span style={{ color: "#e7b08a" }}>&</span> Seek</h1></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: muted, fontSize: 12 }}>THIRD-PERSON · CAMPUS MAP</span>{started && <button style={button} onClick={() => { setStarted(false); setHud((h) => ({ ...h, phase: "playing" })); }}>Exit match</button>}</div>
         </header>
 
         {!started ? (
           <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 18 }}>
-            <div style={{ ...panel, minHeight: 430, overflow: "hidden", position: "relative", padding: "clamp(22px, 4vw, 42px)", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "radial-gradient(ellipse at 70% 30%, rgba(74,128,81,.3), transparent 45%), linear-gradient(140deg,#172b20,#0c1712 68%)" }}>
-              <div style={{ maxWidth: 550 }}><div style={{ display: "inline-flex", borderRadius: 99, padding: "7px 10px", background: "rgba(135,200,151,.12)", color: "#a9e2b4", fontSize: 11, fontWeight: 800, letterSpacing: 1.4 }}>THE CAMPUS IS YOUR ARENA</div><h2 style={{ fontSize: "clamp(34px, 5vw, 58px)", lineHeight: 1.02, letterSpacing: -2, margin: "22px 0 14px" }}>Stay unseen.<br /><span style={{ color: "#9bd7a7" }}>Or find everyone.</span></h2><p style={{ color: "#b5c6bb", lineHeight: 1.7, maxWidth: 490, margin: 0 }}>Use campus paths, courtyards and cover. Choose your side, outsmart the opposition, and survive the final pursuit.</p></div>
+            <div style={{ ...panel, minHeight: 430, overflow: "hidden", position: "relative", padding: "clamp(22px, 4vw, 42px)", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "radial-gradient(ellipse at 75% 20%, rgba(193,90,60,.35), transparent 42%), linear-gradient(145deg,#1c2a22,#101812 70%)" }}>
+              <div style={{ maxWidth: 550 }}><div style={{ display: "inline-flex", borderRadius: 99, padding: "7px 10px", background: "rgba(193,90,60,.16)", color: "#f0c2a4", fontSize: 11, fontWeight: 800, letterSpacing: 1.4 }}>THE VIDYAGYAN QUAD</div><h2 style={{ fontSize: "clamp(34px, 5vw, 58px)", lineHeight: 1.02, letterSpacing: -2, margin: "22px 0 14px" }}>Stay unseen.<br /><span style={{ color: "#f0c2a4" }}>Or find everyone.</span></h2><p style={{ color: "#c9d4cb", lineHeight: 1.7, maxWidth: 490, margin: 0 }}>Brick blocks, lawns and campus roads. Hide behind the curved ends, use the paths, and survive the final pursuit.</p></div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 38 }}>{[{ big: "10s", small: "TO HIDE" }, { big: "1.5m", small: "TO SEEK" }, { big: "CAGE", small: "UNTIL FREED" }].map((item) => <div key={item.small} style={{ borderTop: "1px solid rgba(230,246,235,.2)", paddingTop: 13 }}><div style={{ fontSize: 23, fontWeight: 900 }}>{item.big}</div><div style={{ color: muted, fontSize: 10, letterSpacing: 1.1, marginTop: 3 }}>{item.small}</div></div>)}</div>
               <div aria-hidden="true" style={{ position: "absolute", right: -20, bottom: 90, opacity: .15, fontSize: 170, fontWeight: 900, lineHeight: 1, pointerEvents: "none" }}>V</div>
             </div>
@@ -615,7 +615,7 @@ export default function HideAndSeekPage() {
           </section>
         ) : (
           <section onPointerDown={() => canvasRef.current?.focus({ preventScroll: true })} style={{ position: "relative", overflow: "hidden", borderRadius: 18, border: "1px solid rgba(218,238,223,.16)", background: "#101c17" }}>
-            <div ref={mountRef} style={{ height: "min(72vh, 760px)", minHeight: 430, touchAction: "none" }} />
+            <div ref={mountRef} style={{ height: "min(78vh, 820px)", minHeight: 480, touchAction: "none" }} />
             <div style={{ position: "absolute", top: 14, left: 14, right: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, pointerEvents: "none", flexWrap: "wrap" }}>
               <div style={{ ...panel, padding: "11px 14px", minWidth: 125 }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>YOUR ROLE</div><div style={{ fontSize: 21, fontWeight: 900, color: role === "hider" ? "#88c8f5" : "#ff9e7f", marginTop: 3 }}>{role === "hider" ? "HIDER" : "SEEKER"}</div></div>
               <div style={{ ...panel, padding: "11px 16px", textAlign: "center", minWidth: 110 }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>{hud.stage === "hiding" ? "HIDE" : hud.stage === "seeking" ? "SEEK" : "ROUND"}</div><div style={{ fontSize: 27, fontVariantNumeric: "tabular-nums", fontWeight: 900, color: "#e4b15a", marginTop: 1 }}>{hud.remaining}</div></div>
