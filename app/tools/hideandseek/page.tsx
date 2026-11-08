@@ -65,6 +65,7 @@ export default function HideAndSeekPage() {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<HTMLCanvasElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const keysRef = useRef<Record<string, boolean>>({});
   const [mode, setMode] = useState<"computer" | "multiplayer">("computer");
   const [role, setRole] = useState<Role>("hider");
   const [seekerCount, setSeekerCount] = useState(2);
@@ -74,6 +75,7 @@ export default function HideAndSeekPage() {
   const [runId, setRunId] = useState(0);
   const [hud, setHud] = useState<Hud>({ remaining: HIDE_SECONDS, phase: "playing", stage: "countdown", caught: 0, total: 3, nearby: false, sprint: false, message: "Find cover and stay alert.", finalPhase: false, caged: false, thoughts: [] });
   const [mobile, setMobile] = useState(false);
+  const hold = (key: string, down: boolean) => { keysRef.current[key] = down; };
 
   const begin = useCallback(() => {
     setHud({ remaining: HIDE_SECONDS, phase: "playing", stage: "countdown", caught: 0, total: hiderCount, nearby: false, sprint: false, message: role === "hider" ? "You have 10 seconds to find cover." : "Seekers wait until the hide ends.", finalPhase: false, caged: false, thoughts: [] });
@@ -177,7 +179,7 @@ export default function HideAndSeekPage() {
     });
     player.add(makeCage());
 
-    const keys: Record<string, boolean> = {};
+    const keys = keysRef.current;
     const touchKeys: Record<string, boolean> = {};
     let yaw = Math.PI;
     let pitch = 0.34;
@@ -234,25 +236,21 @@ export default function HideAndSeekPage() {
       return forward.dot(toward) > (d < 5 ? -0.15 : 0.25);
     };
     const setKey = (event: KeyboardEvent, value: boolean) => {
-      const raw = `${event.code} ${event.key}`.toLowerCase();
-      const map: Record<string, string> = {
-        keyw: "w", w: "w", arrowup: "w",
-        keya: "a", a: "a", arrowleft: "a",
-        keys: "s", s: "s", arrowdown: "s",
-        keyd: "d", d: "d", arrowright: "d",
-        shiftleft: "shift", shiftright: "shift", shift: "shift",
-      };
-      const key = map[event.code.toLowerCase()] || map[event.key.toLowerCase()] || (raw.includes("keyw") ? "w" : raw.includes("keya") ? "a" : raw.includes("keys") ? "s" : raw.includes("keyd") ? "d" : "");
+      const code = event.code.toLowerCase();
+      const named = event.key.toLowerCase();
+      const key = code === "keyw" || named === "w" || code === "arrowup" ? "w"
+        : code === "keya" || named === "a" || code === "arrowleft" ? "a"
+        : code === "keys" || named === "s" || code === "arrowdown" ? "s"
+        : code === "keyd" || named === "d" || code === "arrowright" ? "d"
+        : code.startsWith("shift") || named === "shift" ? "shift" : "";
       if (!key) return;
-      const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
-      if (typing) return;
-      keys[key] = value;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      keysRef.current[key] = value;
       event.preventDefault();
     };
     const onKeyDown = (e: KeyboardEvent) => setKey(e, true);
     const onKeyUp = (e: KeyboardEvent) => setKey(e, false);
-    const clearKeys = () => { Object.keys(keys).forEach((k) => (keys[k] = false)); Object.keys(touchKeys).forEach((k) => (touchKeys[k] = false)); };
-    const onBlur = () => clearKeys();
+    const clearKeys = () => { Object.keys(keysRef.current).forEach((k) => (keysRef.current[k] = false)); Object.keys(touchKeys).forEach((k) => (touchKeys[k] = false)); };
     const onPointerDown = (e: PointerEvent) => { dragging = true; lastX = e.clientX; lastY = e.clientY; renderer.domElement.focus(); try { renderer.domElement.setPointerCapture(e.pointerId); } catch {} };
     const onPointerMove = (e: PointerEvent) => { if (!dragging) return; yaw -= (e.clientX - lastX) * 0.0055; pitch = THREE.MathUtils.clamp(pitch - (e.clientY - lastY) * 0.0038, 0.12, 0.82); lastX = e.clientX; lastY = e.clientY; };
     const onPointerUp = () => { dragging = false; };
@@ -260,7 +258,6 @@ export default function HideAndSeekPage() {
     // Listen at document level: the canvas, page, or a recently clicked control may own focus.
     window.addEventListener("keydown", onKeyDown, { capture: true });
     window.addEventListener("keyup", onKeyUp, { capture: true });
-    window.addEventListener("blur", onBlur);
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
@@ -493,7 +490,7 @@ export default function HideAndSeekPage() {
         if (live) agents.forEach((a) => stepAgent(a, dt, finalPhase, seeking));
         if (seeking && remaining <= 0 && phase === "playing") endRound("hider-won", "Time is up! Any hider still free wins.");
         if (!live) message = `Round begins in ${Math.ceil(countdown)}…`;
-        else if (hiding) message = role === "hider" ? (keys.w || keys.a || keys.s || keys.d ? "Moving." : "HIDE: WASD moves you now.") : "HIDE: seekers are held. Your keys unlock when SEEK starts.";
+        else if (hiding) message = role === "hider" ? "Hide now. You can move." : "Seekers wait. Your keys unlock when SEEK starts.";
         else if (seeking && message.startsWith("HIDE PHASE:")) {
           message = role === "seeker" ? "SEEK PHASE: find the hiders and tag them." : "SEEK PHASE: break line of sight and survive.";
         }
@@ -550,11 +547,8 @@ export default function HideAndSeekPage() {
     return () => {
       disposed = true;
       cancelAnimationFrame(frame);
-      document.removeEventListener("keydown", onKeyDown, true);
-      document.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
-      window.removeEventListener("blur", onBlur);
       window.removeEventListener("resize", onResize);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
@@ -597,7 +591,7 @@ export default function HideAndSeekPage() {
                 <div style={{ color: muted, fontSize: 11, fontWeight: 800, letterSpacing: 1.4, marginBottom: 10 }}>01 / YOUR SIDE</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <button onClick={() => setRole("hider")} style={{ ...button, textAlign: "left", background: role === "hider" ? "rgba(80,154,213,.2)" : button.background, borderColor: role === "hider" ? "#579bd2" : undefined }}><span style={{ display: "block", fontSize: 15 }}>Hide</span><span style={{ display: "block", fontSize: 11, color: muted, fontWeight: 500, marginTop: 4 }}>Move from the first second</span></button>
-                  <button onClick={() => setRole("seeker")} style={{ ...button, textAlign: "left", background: role === "seeker" ? "rgba(224,113,76,.2)" : button.background, borderColor: role === "seeker" ? "#dc795b" : undefined }}><span style={{ display: "block", fontSize: 15 }}>Seek</span><span style={{ display: "block", fontSize: 11, color: muted, fontWeight: 500, marginTop: 4 }}>Keys unlock at 30s</span></button>
+                  <button onClick={() => setRole("seeker")} style={{ ...button, textAlign: "left", background: role === "seeker" ? "rgba(224,113,76,.2)" : button.background, borderColor: role === "seeker" ? "#dc795b" : undefined }}><span style={{ display: "block", fontSize: 15 }}>Seek</span><span style={{ display: "block", fontSize: 11, color: muted, fontWeight: 500, marginTop: 4 }}>Keys unlock after 10s</span></button>
                 </div>
               </div>
               <div>
@@ -613,7 +607,7 @@ export default function HideAndSeekPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 7 }}>{(["easy", "normal", "hard"] as Difficulty[]).map((d) => <button key={d} onClick={() => setDifficulty(d)} style={{ ...button, padding: "9px 5px", textTransform: "capitalize", fontSize: 12, background: difficulty === d ? "rgba(155,215,167,.17)" : button.background, borderColor: difficulty === d ? "#80ba8b" : undefined }}>{d}</button>)}</div>
               </div>
               <button onClick={begin} style={{ ...button, marginTop: "auto", padding: 15, background: "#c6ebce", color: "#0c1c12", borderColor: "#c6ebce", fontSize: 15 }}>Start game <span style={{ marginLeft: 8 }}>→</span></button>
-              <div style={{ color: muted, fontSize: 11, lineHeight: 1.5 }}>10 seconds to hide, 30 to seek. A touch cages a hider until another hider reaches them. You count as one of the {role === "hider" ? "hiders" : "seekers"}.</div>
+              <div style={{ color: muted, fontSize: 11, lineHeight: 1.5 }}>Hiders can move for the whole 10 seconds. Seekers unlock when that clock ends, then have 30 seconds. A touch cages a hider until another hider reaches them.</div>
             </div>
           </section>
         ) : (
@@ -624,9 +618,15 @@ export default function HideAndSeekPage() {
               <div style={{ ...panel, padding: "11px 16px", textAlign: "center", minWidth: 110 }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>{hud.stage === "hiding" ? "HIDE" : hud.stage === "seeking" ? "SEEK" : "ROUND"}</div><div style={{ fontSize: 27, fontVariantNumeric: "tabular-nums", fontWeight: 900, color: "#e4b15a", marginTop: 1 }}>{hud.remaining}</div></div>
               <div style={{ ...panel, padding: "11px 14px", textAlign: "right" }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>CAGED</div><div style={{ fontSize: 19, fontWeight: 850, marginTop: 3 }}>{hud.caught}/{hud.total}</div></div>
             </div>
-            <div style={{ position: "absolute", left: 14, bottom: 14, maxWidth: "min(440px, calc(100% - 210px))", ...panel, padding: "10px 13px", pointerEvents: "none" }}><div style={{ fontSize: 12, fontWeight: 750 }}>{hud.nearby ? "A seeker is nearby" : hud.message}</div><div style={{ color: muted, fontSize: 10, marginTop: 4 }}>W forward · A left · S back · D right · Shift sprint · Drag to look</div></div>
-            {mobile && <div style={{ position: "absolute", left: 14, bottom: 80, display: "grid", gridTemplateColumns: "repeat(3,44px)", gap: 5 }}><span /><button style={button} onPointerDown={() => touch("w", true)} onPointerUp={() => touch("w", false)} onPointerLeave={() => touch("w", false)}>↑</button><span /><button style={button} onPointerDown={() => touch("a", true)} onPointerUp={() => touch("a", false)} onPointerLeave={() => touch("a", false)}>←</button><button style={button} onPointerDown={() => touch("s", true)} onPointerUp={() => touch("s", false)} onPointerLeave={() => touch("s", false)}>↓</button><button style={button} onPointerDown={() => touch("d", true)} onPointerUp={() => touch("d", false)} onPointerLeave={() => touch("d", false)}>→</button><button style={{ ...button, gridColumn: "span 3" }} onPointerDown={() => touch("shift", true)} onPointerUp={() => touch("shift", false)} onPointerLeave={() => touch("shift", false)}>Sprint</button></div>}
-            <button onClick={() => setMobile((v) => !v)} style={{ ...button, position: "absolute", left: 14, bottom: 78, background: "rgba(12,24,19,.88)" }}>{mobile ? "Hide touch controls" : "Touch controls"}</button>
+            <div style={{ position: "absolute", left: 180, bottom: 14, maxWidth: "min(360px, calc(100% - 380px))", ...panel, padding: "10px 13px", pointerEvents: "none" }}><div style={{ fontSize: 12, fontWeight: 750 }}>{hud.nearby ? "A seeker is nearby" : hud.message}</div><div style={{ color: muted, fontSize: 10, marginTop: 4 }}>{role === "hider" ? "Move during the 10 seconds. That is your hide time." : "You move when the clock flips to SEEK."}</div></div>
+            <div style={{ position: "absolute", left: 14, bottom: 14, zIndex: 5, display: "grid", gridTemplateColumns: "repeat(3,52px)", gap: 6 }}>
+              <span />
+              <button style={button} onPointerDown={(e) => { e.stopPropagation(); hold("w", true); }} onPointerUp={() => hold("w", false)} onPointerLeave={() => hold("w", false)}>W</button>
+              <span />
+              <button style={button} onPointerDown={(e) => { e.stopPropagation(); hold("a", true); }} onPointerUp={() => hold("a", false)} onPointerLeave={() => hold("a", false)}>A</button>
+              <button style={button} onPointerDown={(e) => { e.stopPropagation(); hold("s", true); }} onPointerUp={() => hold("s", false)} onPointerLeave={() => hold("s", false)}>S</button>
+              <button style={button} onPointerDown={(e) => { e.stopPropagation(); hold("d", true); }} onPointerUp={() => hold("d", false)} onPointerLeave={() => hold("d", false)}>D</button>
+            </div>
             {hud.thoughts.length > 0 && <div style={{ ...panel, position: "absolute", top: 92, right: 14, width: 230, padding: "10px 12px", pointerEvents: "none" }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900, marginBottom: 6 }}>MINDS</div>{hud.thoughts.map((item) => <div key={item.name} style={{ fontSize: 12, lineHeight: 1.45 }}><span style={{ color: item.role === "seeker" ? "#ff9e7f" : "#88c8f5" }}>{item.name}</span><span style={{ color: muted }}> · {item.thought}</span></div>)}</div>}
             {hud.caged && hud.stage === "seeking" && <div style={{ position: "absolute", left: "50%", top: 18, transform: "translateX(-50%)", ...panel, color: "#e4b15a", padding: "8px 14px", fontSize: 13 }}>Caged. A free hider has to reach you.</div>}
             <canvas ref={mapRef} aria-label="Minimap of every player" style={{ position: "absolute", right: 14, bottom: 14, width: 168, height: 168, borderRadius: 16, border: "1px solid rgba(218,238,223,.18)", background: "#101612" }} />
