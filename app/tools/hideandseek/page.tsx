@@ -1,265 +1,511 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { drawMap, drawWorld } from "./game/draw";
-import { createSim, playerOf, step, type Role, type Sim } from "./game/sim";
-import { HIDE_SECONDS, SEEK_SECONDS } from "./game/world";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import * as THREE from "three";
+import { createCampusScene, CampusCollision } from "./game/geometry";
 
-type Hud = {
-  phase: Sim["phase"];
-  time: number;
-  role: Role;
-  result: string;
-  caged: boolean;
-  thoughts: { name: string; thought: string; role: Role }[];
-};
+type Role = "hider" | "seeker";
+type Difficulty = "easy" | "normal" | "hard";
+type Phase = "playing" | "hider-won" | "seekers-won" | "caught";
+type Agent = { id: number; mesh: THREE.Group; role: Role; alive: boolean; caged: boolean; speed: number; waypoint: number; lastSeen: THREE.Vector3 | null; think: number; hiddenSpot: number; name: string };
+type Hud = { remaining: number; phase: Phase; stage: "countdown" | "hiding" | "seeking" | "ended"; caught: number; total: number; nearby: boolean; sprint: boolean; message: string; finalPhase: boolean; caged: boolean };
 
-function snapshot(sim: Sim): Hud {
-  const you = playerOf(sim);
-  return {
-    phase: sim.phase,
-    time: Math.max(0, sim.time),
-    role: sim.role,
-    result: sim.result,
-    caged: you.caged,
-    thoughts: sim.actors
-      .filter((a) => !a.human)
-      .map((a) => ({ name: a.name, thought: a.thought, role: a.role })),
-  };
+const HIDE_SECONDS = 10;
+const SEEK_SECONDS = 30;
+const ROUND_SECONDS = HIDE_SECONDS + SEEK_SECONDS;
+const PLAYER_RADIUS = 0.62;
+const PLAYER_HEIGHT = 1.8;
+const WALK_SPEED = 5.2;
+const SPRINT_SPEED = 8.3;
+const LIMIT_X = 91;
+const LIMIT_Z = 99;
+const WAYPOINTS: [number, number][] = [
+  [-66, -48], [-28, -48], [16, -48], [57, -38], [63, 2], [39, 43], [2, 64], [-39, 43], [-61, 15], [-68, -18],
+  [-2, -5], [30, -2], [31, 29], [-8, 29], [-24, 64], [21, 76], [68, 48], [70, -15], [40, -75], [-4, -78]
+];
+
+function makeCharacter(color: number, isSeeker: boolean) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.48, 0.92, 5, 9),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.72 })
+  );
+  body.position.y = 0.9;
+  body.castShadow = true;
+  group.add(body);
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.31, 14, 10),
+    new THREE.MeshStandardMaterial({ color: 0xe9bd99, roughness: 0.9 })
+  );
+  head.position.y = 1.72;
+  head.castShadow = true;
+  group.add(head);
+  const marker = new THREE.Mesh(
+    new THREE.ConeGeometry(0.22, 0.42, 8),
+    new THREE.MeshStandardMaterial({ color: isSeeker ? 0xffc04d : 0xeaf4ff, emissive: isSeeker ? 0x442000 : 0x17283b })
+  );
+  marker.rotation.x = Math.PI / 2;
+  marker.position.set(0, 1.12, -0.5);
+  group.add(marker);
+  if (isSeeker) {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.07, 6, 16), new THREE.MeshStandardMaterial({ color: 0xffb52e }));
+    band.rotation.x = Math.PI / 2;
+    band.position.y = 1.25;
+    group.add(band);
+  }
+  return group;
+}
+
+function distance2D(a: THREE.Vector3, b: THREE.Vector3) {
+  return Math.hypot(a.x - b.x, a.z - b.z);
 }
 
 export default function HideAndSeekPage() {
-  const worldRef = useRef<HTMLCanvasElement | null>(null);
+  const mountRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<HTMLCanvasElement | null>(null);
-  const simRef = useRef<Sim>(createSim("hider"));
-  const keysRef = useRef(new Set<string>());
+  const [mode, setMode] = useState<"computer" | "multiplayer">("computer");
   const [role, setRole] = useState<Role>("hider");
-  const [hud, setHud] = useState<Hud>(snapshot(simRef.current));
+  const [difficulty, setDifficulty] = useState<Difficulty>("normal");
+  const [started, setStarted] = useState(false);
+  const [runId, setRunId] = useState(0);
+  const [hud, setHud] = useState<Hud>({ remaining: HIDE_SECONDS, phase: "playing", stage: "countdown", caught: 0, total: 3, nearby: false, sprint: false, message: "Find cover and stay alert.", finalPhase: false, caged: false });
+  const [mobile, setMobile] = useState(false);
+
+  const begin = useCallback(() => {
+    setHud({ remaining: HIDE_SECONDS, phase: "playing", stage: "countdown", caught: 0, total: 3, nearby: false, sprint: false, message: role === "hider" ? "You have 10 seconds to find cover." : "Hide phase: seekers are held until the seek begins.", finalPhase: false, caged: false });
+    setRunId((v) => v + 1);
+    setStarted(true);
+  }, [role]);
 
   useEffect(() => {
-    const real = keysRef.current;
-    const onDown = (event: KeyboardEvent) => {
-      real.add(event.code);
-      if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
-        event.preventDefault();
+    if (!started) return;
+    const mount = mountRef.current;
+    if (!mount) return;
+
+    let disposed = false;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x101c17);
+    scene.fog = new THREE.Fog(0x101c17, 105, 225);
+    const camera = new THREE.PerspectiveCamera(62, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 500);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setSize(mount.clientWidth, mount.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.outline = "none";
+    renderer.domElement.tabIndex = 0;
+    mount.appendChild(renderer.domElement);
+    // Focus the game surface when a round starts so the first WASD press is captured.
+    renderer.domElement.focus({ preventScroll: true });
+
+    scene.add(new THREE.HemisphereLight(0xc5dcff, 0x2a472c, 1.45));
+    const sun = new THREE.DirectionalLight(0xffedca, 2.0);
+    sun.position.set(-42, 78, 30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1536, 1536);
+    sun.shadow.camera.left = -110; sun.shadow.camera.right = 110; sun.shadow.camera.top = 110; sun.shadow.camera.bottom = -110;
+    scene.add(sun);
+    const campus = createCampusScene(scene);
+
+
+    const makeCage = () => {
+      const group = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: 0xe4b15a, metalness: 0.35, roughness: 0.45 });
+      for (let i = 0; i < 6; i += 1) {
+        const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 2.05, 6), mat);
+        const ang = (i / 6) * Math.PI * 2;
+        bar.position.set(Math.cos(ang) * 0.72, 1.05, Math.sin(ang) * 0.72);
+        group.add(bar);
+      }
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.045, 6, 18), mat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 2.05;
+      group.add(ring);
+      group.visible = false;
+      group.name = "cage";
+      return group;
+    };
+    const setCage = (mesh: THREE.Group, on: boolean) => {
+      const cage = mesh.getObjectByName("cage");
+      if (cage) cage.visible = on;
+    };
+    const freeCount = () => (role === "hider" && !playerCaged ? 1 : 0) + agents.filter((a) => a.role === "hider" && !a.caged).length;
+    const cageActor = (mesh: THREE.Group, agent?: Agent) => {
+      if (agent) agent.caged = true;
+      setCage(mesh, true);
+      caughtCount = agents.filter((a) => a.caged).length + (playerCaged ? 1 : 0);
+      if (freeCount() === 0) endRound("seekers-won", "Every hider is caged. Seekers win.");
+    };
+    const freeActor = (agent: Agent) => {
+      agent.caged = false;
+      setCage(agent.mesh, false);
+      message = `${agent.name} is free.`;
+    };
+
+    const player = makeCharacter(role === "hider" ? 0x2f83d5 : 0xd85a46, role === "seeker");
+    player.position.set(role === "hider" ? -4 : -64, 0, role === "hider" ? 76 : -46);
+    scene.add(player);
+
+    const roster: { role: Role; name: string; color: number; at: [number, number] }[] = role === "hider"
+      ? [
+          { role: "hider", name: "Mira", color: 0x4ba7d9, at: [-23, 64] },
+          { role: "hider", name: "Dev", color: 0x58bd86, at: [29, 31] },
+          { role: "seeker", name: "Rafi", color: 0xe15a4f, at: [-61, -48] },
+          { role: "seeker", name: "Arun", color: 0xe6a93b, at: [55, -38] },
+        ]
+      : [
+          { role: "hider", name: "Leela", color: 0x4ba7d9, at: [-23, 64] },
+          { role: "hider", name: "Mira", color: 0x58bd86, at: [29, 31] },
+          { role: "hider", name: "Dev", color: 0xe1a4d0, at: [65, -18] },
+          { role: "seeker", name: "Arun", color: 0xe15a4f, at: [42, 43] },
+        ];
+    const agents: Agent[] = roster.map((item, i) => {
+      const mesh = makeCharacter(item.color, item.role === "seeker");
+      mesh.position.set(item.at[0], 0, item.at[1]);
+      mesh.add(makeCage());
+      scene.add(mesh);
+      return { id: i, mesh, role: item.role, alive: true, caged: false, speed: (difficulty === "easy" ? 2.45 : difficulty === "hard" ? 4.1 : 3.2) + i * 0.12, waypoint: (i * 4 + 2) % WAYPOINTS.length, lastSeen: null, think: 0, hiddenSpot: (i * 5 + 3) % WAYPOINTS.length, name: item.name };
+    });
+    player.add(makeCage());
+
+    const keys: Record<string, boolean> = {};
+    const touchKeys: Record<string, boolean> = {};
+    let yaw = Math.PI;
+    let pitch = 0.34;
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let elapsed = 0;
+    let hudElapsed = 0;
+    let phase: Phase = "playing";
+    let caughtCount = 0;
+    let playerCaged = false;
+    let message = role === "hider" ? "Break line of sight and survive." : "Find the hiders and tag them.";
+    let lastClueAt = -100;
+    const clock = new THREE.Clock();
+    const playerForward = new THREE.Vector3();
+    const desiredCamera = new THREE.Vector3();
+    const playerBox = new THREE.Box3();
+    const raycaster = new THREE.Raycaster();
+    const rayDirection = new THREE.Vector3();
+
+    const blocked = (x: number, z: number, radius = PLAYER_RADIUS) => {
+      playerBox.min.set(x - radius, 0, z - radius);
+      playerBox.max.set(x + radius, PLAYER_HEIGHT, z + radius);
+      return campus.collision.some((item: CampusCollision) => {
+        const b = item.box;
+        return playerBox.max.x > b.min.x && playerBox.min.x < b.max.x && playerBox.max.z > b.min.z && playerBox.min.z < b.max.z && playerBox.min.y < b.max.y && playerBox.max.y > b.min.y;
+      });
+    };
+    const moveActor = (actor: THREE.Group, dx: number, dz: number, radius = PLAYER_RADIUS) => {
+      const nx = THREE.MathUtils.clamp(actor.position.x + dx, -LIMIT_X, LIMIT_X);
+      const nz = THREE.MathUtils.clamp(actor.position.z + dz, -LIMIT_Z, LIMIT_Z);
+      if (!blocked(nx, actor.position.z, radius)) actor.position.x = nx;
+      if (!blocked(actor.position.x, nz, radius)) actor.position.z = nz;
+    };
+    const hasLineOfSight = (from: THREE.Vector3, to: THREE.Vector3) => {
+      rayDirection.set(to.x - from.x, 0, to.z - from.z);
+      const dist = rayDirection.length();
+      if (dist < 0.01) return true;
+      rayDirection.normalize();
+      const origin = new THREE.Vector3(from.x, 1.25, from.z);
+      raycaster.set(origin, rayDirection);
+      raycaster.far = dist;
+      for (const item of campus.collision) {
+        const hit = raycaster.ray.intersectBox(item.box, new THREE.Vector3());
+        if (hit && origin.distanceTo(hit) < dist - 0.6) return false;
+      }
+      return true;
+    };
+    const canSee = (seeker: THREE.Group, hider: THREE.Group, range: number) => {
+      const d = distance2D(seeker.position, hider.position);
+      if (d > range || !hasLineOfSight(seeker.position, hider.position)) return false;
+      const forward = new THREE.Vector3(Math.sin(seeker.rotation.y), 0, Math.cos(seeker.rotation.y));
+      const toward = new THREE.Vector3(hider.position.x - seeker.position.x, 0, hider.position.z - seeker.position.z).normalize();
+      return forward.dot(toward) > (d < 5 ? -0.15 : 0.25);
+    };
+    const setKey = (event: KeyboardEvent, value: boolean) => {
+      const code = event.code;
+      const map: Record<string, string> = { KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d", ArrowUp: "w", ArrowLeft: "a", ArrowDown: "s", ArrowRight: "d", ShiftLeft: "shift", ShiftRight: "shift", Space: "jump" };
+      const key = map[code];
+      if (key) keys[key] = value;
+      if (key && ["w", "a", "s", "d", "shift", "jump"].includes(key)) event.preventDefault();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      setKey(e, true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      setKey(e, false);
+    };
+    const clearKeys = () => { Object.keys(keys).forEach((k) => (keys[k] = false)); Object.keys(touchKeys).forEach((k) => (touchKeys[k] = false)); };
+    const onBlur = () => clearKeys();
+    const onPointerDown = (e: PointerEvent) => { dragging = true; lastX = e.clientX; lastY = e.clientY; renderer.domElement.focus(); try { renderer.domElement.setPointerCapture(e.pointerId); } catch {} };
+    const onPointerMove = (e: PointerEvent) => { if (!dragging) return; yaw -= (e.clientX - lastX) * 0.0055; pitch = THREE.MathUtils.clamp(pitch - (e.clientY - lastY) * 0.0038, 0.12, 0.82); lastX = e.clientX; lastY = e.clientY; };
+    const onPointerUp = () => { dragging = false; };
+    const onResize = () => { if (!mount) return; camera.aspect = mount.clientWidth / Math.max(1, mount.clientHeight); camera.updateProjectionMatrix(); renderer.setSize(mount.clientWidth, mount.clientHeight); };
+    // Listen at document level: the canvas, page, or a recently clicked control may own focus.
+    document.addEventListener("keydown", onKeyDown, { passive: false });
+    document.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    renderer.domElement.addEventListener("pointerdown", onPointerDown);
+    renderer.domElement.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("pointerup", onPointerUp);
+    renderer.domElement.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("resize", onResize);
+
+    const setTouch = (key: string, down: boolean) => { touchKeys[key] = down; };
+    (window as any).__vgbSetTouchKey = setTouch;
+
+    const endRound = (next: Phase, text: string) => { if (phase !== "playing") return; phase = next; message = text; clearKeys(); };
+    const chooseWaypoint = (actor: Agent) => {
+      const candidates = WAYPOINTS.map((p, idx) => ({ idx, d: Math.hypot(p[0] - actor.mesh.position.x, p[1] - actor.mesh.position.z) }))
+        .filter((p) => p.idx !== actor.waypoint).sort((a, b) => a.d - b.d);
+      actor.waypoint = candidates[Math.floor(Math.random() * Math.min(4, candidates.length))]?.idx ?? 0;
+    };
+    const stepAgent = (agent: Agent, dt: number, finalPhase: boolean, seeking: boolean) => {
+      if (!agent.alive || phase !== "playing" || agent.caged) return;
+      const actor = agent.mesh;
+      // Seekers stay put for the 10-second hide.
+      if (agent.role === "seeker" && !seeking) return;
+      if (agent.role === "seeker") {
+        const d = distance2D(actor.position, player.position);
+        const sees = canSee(actor, player, finalPhase ? 22 : 16);
+        if (sees) { agent.lastSeen = player.position.clone(); agent.think = 4; }
+        else if (agent.think > 0) agent.think -= dt;
+        else agent.lastSeen = null;
+        let dest: THREE.Vector3;
+        if (sees) dest = player.position;
+        else if (agent.lastSeen) {
+          dest = agent.lastSeen;
+          if (distance2D(actor.position, agent.lastSeen) < 2.2) {
+            const near = WAYPOINTS.map((p, idx) => ({ idx, d: Math.hypot(p[0] - agent.lastSeen!.x, p[1] - agent.lastSeen!.z) })).sort((a, b) => a.d - b.d);
+            agent.waypoint = near[1 + (agent.id % 3)]?.idx ?? agent.waypoint;
+            agent.lastSeen = null;
+          }
+        } else {
+          const wp = WAYPOINTS[agent.waypoint];
+          dest = new THREE.Vector3(wp[0], 0, wp[1]);
+          if (distance2D(actor.position, dest) < 3) chooseWaypoint(agent);
+        }
+        const dx = dest.x - actor.position.x; const dz = dest.z - actor.position.z; const len = Math.hypot(dx, dz);
+        if (len > 0.1) { moveActor(actor, dx / len * agent.speed * (finalPhase ? 1.08 : 1) * dt, dz / len * agent.speed * (finalPhase ? 1.08 : 1) * dt, 0.55); actor.rotation.y = Math.atan2(dx, dz); }
+        if (seeking && d < 1.8 && canSee(actor, player, 4) && role === "hider" && !playerCaged) {
+          cageActor(player);
+          playerCaged = true;
+          message = "You are caged. A hider has to reach you.";
+        }
+        for (const hider of agents.filter((a) => a.role === "hider" && !a.caged)) {
+          if (seeking && distance2D(actor.position, hider.mesh.position) < 1.8 && canSee(actor, hider.mesh, 4)) cageActor(hider.mesh, hider);
+        }
+      } else {
+        // AI hiders either stay concealed when safe or choose a new route when a seeker gets close.
+        const threat = distance2D(actor.position, player.position);
+        const playerIsSeeker = role === "seeker";
+        const seesThreat = playerIsSeeker && threat < (finalPhase ? 31 : 21) && hasLineOfSight(actor.position, player.position);
+        if (seesThreat) agent.lastSeen = player.position.clone();
+        if (seesThreat || (agent.lastSeen && distance2D(actor.position, agent.lastSeen) < 12)) {
+          const from = agent.lastSeen ?? player.position;
+          const away = new THREE.Vector3(actor.position.x - from.x, 0, actor.position.z - from.z);
+          if (away.lengthSq() < 0.1) away.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+          away.normalize();
+          const speed = agent.speed * (seesThreat ? 1.18 : 0.9);
+          moveActor(actor, away.x * speed * dt, away.z * speed * dt, 0.5);
+          actor.rotation.y = Math.atan2(away.x, away.z);
+        } else {
+          const mate = agents.find((a) => a.role === "hider" && a.caged && a.id !== agent.id) || (playerCaged && role === "hider" ? { mesh: player } : null);
+          const spot = mate ? mate.mesh.position : new THREE.Vector3(...[WAYPOINTS[agent.hiddenSpot][0], 0, WAYPOINTS[agent.hiddenSpot][1]]);
+          if (distance2D(actor.position, spot) > 1.4) {
+            const dx = spot.x - actor.position.x; const dz = spot.z - actor.position.z; const len = Math.hypot(dx, dz) || 1;
+            moveActor(actor, dx / len * agent.speed * 0.7 * dt, dz / len * agent.speed * 0.7 * dt, 0.5);
+            actor.rotation.y = Math.atan2(dx, dz);
+          }
+        }
+        if (seeking && playerIsSeeker && !agent.caged && distance2D(player.position, actor.position) < 1.9 && hasLineOfSight(player.position, actor.position)) {
+          cageActor(actor, agent);
+          message = `${agent.name} is caged.`;
+        }
+        const cagedMate = agents.find((a) => a.role === "hider" && a.caged && a.id !== agent.id);
+        if (cagedMate && distance2D(actor.position, cagedMate.mesh.position) < 2.1) freeActor(cagedMate);
       }
     };
-    const onUp = (event: KeyboardEvent) => real.delete(event.code);
-    const clear = () => real.clear();
-    window.addEventListener("keydown", onDown);
-    window.addEventListener("keyup", onUp);
-    window.addEventListener("blur", clear);
-    return () => {
-      window.removeEventListener("keydown", onDown);
-      window.removeEventListener("keyup", onUp);
-      window.removeEventListener("blur", clear);
-    };
-  }, []);
 
-  useEffect(() => {
     let frame = 0;
-    let last = performance.now();
-    let hudClock = 0;
-    const camera = { x: 840, y: 520 };
-    const loop = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      const sim = simRef.current;
-      step(sim, dt, keysRef.current);
-      const you = playerOf(sim);
-      camera.x += (you.x - camera.x) * Math.min(1, dt * 4);
-      camera.y += (you.y - camera.y) * Math.min(1, dt * 4);
-      const world = worldRef.current;
-      const map = mapRef.current;
-      if (world) {
-        const rect = world.getBoundingClientRect();
-        const dpr = Math.min(2, window.devicePixelRatio || 1);
-        const w = Math.max(1, Math.floor(rect.width * dpr));
-        const h = Math.max(1, Math.floor(rect.height * dpr));
-        if (world.width !== w || world.height !== h) {
-          world.width = w;
-          world.height = h;
+    const animate = () => {
+      if (disposed) return;
+      const dt = Math.min(clock.getDelta(), 0.045);
+      if (phase === "playing") {
+        elapsed += dt;
+        const countdown = 0;
+        const activeElapsed = Math.max(0, elapsed - 3);
+        const live = countdown <= 0;
+        const hiding = live && activeElapsed < HIDE_SECONDS;
+        const seeking = live && activeElapsed >= HIDE_SECONDS;
+        // The timer resets from 10s hide to 30s seek.
+        const remaining = !live
+          ? HIDE_SECONDS
+          : hiding
+            ? Math.max(0, Math.ceil(HIDE_SECONDS - activeElapsed))
+            : Math.max(0, Math.ceil(SEEK_SECONDS - (activeElapsed - HIDE_SECONDS)));
+        const finalPhase = seeking && remaining <= 5;
+        const canPlayerMove = live && !playerCaged && (role === "hider" || seeking);
+        const forward = canPlayerMove ? Number(keys.w || touchKeys.w) - Number(keys.s || touchKeys.s) : 0;
+        const strafe = canPlayerMove ? Number(keys.d || touchKeys.d) - Number(keys.a || touchKeys.a) : 0;
+        const move = new THREE.Vector3(strafe, 0, forward);
+        const sprint = Boolean(keys.shift || touchKeys.shift);
+        if (canPlayerMove && move.lengthSq() > 0) {
+          move.normalize();
+          const forwardDir = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+          const rightDir = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+          const worldMove = new THREE.Vector3().addScaledVector(forwardDir, move.z).addScaledVector(rightDir, move.x);
+          const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
+          moveActor(player, worldMove.x * speed * dt, worldMove.z * speed * dt);
+          player.rotation.y = Math.atan2(worldMove.x, worldMove.z);
         }
-        const ctx = world.getContext("2d");
-        if (ctx) {
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          drawWorld(ctx, sim, camera, rect.width, rect.height);
+        const humanTarget = new THREE.Vector3(player.position.x, player.position.y + 1.2, player.position.z);
+        desiredCamera.set(player.position.x + Math.sin(yaw) * Math.cos(pitch) * 8.1, player.position.y + 1.2 + Math.sin(pitch) * 8.1, player.position.z + Math.cos(yaw) * Math.cos(pitch) * 8.1);
+        camera.position.lerp(desiredCamera, 1 - Math.pow(0.001, dt));
+        camera.lookAt(humanTarget);
+
+        if (seeking && role === "hider" && !playerCaged) {
+          for (const trapped of agents.filter((a) => a.role === "hider" && a.caged)) {
+            if (distance2D(player.position, trapped.mesh.position) < 2.1) freeActor(trapped);
+          }
+        }
+        if (seeking && playerCaged) {
+          const rescuer = agents.find((a) => a.role === "hider" && !a.caged && distance2D(a.mesh.position, player.position) < 2.1);
+          if (rescuer) { playerCaged = false; setCage(player, false); message = "A teammate freed you."; }
+        }
+        if (live) agents.forEach((a) => stepAgent(a, dt, finalPhase, seeking));
+        if (seeking && remaining <= 0 && phase === "playing") endRound("hider-won", "Time is up! Any hider still free wins.");
+        if (!live) message = `Round begins in ${Math.ceil(countdown)}…`;
+        else if (hiding) message = role === "hider" ? "HIDE PHASE: find cover before the seekers are released." : "HIDE PHASE: wait. Seekers cannot move or tag yet.";
+        else if (seeking && message.startsWith("HIDE PHASE:")) {
+          message = role === "seeker" ? "SEEK PHASE: find the hiders and tag them." : "SEEK PHASE: break line of sight and survive.";
+        }
+        const nearest = agents.filter((a) => a.alive).reduce((best, a) => Math.min(best, distance2D(a.mesh.position, player.position)), Infinity);
+        const nearby = seeking && role === "hider" && nearest < (finalPhase ? 24 : 14);
+        if (live && finalPhase && elapsed - lastClueAt > 8 && role === "hider") { lastClueAt = elapsed; message = "FINAL PHASE: seekers are closing in."; }
+        hudElapsed += dt;
+        if (hudElapsed > 0.16) {
+          hudElapsed = 0;
+          setHud({
+            remaining,
+            phase,
+            stage: phase !== "playing" ? "ended" : !live ? "countdown" : hiding ? "hiding" : "seeking",
+            caught: caughtCount,
+            total: agents.filter((a) => a.role === "hider").length + (role === "hider" ? 1 : 0),
+            nearby,
+            sprint,
+            message,
+            finalPhase,
+            caged: playerCaged,
+          });
         }
       }
-      if (map && sim.phase !== "menu") {
-        const dpr = Math.min(2, window.devicePixelRatio || 1);
-        const css = map.getBoundingClientRect().width || 144;
-        const size = Math.floor(css * dpr);
-        if (map.width !== size) {
-          map.width = size;
-          map.height = size;
-        }
+
+      const map = mapRef.current;
+      if (map) {
+        const size = 168;
+        if (map.width !== size) { map.width = size; map.height = size; }
         const ctx = map.getContext("2d");
         if (ctx) {
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          drawMap(ctx, sim, css);
+          ctx.clearRect(0, 0, size, size);
+          ctx.fillStyle = "#101612";
+          ctx.fillRect(0, 0, size, size);
+          const sx = (x: number) => ((x + LIMIT_X) / (LIMIT_X * 2)) * size;
+          const sy = (z: number) => ((z + LIMIT_Z) / (LIMIT_Z * 2)) * size;
+          const dots = [{ name: "You", x: player.position.x, z: player.position.z, color: "#e4b15a", caged: playerCaged }, ...agents.map((a) => ({ name: a.name, x: a.mesh.position.x, z: a.mesh.position.z, color: a.caged ? "#e4b15a" : a.role === "hider" ? "#7ec8b3" : "#d4654a", caged: a.caged }))];
+          for (const dot of dots) {
+            ctx.beginPath();
+            ctx.fillStyle = dot.color;
+            ctx.arc(sx(dot.x), sy(dot.z), dot.name === "You" ? 4 : 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#f3efe4";
+            ctx.font = "600 9px sans-serif";
+            ctx.fillText(dot.name, sx(dot.x) + 5, sy(dot.z) - 4);
+          }
         }
       }
-      hudClock += dt;
-      if (hudClock > 0.12) {
-        hudClock = 0;
-        setHud(snapshot(sim));
-      }
-      frame = requestAnimationFrame(loop);
+      renderer.render(scene, camera);
+      frame = requestAnimationFrame(animate);
     };
-    frame = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frame);
-  }, []);
+    frame = requestAnimationFrame(animate);
 
-  const start = () => {
-    const sim = createSim(role);
-    sim.phase = "hide";
-    sim.time = HIDE_SECONDS;
-    simRef.current = sim;
-    setHud(snapshot(sim));
-  };
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("resize", onResize);
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      renderer.domElement.removeEventListener("pointermove", onPointerMove);
+      renderer.domElement.removeEventListener("pointerup", onPointerUp);
+      renderer.domElement.removeEventListener("pointercancel", onPointerUp);
+      delete (window as any).__vgbSetTouchKey;
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) { obj.geometry.dispose(); const material = obj.material; if (Array.isArray(material)) material.forEach((m) => m.dispose()); else material.dispose(); }
+      });
+      renderer.dispose();
+      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
+    };
+  }, [started, role, difficulty, runId]);
 
-  const clock =
-    hud.phase === "hide" ? "Hide" : hud.phase === "seek" ? "Seek" : hud.phase === "over" ? "Round" : "Ready";
+  const formatTime = (n: number) => `${Math.floor(n / 60).toString().padStart(2, "0")}:${(n % 60).toString().padStart(2, "0")}`;
+  const touch = (key: string, down: boolean) => { const fn = (window as any).__vgbSetTouchKey; if (fn) fn(key, down); };
+  const primary = "#eaf2ed";
+  const muted = "#9eaea5";
+  const panel: CSSProperties = { background: "rgba(12,24,19,.88)", border: "1px solid rgba(218,238,223,.14)", borderRadius: 18, backdropFilter: "blur(18px)" };
+  const button: CSSProperties = { border: "1px solid rgba(232,246,236,.18)", borderRadius: 12, padding: "11px 15px", fontWeight: 700, cursor: "pointer", color: primary, background: "rgba(255,255,255,.055)" };
 
   return (
-    <main className="relative h-[calc(100dvh-4.5rem)] overflow-hidden bg-[#101612] text-[#f3efe4]">
-      <canvas ref={worldRef} className="absolute inset-0 h-full w-full" />
+    <main style={{ minHeight: "100dvh", background: "#07110d", color: primary, padding: "clamp(12px, 2.5vw, 28px)", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}>
+      <div style={{ maxWidth: 1440, margin: "0 auto" }}>
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 18, flexWrap: "wrap" }}>
+          <div><div style={{ color: "#9ed7ac", fontSize: 11, letterSpacing: 2.4, fontWeight: 900 }}>VGB · CAMPUS GAMES</div><h1 style={{ margin: "5px 0 0", fontSize: "clamp(26px, 4vw, 38px)", letterSpacing: -1.2 }}>Hide <span style={{ color: "#8bc89b" }}>&</span> Seek</h1></div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: muted, fontSize: 12 }}>THIRD-PERSON · CAMPUS MAP</span>{started && <button style={button} onClick={() => { setStarted(false); setHud((h) => ({ ...h, phase: "playing" })); }}>Exit match</button>}</div>
+        </header>
 
-      <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4 sm:p-6">
-        <div className="rounded-2xl border border-[#314036] bg-[#17211c]/90 px-4 py-3 backdrop-blur-md">
-          <p className="text-xs font-medium uppercase tracking-widest text-[#b7c2b4]">{clock}</p>
-          <p className="font-serif text-4xl leading-none text-[#e4b15a]">
-            {hud.phase === "menu" ? "10" : hud.time.toFixed(1)}
-          </p>
-          <p className="mt-1 text-sm text-[#b7c2b4]">
-            {hud.phase === "seek" ? `${SEEK_SECONDS}s to find` : `${HIDE_SECONDS}s to cover`}
-          </p>
-        </div>
-        {hud.phase !== "menu" && (
-          <div className="hidden max-w-sm rounded-2xl border border-[#314036] bg-[#17211c]/90 p-4 backdrop-blur-md sm:block">
-            <p className="text-xs font-medium uppercase tracking-widest text-[#b7c2b4]">Minds</p>
-            <ul className="mt-2 space-y-1.5">
-              {hud.thoughts.map((item) => (
-                <li key={item.name} className="text-sm leading-snug">
-                  <span className={item.role === "seeker" ? "text-[#d4654a]" : "text-[#7ec8b3]"}>{item.name}</span>
-                  <span className="text-[#b7c2b4]"> · {item.thought}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </header>
-
-      {hud.caged && hud.phase === "seek" && (
-        <div className="pointer-events-none absolute left-1/2 top-28 -translate-x-1/2 rounded-full border border-[#e4b15a] bg-[#17211c] px-4 py-2 text-sm text-[#e4b15a]">
-          Caged. A free hider has to reach you.
-        </div>
-      )}
-
-      <canvas
-        ref={mapRef}
-        aria-label="Minimap of every player"
-        className={`absolute bottom-4 right-4 h-36 w-36 rounded-2xl border border-[#314036] shadow-lg sm:bottom-6 sm:right-6 sm:h-44 sm:w-44 ${hud.phase === "menu" ? "hidden" : ""}`}
-      />
-
-      {hud.phase !== "menu" && hud.phase !== "over" && (
-        <div className="absolute bottom-4 left-4 z-10 grid grid-cols-3 gap-2 sm:hidden">
-          <span />
-          <Touch label="W" code="KeyW" keys={keysRef} />
-          <span />
-          <Touch label="A" code="KeyA" keys={keysRef} />
-          <Touch label="S" code="KeyS" keys={keysRef} />
-          <Touch label="D" code="KeyD" keys={keysRef} />
-        </div>
-      )}
-
-      {hud.phase === "menu" && (
-        <div className="absolute inset-0 z-20 grid place-items-center bg-[#101612]/70 p-4">
-          <section className="w-full max-w-md rounded-3xl border border-[#314036] bg-[#17211c] p-6 sm:p-8">
-            <p className="text-xs font-medium uppercase tracking-widest text-[#e4b15a]">Quadrangle</p>
-            <h1 className="mt-2 font-serif text-4xl leading-tight text-[#f3efe4]">Hide, or seek.</h1>
-            <p className="mt-3 text-sm leading-6 text-[#b7c2b4]">
-              Ten seconds to take cover. Thirty to search. A touch cages a hider in place until another hider reaches them.
-            </p>
-            <div className="mt-6 grid grid-cols-2 gap-2">
-              <RoleButton active={role === "hider"} onClick={() => setRole("hider")} title="Hide" detail="Three hiders" />
-              <RoleButton active={role === "seeker"} onClick={() => setRole("seeker")} title="Seek" detail="Two seekers" />
+        {!started ? (
+          <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 18 }}>
+            <div style={{ ...panel, minHeight: 430, overflow: "hidden", position: "relative", padding: "clamp(22px, 4vw, 42px)", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "radial-gradient(ellipse at 70% 30%, rgba(74,128,81,.3), transparent 45%), linear-gradient(140deg,#172b20,#0c1712 68%)" }}>
+              <div style={{ maxWidth: 550 }}><div style={{ display: "inline-flex", borderRadius: 99, padding: "7px 10px", background: "rgba(135,200,151,.12)", color: "#a9e2b4", fontSize: 11, fontWeight: 800, letterSpacing: 1.4 }}>THE CAMPUS IS YOUR ARENA</div><h2 style={{ fontSize: "clamp(34px, 5vw, 58px)", lineHeight: 1.02, letterSpacing: -2, margin: "22px 0 14px" }}>Stay unseen.<br /><span style={{ color: "#9bd7a7" }}>Or find everyone.</span></h2><p style={{ color: "#b5c6bb", lineHeight: 1.7, maxWidth: 490, margin: 0 }}>Use campus paths, courtyards and cover. Choose your side, outsmart the opposition, and survive the final pursuit.</p></div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 38 }}>{[{ big: "03:00", small: "ACTIVE ROUND" }, { big: "2", small: "ROLES" }, { big: "VGB", small: "CAMPUS MAP" }].map((item) => <div key={item.small} style={{ borderTop: "1px solid rgba(230,246,235,.2)", paddingTop: 13 }}><div style={{ fontSize: 23, fontWeight: 900 }}>{item.big}</div><div style={{ color: muted, fontSize: 10, letterSpacing: 1.1, marginTop: 3 }}>{item.small}</div></div>)}</div>
+              <div aria-hidden="true" style={{ position: "absolute", right: -20, bottom: 90, opacity: .15, fontSize: 170, fontWeight: 900, lineHeight: 1, pointerEvents: "none" }}>V</div>
             </div>
-            <button
-              type="button"
-              onClick={start}
-              className="mt-4 w-full rounded-2xl bg-[#e4b15a] px-4 py-3 text-sm font-semibold text-[#101612]"
-            >
-              Start
-            </button>
+            <div style={{ ...panel, padding: 22, display: "flex", flexDirection: "column", gap: 20 }}>
+              <div><div style={{ color: muted, fontSize: 11, fontWeight: 800, letterSpacing: 1.4, marginBottom: 10 }}>01 / PLAY MODE</div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><button onClick={() => setMode("computer")} style={{ ...button, background: mode === "computer" ? "#c6ebce" : button.background, color: mode === "computer" ? "#102018" : primary, borderColor: mode === "computer" ? "#c6ebce" : undefined }}>Vs Computer</button><button onClick={() => setMode("multiplayer")} style={{ ...button, background: mode === "multiplayer" ? "#c6ebce" : button.background, color: mode === "multiplayer" ? "#102018" : primary, borderColor: mode === "multiplayer" ? "#c6ebce" : undefined }}>Portal Match</button></div>{mode === "multiplayer" && <p style={{ color: "#f2c875", fontSize: 12, lineHeight: 1.5, margin: "10px 0 0" }}>Private rooms are the next milestone. This build implements the computer mode; multiplayer is not yet connected to room records.</p>}</div>
+              <div><div style={{ color: muted, fontSize: 11, fontWeight: 800, letterSpacing: 1.4, marginBottom: 10 }}>02 / CHOOSE YOUR ROLE</div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><button onClick={() => setRole("hider")} style={{ ...button, textAlign: "left", background: role === "hider" ? "rgba(80,154,213,.2)" : button.background, borderColor: role === "hider" ? "#579bd2" : undefined }}><span style={{ display: "block", fontSize: 22, marginBottom: 6 }}>◈</span><span>Hide</span><span style={{ display: "block", fontSize: 11, color: muted, fontWeight: 500, marginTop: 4 }}>10s hide + 30s seek</span></button><button onClick={() => setRole("seeker")} style={{ ...button, textAlign: "left", background: role === "seeker" ? "rgba(224,113,76,.2)" : button.background, borderColor: role === "seeker" ? "#dc795b" : undefined }}><span style={{ display: "block", fontSize: 22, marginBottom: 6 }}>⌖</span><span>Seek</span><span style={{ display: "block", fontSize: 11, color: muted, fontWeight: 500, marginTop: 4 }}>Cage every hider</span></button></div></div>
+              <div><div style={{ color: muted, fontSize: 11, fontWeight: 800, letterSpacing: 1.4, marginBottom: 10 }}>03 / DIFFICULTY</div><div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 7 }}>{(["easy", "normal", "hard"] as Difficulty[]).map((d) => <button key={d} onClick={() => setDifficulty(d)} style={{ ...button, padding: "9px 5px", textTransform: "capitalize", fontSize: 12, background: difficulty === d ? "rgba(155,215,167,.17)" : button.background, borderColor: difficulty === d ? "#80ba8b" : undefined }}>{d}</button>)}</div></div>
+              <button onClick={begin} disabled={mode === "multiplayer"} style={{ ...button, marginTop: "auto", padding: 15, background: mode === "multiplayer" ? "rgba(255,255,255,.07)" : "#c6ebce", color: mode === "multiplayer" ? muted : "#0c1c12", borderColor: mode === "multiplayer" ? "rgba(232,246,236,.12)" : "#c6ebce", fontSize: 15, cursor: mode === "multiplayer" ? "not-allowed" : "pointer", opacity: mode === "multiplayer" ? 0.75 : 1 }}>{mode === "multiplayer" ? "Multiplayer · Next phase" : <>Start game <span style={{ marginLeft: 8 }}>→</span></>}</button>
+              <div style={{ color: muted, fontSize: 11, lineHeight: 1.5 }}>Prototype build · Solo AI mode is playable. Multiplayer and account-linked rooms are planned for the next phase.</div>
+            </div>
           </section>
-        </div>
-      )}
-
-      {hud.phase === "over" && (
-        <div className="absolute inset-0 z-20 grid place-items-center bg-[#101612]/70 p-4">
-          <section className="w-full max-w-md rounded-3xl border border-[#314036] bg-[#17211c] p-6 text-center sm:p-8">
-            <p className="text-xs font-medium uppercase tracking-widest text-[#b7c2b4]">Round over</p>
-            <h2 className="mt-2 font-serif text-4xl text-[#f3efe4]">{hud.result}</h2>
-            <button
-              type="button"
-              onClick={start}
-              className="mt-6 rounded-2xl bg-[#e4b15a] px-5 py-3 text-sm font-semibold text-[#101612]"
-            >
-              Start
-            </button>
+        ) : (
+          <section style={{ position: "relative", overflow: "hidden", borderRadius: 18, border: "1px solid rgba(218,238,223,.16)", background: "#101c17" }}>
+            <div ref={mountRef} style={{ height: "min(72vh, 760px)", minHeight: 430, touchAction: "none" }} />
+            <div style={{ position: "absolute", top: 14, left: 14, right: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, pointerEvents: "none", flexWrap: "wrap" }}>
+              <div style={{ ...panel, padding: "11px 14px", minWidth: 125 }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>YOUR ROLE</div><div style={{ fontSize: 21, fontWeight: 900, color: role === "hider" ? "#88c8f5" : "#ff9e7f", marginTop: 3 }}>{role === "hider" ? "HIDER" : "SEEKER"}</div></div>
+              <div style={{ ...panel, padding: "11px 16px", textAlign: "center", minWidth: 110 }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>{hud.stage === "countdown" ? "STARTING" : hud.stage === "hiding" ? "HIDE TIME" : hud.stage === "seeking" && hud.finalPhase ? "FINAL 30 SECONDS" : hud.stage === "seeking" ? "SEEK TIME" : "ROUND OVER"}</div><div style={{ fontSize: 27, fontVariantNumeric: "tabular-nums", fontWeight: 900, color: hud.remaining <= 30 ? "#ffbf6d" : primary, marginTop: 1 }}>{formatTime(hud.remaining)}</div></div>
+              <div style={{ ...panel, padding: "11px 14px", textAlign: "right" }}><div style={{ fontSize: 10, color: muted, letterSpacing: 1.2, fontWeight: 900 }}>OPPOSITION</div><div style={{ fontSize: 19, fontWeight: 850, marginTop: 3 }}>{role === "hider" ? `${agentsLabel(hud.total - hud.caught)} seekers` : `${hud.caught}/${hud.total} tagged`}</div></div>
+            </div>
+            <div style={{ position: "absolute", left: 14, bottom: 14, maxWidth: "min(440px, calc(100% - 28px))", ...panel, padding: "10px 13px", pointerEvents: "none" }}><div style={{ fontSize: 12, fontWeight: 750 }}>{hud.nearby ? "⚠ A seeker is nearby" : hud.message}</div><div style={{ color: muted, fontSize: 10, marginTop: 4 }}>WASD / arrows to move · Shift to sprint · Drag mouse to look</div></div>
+            {mobile && <div style={{ position: "absolute", left: 14, bottom: 80, display: "grid", gridTemplateColumns: "repeat(3,44px)", gap: 5 }}><span /><button style={button} onPointerDown={() => touch("w", true)} onPointerUp={() => touch("w", false)} onPointerLeave={() => touch("w", false)}>↑</button><span /><button style={button} onPointerDown={() => touch("a", true)} onPointerUp={() => touch("a", false)} onPointerLeave={() => touch("a", false)}>←</button><button style={button} onPointerDown={() => touch("s", true)} onPointerUp={() => touch("s", false)} onPointerLeave={() => touch("s", false)}>↓</button><button style={button} onPointerDown={() => touch("d", true)} onPointerUp={() => touch("d", false)} onPointerLeave={() => touch("d", false)}>→</button><button style={{ ...button, gridColumn: "span 3" }} onPointerDown={() => touch("shift", true)} onPointerUp={() => touch("shift", false)} onPointerLeave={() => touch("shift", false)}>Sprint</button></div>}
+            <button onClick={() => setMobile((v) => !v)} style={{ ...button, position: "absolute", right: 14, bottom: 14, background: "rgba(12,24,19,.88)" }}>{mobile ? "Hide touch controls" : "Touch controls"}</button>
+            {hud.caged && hud.stage === "seeking" && <div style={{ position: "absolute", left: "50%", top: 18, transform: "translateX(-50%)", ...panel, color: "#e4b15a", padding: "8px 14px", fontSize: 13 }}>Caged. A free hider has to reach you.</div>}
+            <canvas ref={mapRef} aria-label="Minimap of every player" style={{ position: "absolute", right: 14, bottom: 14, width: 168, height: 168, borderRadius: 16, border: "1px solid rgba(218,238,223,.18)", background: "#101612" }} />
+{hud.phase !== "playing" && <div style={{ position: "absolute", inset: 0, background: "rgba(4,10,7,.72)", backdropFilter: "blur(7px)", display: "grid", placeItems: "center", padding: 20 }}><div style={{ ...panel, width: "min(440px,100%)", padding: 28, textAlign: "center" }}><div style={{ color: "#9ed7ac", letterSpacing: 2, fontSize: 10, fontWeight: 900 }}>ROUND COMPLETE</div><h2 style={{ fontSize: 34, margin: "12px 0" }}>{hud.phase === "seekers-won" ? "Seekers win" : hud.phase === "caught" ? "You were found" : "Hiders survive"}</h2><p style={{ color: muted, lineHeight: 1.6 }}>{hud.message}</p><div style={{ display: "flex", gap: 9, justifyContent: "center", marginTop: 22, flexWrap: "wrap" }}><button style={{ ...button, background: "#c6ebce", color: "#0c1c12" }} onClick={begin}>Play again</button><button style={button} onClick={() => setStarted(false)}>Change role</button></div></div></div>}
           </section>
-        </div>
-      )}
+        )}
+        <footer style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, color: "#71877a", fontSize: 11, marginTop: 14 }}><span>VGB Hide & Seek · 00:10 hide + 00:30 seek · 00:03 pre-round countdown</span><span>Campus geometry is an approximate playable blockout.</span></footer>
+      </div>
     </main>
   );
 }
 
-function RoleButton({
-  active,
-  onClick,
-  title,
-  detail,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-2xl border px-3 py-3 text-left ${active ? "border-[#e4b15a] bg-[#101612]" : "border-[#314036] bg-[#101612]/40"}`}
-    >
-      <span className="block text-sm font-semibold">{title}</span>
-      <span className="block text-xs text-[#b7c2b4]">{detail}</span>
-    </button>
-  );
-}
-
-function Touch({ label, code, keys }: { label: string; code: string; keys: { current: Set<string> | null } }) {
-  const hold = (down: boolean) => {
-    const set = keys.current;
-    if (!set) return;
-    if (down) set.add(code);
-    else set.delete(code);
-  };
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#314036] bg-[#17211c]/90 text-xs font-semibold text-[#f3efe4]"
-      onPointerDown={(event) => {
-        event.preventDefault();
-        hold(true);
-      }}
-      onPointerUp={() => hold(false)}
-      onPointerLeave={() => hold(false)}
-      onPointerCancel={() => hold(false)}
-    >
-      {label}
-    </button>
-  );
-}
+function agentsLabel(count: number) { return Math.max(0, count); }
