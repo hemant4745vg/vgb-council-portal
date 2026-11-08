@@ -288,13 +288,88 @@ export default function HideAndSeekPage() {
       for (const s of agents) if (s.role === "seeker") list.push(s.mesh);
       return list;
     };
+    const lineClear = (x1: number, z1: number, x2: number, z2: number) => {
+      const dist = Math.hypot(x2 - x1, z2 - z1);
+      const steps = Math.max(1, Math.ceil(dist / 1.6));
+      for (let i = 1; i <= steps; i += 1) {
+        const t = i / steps;
+        if (blocked(x1 + (x2 - x1) * t, z1 + (z2 - z1) * t, 0.7)) return false;
+      }
+      return true;
+    };
+    const NAV: [number, number][] = [
+      ...WAYPOINTS,
+      [-78, -70], [-40, -82], [0, -82], [40, -82], [78, -70],
+      [-78, -34], [-40, -34], [0, -34], [40, -34], [78, -34],
+      [-78, 0], [-22, 0], [22, 0], [78, 0],
+      [-78, 28], [-22, 28], [22, 28], [78, 28],
+      [-78, 65], [-40, 65], [0, 72], [40, 65], [78, 65],
+      [-78, 88], [0, 90], [78, 88],
+    ];
+    const links: number[][] = NAV.map(() => []);
+    for (let i = 0; i < NAV.length; i += 1) {
+      for (let j = i + 1; j < NAV.length; j += 1) {
+        if (Math.hypot(NAV[i][0] - NAV[j][0], NAV[i][1] - NAV[j][1]) > 42) continue;
+        if (lineClear(NAV[i][0], NAV[i][1], NAV[j][0], NAV[j][1])) {
+          links[i].push(j);
+          links[j].push(i);
+        }
+      }
+    }
+    const nearestNode = (x: number, z: number) => {
+      let best = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < NAV.length; i += 1) {
+        const d = Math.hypot(NAV[i][0] - x, NAV[i][1] - z);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      return best;
+    };
+    const nextStep = (x: number, z: number, tx: number, tz: number): [number, number] => {
+      if (lineClear(x, z, tx, tz)) return [tx, tz];
+      const start = nearestNode(x, z);
+      const goal = nearestNode(tx, tz);
+      if (start === goal) return [tx, tz];
+      const open = [start];
+      const came = new Map<number, number>();
+      const score = new Map<number, number>([[start, 0]]);
+      const seen = new Set<number>();
+      while (open.length) {
+        open.sort((a, b) => (score.get(a) ?? 0) - (score.get(b) ?? 0));
+        const cur = open.shift()!;
+        if (cur === goal) break;
+        if (seen.has(cur)) continue;
+        seen.add(cur);
+        for (const next of links[cur]) {
+          const cost = (score.get(cur) ?? 0) + Math.hypot(NAV[next][0] - NAV[cur][0], NAV[next][1] - NAV[cur][1]);
+          if (cost < (score.get(next) ?? Infinity)) {
+            score.set(next, cost);
+            came.set(next, cur);
+            open.push(next);
+          }
+        }
+      }
+      let node = goal;
+      let prev = came.get(node);
+      if (prev === undefined) return [NAV[goal][0], NAV[goal][1]];
+      while (prev !== undefined && prev !== start) { node = prev; prev = came.get(node); }
+      return [NAV[node][0], NAV[node][1]];
+    };
     const walk = (actor: THREE.Group, dest: THREE.Vector3, speed: number, dt: number) => {
-      const dx = dest.x - actor.position.x;
-      const dz = dest.z - actor.position.z;
-      const len = Math.hypot(dx, dz);
-      if (len < 0.2) return;
+      const step = nextStep(actor.position.x, actor.position.z, dest.x, dest.z);
+      let dx = step[0] - actor.position.x;
+      let dz = step[1] - actor.position.z;
+      let len = Math.hypot(dx, dz);
+      if (len < 0.25) return false;
+      const before = actor.position.clone();
       moveActor(actor, (dx / len) * speed * dt, (dz / len) * speed * dt, 0.55);
+      if (actor.position.distanceTo(before) < speed * dt * 0.2) {
+        const side = actor.userData.side === -1 ? -1 : 1;
+        moveActor(actor, (-dz / len) * side * speed * dt, (dx / len) * side * speed * dt, 0.55);
+        if (actor.position.distanceTo(before) < 0.04) actor.userData.side = -side;
+      }
       actor.rotation.y = Math.atan2(dx, dz);
+      return !lineClear(actor.position.x, actor.position.z, dest.x, dest.z);
     };
     const stepAgent = (agent: Agent, dt: number, finalPhase: boolean, seeking: boolean) => {
       if (!agent.alive || phase !== "playing" || agent.caged) {
@@ -327,7 +402,8 @@ export default function HideAndSeekPage() {
           agent.thought = "Sweeping the quad";
           if (distance2D(actor.position, dest) < 3) chooseWaypoint(agent);
         }
-        walk(actor, dest, agent.speed * (finalPhase ? 1.08 : 1), dt);
+        const around = walk(actor, dest, agent.speed * (finalPhase ? 1.08 : 1), dt);
+        if (around) agent.thought = seen ? `Going around to reach ${seen.name}` : "Going around the building";
         for (const hider of prey) {
           if (distance2D(actor.position, hider.mesh.position) < 1.8 && hasLineOfSight(actor.position, hider.mesh.position)) {
             if (hider.agent) { cageActor(hider.mesh, hider.agent); message = `${hider.name} is caged.`; }
