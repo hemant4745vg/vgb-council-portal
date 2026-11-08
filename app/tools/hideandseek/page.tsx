@@ -236,13 +236,14 @@ export default function HideAndSeekPage() {
       return forward.dot(toward) > (d < 5 ? -0.15 : 0.25);
     };
     const setKey = (event: KeyboardEvent, value: boolean) => {
-      const code = event.code.toLowerCase();
-      const named = event.key.toLowerCase();
-      const key = code === "keyw" || named === "w" || code === "arrowup" ? "w"
-        : code === "keya" || named === "a" || code === "arrowleft" ? "a"
-        : code === "keys" || named === "s" || code === "arrowdown" ? "s"
-        : code === "keyd" || named === "d" || code === "arrowright" ? "d"
-        : code.startsWith("shift") || named === "shift" ? "shift" : "";
+      const code = (event.code || "").toLowerCase();
+      const named = (event.key || "").toLowerCase();
+      let key = "";
+      if (code === "keyw" || named === "w" || code === "arrowup") key = "w";
+      else if (code === "keya" || named === "a" || code === "arrowleft") key = "a";
+      else if (code === "keys" || named === "s" || code === "arrowdown") key = "s";
+      else if (code === "keyd" || named === "d" || code === "arrowright") key = "d";
+      else if (code.includes("shift") || named === "shift") key = "shift";
       if (!key) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       keysRef.current[key] = value;
@@ -460,18 +461,20 @@ export default function HideAndSeekPage() {
             : Math.max(0, Math.ceil(SEEK_SECONDS - (activeElapsed - HIDE_SECONDS)));
         const finalPhase = seeking && remaining <= 5;
         const canPlayerMove = !playerCaged && (role === "hider" || seeking);
-        const forward = canPlayerMove ? Number(keys.w || touchKeys.w) - Number(keys.s || touchKeys.s) : 0;
-        const strafe = canPlayerMove ? Number(keys.d || touchKeys.d) - Number(keys.a || touchKeys.a) : 0;
-        const move = new THREE.Vector3(strafe, 0, forward);
-        const sprint = Boolean(keys.shift || touchKeys.shift);
-        if (canPlayerMove && move.lengthSq() > 0) {
-          move.normalize();
-          const forwardDir = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
-          const rightDir = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-          const worldMove = new THREE.Vector3().addScaledVector(forwardDir, move.z).addScaledVector(rightDir, move.x);
-          const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
-          moveActor(player, worldMove.x * speed * dt, worldMove.z * speed * dt);
-          player.rotation.y = Math.atan2(worldMove.x, worldMove.z);
+        const held = keysRef.current;
+        const forward = (held.w ? 1 : 0) - (held.s ? 1 : 0);
+        const strafe = (held.d ? 1 : 0) - (held.a ? 1 : 0);
+        const sprint = Boolean(held.shift);
+        if (canPlayerMove && (forward !== 0 || strafe !== 0)) {
+          const len = Math.hypot(forward, strafe) || 1;
+          const speed = (sprint ? SPRINT_SPEED : WALK_SPEED) * dt;
+          const dx = ((-Math.sin(yaw) * forward + Math.cos(yaw) * strafe) / len) * speed;
+          const dz = ((-Math.cos(yaw) * forward - Math.sin(yaw) * strafe) / len) * speed;
+          const nx = THREE.MathUtils.clamp(player.position.x + dx, -LIMIT_X, LIMIT_X);
+          const nz = THREE.MathUtils.clamp(player.position.z + dz, -LIMIT_Z, LIMIT_Z);
+          if (!blocked(nx, player.position.z)) player.position.x = nx;
+          if (!blocked(player.position.x, nz)) player.position.z = nz;
+          player.rotation.y = Math.atan2(dx, dz);
         }
         const humanTarget = new THREE.Vector3(player.position.x, player.position.y + 1.2, player.position.z);
         desiredCamera.set(player.position.x + Math.sin(yaw) * Math.cos(pitch) * 8.1, player.position.y + 1.2 + Math.sin(pitch) * 8.1, player.position.z + Math.cos(yaw) * Math.cos(pitch) * 8.1);
